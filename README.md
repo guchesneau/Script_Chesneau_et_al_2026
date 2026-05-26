@@ -1,3 +1,4 @@
 # Script_Chesneau_et_al_2026
 
-Repositery will be updated soon
+The repository will be updated soon.  
+Please contact guillaume.chesneau@inrae.fr if needed.

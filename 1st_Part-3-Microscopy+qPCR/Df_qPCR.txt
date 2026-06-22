@@ -1,0 +1,49 @@
+Sample_ID	Sample_Name	Environment	Strain	Time	Media	Biological	Tare	Tare+Plant	Plant (mg)	Bio_rep	Comment	UBQ10	Microbial_primers
+9	17	Agar	Agar	2weeks	Water	1	1.7075	1.7557	48.2	Rep 1		35.65	16.61
+10	18	Agar	Agar	2weeks	Water	1	1.6753	1.7111	35.8	Rep 1		35.22	18.1
+11	19	Agar	Agar	2weeks	Water	2	1.6503	1.7158	65.5	Rep 2			16.14
+12	20	Agar	Agar	2weeks	Water	2	1.6692	1.7119	42.7	Rep 2			16.23
+13	21	Agar	Agar	2weeks	3OMG	1	1.6791	1.7515	72.4	Rep 1		36.43	18.82
+14	22	Agar	Agar	2weeks	3OMG	1	1.6755	1.7355	60	Rep 1			19.1
+15	23	Agar	Agar	2weeks	3OMG	2	1.6535	1.6937	40.2	Rep 2			18.45
+16	24	Agar	Agar	2weeks	3OMG	2	1.6761	1.7396	63.5	Rep 2			18.35
+17	25	Agar	Agar	72h	Water		1.6726	1.7092	36.6	Rep 1			16.42
+18	26	Agar	Agar	72h	Water		1.6438	1.675	31.2	Rep 1			17.68
+19	27	Agar	Agar	72h	Water		1.6454	1.6991	53.7	Rep 2			15.5
+20	28	Agar	Agar	72h	Water		1.6671	1.7407	73.6	Rep 2			15.05
+21	29	Agar	Agar	72h	3OMG		1.6744	1.7099	35.5	Rep 1			16.38
+22	30	Agar	Agar	72h	3OMG		1.6586	1.7047	46.1	Rep 1			15.91
+23	31	Agar	Agar	72h	3OMG		1.6632	1.7166	53.4	Rep 2			15.87
+24	32	Agar	Agar	72h	3OMG		1.6815	1.7427	61.2	Rep 2			16.01
+41	49	Agar	Agar	1week	Water	1	1.6654	1.6842	18.8	Rep 1			16.47
+42	50	Agar	Agar	1week	Water	1	1.6484	1.6839	35.5	Rep 1			16.51
+43	51	Agar	Agar	1week	Water	2	1.642	1.6763	34.3	Rep 2			16.57
+44	52	Agar	Agar	1week	Water	2	1.6421	1.6938	51.7	Rep 2			18.23
+45	53	Agar	Agar	1week	3OMG	1	1.65	1.6721	22.1	Rep 1			18
+46	54	Agar	Agar	1week	3OMG	1	1.655	1.7001	45.1	Rep 1			17.32
+47	55	Agar	Agar	1week	3OMG	2	1.6411	1.6696	28.5	Rep 2			17.53
+48	56	Agar	Agar	1week	3OMG	2	1.6396	1.678	38.4	Rep 2		35.24	16.19
+1	9	Root	F16	2weeks	Water	1	1.6736	1.6788	5.2	Rep 1		29.76	22.54
+2	10	Root	F16	2weeks	Water	1	1.6396	1.6451	5.5	Rep 1		28.55	22.77
+3	11	Root	F16	2weeks	Water	2	1.6767	1.6824	5.7	Rep 2		28.49	22.27
+4	12	Root	F16	2weeks	Water	2	1.6781	1.6845	6.4	Rep 2		26.62	20.08
+5	13	Root	F16	2weeks	3OMG	1	1.6541	1.67	15.9	Rep 1		29.62	27.16
+6	14	Root	F16	2weeks	3OMG	1	1.6001	1.6044	4.3	Rep 1		30.26	27.65
+7	15	Root	F16	2weeks	3OMG	2	1.6618	1.6692	7.4	Rep 2		31.12	28
+8	16	Root	F16	2weeks	3OMG	2	1.6618	1.6692	7.4	Rep 2		32.29	29.82
+25	33	Root	F16	72h	Water	1	1.6363	1.6411	4.8	Rep 1		30	22.9
+26	34	Root	F16	72h	Water	1	1.671	1.6755	4.5	Rep 1		28.65	20.37
+27	35	Root	F16	72h	Water	1	1.6602	1.6649	4.7	Rep 2			28.6
+28	36	Root	F16	72h	Water	1	1.6562	1.6609	4.7	Rep 2			28.52
+29	37	Root	F16	72h	3OMG	2	1.6542	1.6624	8.2	Rep 1		32.47	24.2
+30	38	Root	F16	72h	3OMG	2	1.6462	1.6529	6.7	Rep 1			27.8
+31	39	Root	F16	72h	3OMG	2	1.659	1.6685	9.5	Rep 2		32.87	24.54
+32	40	Root	F16	72h	3OMG	2	1.6568	1.6648	8	Rep 2		31.78	23.97
+33	41	Root	F16	1week	Water	1	1.6778	1.6802	2.4	Rep 1		27.23	21.43
+34	42	Root	F16	1week	Water	1	1.6601	1.6633	3.2	Rep 1		27.35	21.25
+35	43	Root	F16	1week	Water	2	1.6531	1.6582	5.1	Rep 2		30.34	23.94
+36	44	Root	F16	1week	Water	2	1.6787	1.6823	3.6	Rep 2		27.06	20.19
+37	45	Root	F16	1week	3OMG	1	1.6749	1.6793	4.4	Rep 1		26.7	23.48
+38	46	Root	F16	1week	3OMG	1	1.6658	1.6697	3.9	Rep 1		27.18	23.23
+39	47	Root	F16	1week	3OMG	2	1.6497	1.6542	4.5	Rep 2		31.42	26.89
+40	48	Root	F16	1week	3OMG	2	1.6373	1.6403	3	Rep 2		30.17	25.04

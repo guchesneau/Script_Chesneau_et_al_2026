@@ -1,0 +1,2074 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau & Dorcas Lin"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+This script has been made on R 4.2.2 (and Rstudio 2023.09.1+494)
+
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+library(rstatix)  # For statistical analysis
+library(ggpubr)   # For creating publication-ready plots using ggplot2
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(cowplot)
+library(purrr)
+library(FSA)
+library(multcompView)
+library(rcompanion)
+
+color_palette <- c(
+  "Water" = "#949494",
+  "3OMG"  = "#7FC29B"
+)
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    panel.border = element_rect(color = "black", fill = NA))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF","BFSC","BSC","FSC","F16","F44","F64","F96","F100","F117","F147","F212","F243","Pu","Rs","Vd","Bs","AMF")
+
+Microbes_Primers_levels<-c("BFSC - ITS","BFSC - Primer_16S","BSC - Primer_16S","FSC - ITS", "MF" ,"F16 - ITS", "F117 - ITS","Vd - ITS", "F96 - ITS", "F147 - ITS", "F212 - ITS", "F44 - ITS", "F243 - ITS", "F100 - ITS", "F64 - ITS", "Pu - ITS1", "Rs - RS",  "AMF - ITS", "Bs - ITS")
+
+
+Kingdom_levels <- c("MiniSynCom", "Fungi","Oomycetes","Bacteria")
+
+Kingdom <- tibble(Microbes = Microbes_levels) %>%
+  mutate(Kingdom = dplyr::case_when(
+    Microbes %in% c("BFSC","BSC","FSC") ~ "MiniSynCom",
+    Microbes %in% c("F16","F44","F64","F96","F100","F117","F147","F212","F243","Vd","Bs","AMF") ~ "Fungi",
+    Microbes == "Pu" ~ "Oomycetes",
+    Microbes == "Rs" ~ "Bacteria",
+    TRUE ~ NA_character_
+  ))
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'BFSC - ITS'="Bacterial and Fungal<br>SynCom - *ITS*",
+  'BFSC - Primer_16S'="Bacterial and Fungal<br>SynCom - *16S*",
+  'BSC - Primer_16S'="Bacterial<br>SynCom - *16S*",
+  'FSC - ITS' = "Fungal<br>SynCom - *ITS*",
+  'F16 - ITS' = "*Plecto.*<br>*cucumerina - ITS*",
+  'F44 - ITS' = "*Fusarium*<br>*tricinctum - ITS*",
+  'F64 - ITS' = "*Alternaria*<br>*alternata - ITS*",
+  'F96 - ITS' = "*Rhizoctonia*<br>*solani - ITS*",
+  'F100 - ITS' = "*Boeremia*<br>*exigua - ITS*",
+  'F117 - ITS' = "*Plecto.*<br>*plurivora - ITS*",
+  'F147 - ITS' = "*Dactylo.*<br>*macrodidyma - ITS*",
+  'F212 - ITS' = "*Fusarium*<br>*oxysporum - ITS*",
+  'F243 - ITS' = "*Dendryphion*<br>*nanum - ITS*",
+  'Pu - ITS1' = "*Globispor.*<br>*ultimum - ITS1*",
+  'Rs - RS' = "*Ralstonia*<br>*solanacear. - UGD-up*",
+  'Bs - ITS' = "*Bipolaris*<br>*sorokiniana - ITS*",
+  'NoAMF' = "Microbe free",
+  'Vd - ITS' = "*Verticilium*<br> *dahliae - ITS*",
+  'AMF - ITS' = "*Rhizophagus*<br>*irregularis - ITS*",
+  'Fungi' = "Fungi",
+  'Oomycetes' = "Oomycetes",
+  'Bacteria' = "Bacteria",
+  'Arabidopsis_thaliana' = "Arabidopsis thaliana"
+)
+
+labels2 <- c(
+  'MF' = "Microbe free",
+  'BFSC'="Bacterial and Fungal<br>SynCom - *ITS*",
+  'BFSC'="Bacterial and Fungal<br>SynCom - *16S*",
+  'BSC'="Bacterial<br>SynCom - *16S*",
+  'FSC' = "Fungal<br>SynCom - *ITS*",
+  'F16' = "*Plectosphaerella*<br>*cucumerina*",
+  'F44' = "*Fusarium*<br>*tricinctum*",
+  'F64' = "*Alternaria*<br>*alternata*",
+  'F96' = "*Rhizoctonia*<br>*solani*",
+  'F100' = "*Boeremia*<br>*exigua*",
+  'F117' = "*Plectosphaerella*<br>*plurivora*",
+  'F147' = "*Dactylonectria*<br>*macrodidyma*",
+  'F212' = "*Fusarium*<br>*oxysporum*",
+  'F243' = "*Dendryphion*<br>*nanum*",
+  'Pu' = "*Globisporangium*<br>*ultimum*",
+  'Rs' = "*Ralstonia*<br>*solanacearum*",
+  'Bs' = "*Bipolaris*<br>*sorokiniana*",
+  'Bc' = "*Botrytis*<br>*cinerea*",
+  'NoAMF' = "Microbe free",
+  'Vd' = "*Verticilium*<br> *dahliae*",
+  'AMF' = "*Rhizophagus*<br>*irregularis*",
+  'Fungi' = "Fungi",
+  'Oomycetes' = "Oomycetes",
+  'Bacteria' = "Bacteria",
+  'Flowpots' = "Flowpots",
+  'MS_Agar' = "MS Agar"
+)
+```
+
+# A] Colonization
+
+## 1. Prepare Data
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Open dataset
+df <- read.table(file="Df_total_Colonization.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove Botrytis
+df <- subset(df, !Microbes %in% c("Bc"))
+```
+
+## 2. Subset Plant / Matrix
+
+```{r}
+#Subset the data to separate Soil and Root
+Matrix_data2 <- subset(df, Element %in% c("Matrix"))
+Plant_data2 <- subset(df, Element %in% c("Plant"))
+```
+
+## 3.  Arabidopsis
+
+### a) - Colonization Matrixes
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset At
+Matrix_data <- subset(Matrix_data2, Plant %in% c("Arabidopsis_thaliana"))
+Matrix_data <- subset(Matrix_data, !Microbes %in% c("Vd", "Bs", "AMF"))
+
+# Calculate adjusted CT
+Matrix_data$CT[is.na(Matrix_data$CT)]<-40
+
+# Remove Glucose
+Matrix_data <- subset(Matrix_data, !Treatment %in% c("Glucose"))
+
+# Clean soil data: remove invalid combinations
+Matrix_data_cleaned <- Matrix_data %>%
+  filter(
+    (Primers == "Primer_16S" & Microbes == c("BSC", "BFSC")) |
+    (Primers == "RS" & Microbes == c("Rs")) |
+    (Primers == "ITS1" & Microbes == c("Pu")) |
+    (Primers == "ITS" & !(Microbes %in% c("BSC", "Rs", "Pu", "MF")))
+  )
+
+# Create concat variable
+Matrix_data_cleaned$concat <- paste0(Matrix_data_cleaned$Microbes, "/", Matrix_data_cleaned$Primers,"/",  Matrix_data_cleaned$Plant, "/", Matrix_data_cleaned$System)
+
+# Stats: Wilcoxon test by group
+get_signif_results <- function(data, x_start = 1, x_end = 2) {
+  
+  # Optional: see counts
+  data %>%
+    count(concat, Treatment) %>%
+    print()
+  
+  # Nest data by concat
+  data %>%
+    group_by(concat) %>%
+    nest() %>%
+    mutate(
+      test_result = map(data, ~ tryCatch(
+        t.test(CT ~ Treatment, data = .x),
+        error = function(e) NA_real_
+      )),
+      p_value = map_dbl(test_result, ~ if(is.list(.x)) .x$p.value else NA_real_),
+      y_pos = map_dbl(data, ~ max(.x$CT, na.rm = TRUE) + 0.5),
+      x_start = x_start,
+      x_end = x_end,
+      significance = case_when(
+        is.na(p_value) ~ "ns",
+        p_value < 0.001 ~ "***",
+        p_value < 0.01 ~ "**",
+        p_value < 0.05 ~ "*",
+        TRUE ~ "ns"
+      )) %>%
+    select(concat, p_value, y_pos, x_start, x_end, significance) %>%
+    unnest(cols = c())
+}
+
+#Run Stats
+Stats_Matrix <- get_signif_results(Matrix_data_cleaned)
+
+#Add Group Treatment
+Stats_Matrix$group1 <- c("Water")
+Stats_Matrix$group2 <- c("3OMG")
+
+#Remake columns 
+Stats_Matrix <- Stats_Matrix %>%
+  separate(
+    concat,
+    into = c("Microbes", "Primers", "Plant", "System"),
+    sep = "/",
+    remove = FALSE  # keeps the original concat column
+  )
+
+# Merge stats with soil data
+Matrix_data_cleaned_Stats <- Matrix_data_cleaned %>%
+  left_join(Stats_Matrix, by = c("Microbes", "Primers", "Plant", "System"))
+
+# Prepare the stats table for plotting
+Matrix_data_cleaned_Stats <- Matrix_data_cleaned_Stats %>%
+  mutate(
+    # Only show significant p-values (< 0.05), rounded to 3 decimals
+    label_text = ifelse(
+      p_value < 0.05,
+      paste0("P = ", round(p_value,5)),
+      NA_character_
+    )
+  )
+
+#Remove MiniSynCom
+Matrix_data_cleaned_Stats <- subset(Matrix_data_cleaned_Stats, !Experiment %in% c("MiniSC"))
+
+#Order
+Matrix_data_cleaned_Stats$Treatment <- factor(Matrix_data_cleaned_Stats$Treatment, levels = c ("Water", "Glucose", "3OMG"))
+
+#Number of samples
+rep_counts <- Matrix_data_cleaned_Stats %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Reorder the 'System' and 'Microbes' factors
+Matrix_data_cleaned_Stats$Microbes <- factor(Matrix_data_cleaned_Stats$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+rep_counts$Microbes <- factor(rep_counts$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+# Plot
+Plot_Matrix_at <- ggplot(Matrix_data_cleaned_Stats, aes(x = Treatment, y = -CT, fill = Treatment)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(alpha = 0.6, width = 0.2) +
+  ylab(expression("Matrix Colonization (-Ct)")) +
+  xlab("") +
+  facet_grid(System ~Microbes , space = "free", scales = "free", labeller = as_labeller(labels2)) +
+    scale_fill_manual(values = color_palette) +
+  labs(shape = "Biological Replicates") +
+  base_theme +
+# Add significant p-values
+  stat_pvalue_manual(
+    ok <- Matrix_data_cleaned_Stats %>%
+  filter(Treatment != "3OMG") %>%                       # 🔹 remove 3OMG
+  distinct(System, Microbes, Treatment, label_text,     # 🔹 avoid duplicates
+           p_value, y_pos, .keep_all = TRUE),
+    label = "label_text",
+    y.position = -10,
+    tip.length = 0.02,
+    hide.ns = TRUE,
+    size = 3
+  )+
+  # Add replicate counts
+  geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = -40, 
+        label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 3
+  )  + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+Plot_Matrix_at
+
+#Save The table for HeatMap
+Matrix_data_cleaned_Stats_At <- Matrix_data_cleaned_Stats
+```
+
+### b) - Colonization Plant
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset At
+Plant_data <- subset(Plant_data2, Plant %in% c("Arabidopsis_thaliana"))
+Plant_data <- subset(Plant_data, !Microbes %in% c("Vd", "Bs", "AMF"))
+
+#Put non detected Microbial primers as a value of 40
+Plant_data$UBQ10[is.na(Plant_data$UBQ10)] <- 40
+Plant_data$CT[is.na(Plant_data$CT)] <- 40
+
+#Remove when plants are not detected
+Plant_data <- subset(Plant_data, !UBQ10 %in% c(40))
+
+
+# Remove Glucose
+Plant_data <- subset(Plant_data, !Treatment %in% c("Glucose"))
+
+# Clean soil data: remove invalid combinations
+Plant_data_cleaned <- Plant_data %>%
+  filter(
+    (Primers == "Primer_16S" & Microbes == c("BSC", "BFSC")) |
+    (Primers == "RS" & Microbes == c("Rs")) |
+    (Primers == "ITS1" & Microbes == c("Pu")) |
+    (Primers == "ITS" & !(Microbes %in% c("BSC", "Rs", "Pu", "MF")))
+  )
+
+# Calculate the ratio for each row (2^Dekta CT)
+Plant_data_cleaned$LogDeltaCT <- log(2^(-(Plant_data_cleaned$CT - Plant_data_cleaned$UBQ10)))
+Plant_data_cleaned$DeltaCT <- 2^(-(Plant_data_cleaned$CT - Plant_data_cleaned$UBQ10))
+
+  
+# Create concat variable
+Plant_data_cleaned$concat <- paste0(Plant_data_cleaned$Microbes, "/", Plant_data_cleaned$Primers,"/",  Plant_data_cleaned$Plant, "/", Plant_data_cleaned$System)
+
+
+# Stats: Wilcoxon test by group
+get_signif_results <- function(data, x_start = 1, x_end = 2) {
+  
+  # Optional: see counts
+  data %>%
+    count(concat, Treatment) %>%
+    print()
+  
+  # Nest data by concat
+  data %>%
+    group_by(concat) %>%
+    nest() %>%
+    mutate(
+      test_result = map(data, ~ tryCatch(
+        t.test(LogDeltaCT ~ Treatment, data = .x),
+        error = function(e) NA_real_
+      )),
+      p_value = map_dbl(test_result, ~ if(is.list(.x)) .x$p.value else NA_real_),
+      y_pos = map_dbl(data, ~ max(.x$DeltaCT, na.rm = TRUE) + 0.5),
+      x_start = x_start,
+      x_end = x_end,
+      significance = case_when(
+        is.na(p_value) ~ "ns",
+        p_value < 0.001 ~ "***",
+        p_value < 0.01 ~ "**",
+        p_value < 0.05 ~ "*",
+        TRUE ~ "ns"
+      )) %>%
+    select(concat, p_value, y_pos, x_start, x_end, significance) %>%
+    unnest(cols = c())
+}
+
+#Run Stats
+Stats_Plant <- get_signif_results(Plant_data_cleaned)
+
+#Add Group Treatment
+Stats_Plant$group1 <- c("Water")
+Stats_Plant$group2 <- c("3OMG")
+
+#Remake columns 
+Stats_Plant <- Stats_Plant %>%
+  separate(
+    concat,
+    into = c("Microbes", "Primers", "Plant", "System"),
+    sep = "/",
+    remove = FALSE  # keeps the original concat column
+  )
+
+
+
+# Merge stats with soil data
+Plant_data_cleaned_Stats <- Plant_data_cleaned %>%
+  left_join(Stats_Plant, by = c("Microbes", "Primers", "Plant", "System"))
+
+# Prepare the stats table for plotting
+Plant_data_cleaned_Stats <- Plant_data_cleaned_Stats %>%
+  mutate(
+    # Only show significant p-values (< 0.05), rounded to 3 decimals
+    label_text = ifelse(
+      p_value < 0.05,
+      paste0("P = ", round(p_value,5)),
+      NA_character_
+    )
+  )
+
+
+
+#Remove MiniSynCom
+Plant_data_cleaned_Stats <- subset(Plant_data_cleaned_Stats, !Experiment %in% c("MiniSC"))
+
+#Order
+Plant_data_cleaned_Stats$Treatment <- factor(Plant_data_cleaned_Stats$Treatment, levels = c ("Water", "Glucose", "3OMG"))
+
+#Number of samples
+rep_counts <- Plant_data_cleaned_Stats %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Reorder the 'System' and 'Microbes' factors
+Plant_data_cleaned_Stats$Microbes <- factor(Plant_data_cleaned_Stats$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+rep_counts$Microbes <- factor(rep_counts$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+# Plot
+Plot_PLant_at <- ggplot(Plant_data_cleaned_Stats, aes(x = Treatment, y = LogDeltaCT, fill = Treatment)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(alpha = 0.6, width = 0.2) +
+  ylab(expression("Root Colonization " ~ 2^{Delta*CT} ~ italic(AtUBQ10))) +
+  xlab("") +
+  facet_grid(System~Microbes, space = "free", scales = "free", labeller = as_labeller(labels2)) +
+    scale_fill_manual(values = color_palette) +
+  labs(shape = "Biological Replicates") +
+  base_theme +
+  # Add significant p-values
+  stat_pvalue_manual(
+    ok <- Plant_data_cleaned_Stats %>%
+  filter(Treatment != "3OMG") %>%                       # 🔹 remove 3OMG
+  distinct(System, Microbes, Treatment, label_text,     # 🔹 avoid duplicates
+           p_value, y_pos, .keep_all = TRUE),
+    label = "label_text",
+    y.position = 12,
+    tip.length = 0.02,
+    hide.ns = TRUE,
+    size = 3
+  )+
+  # Add replicate counts
+  geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = min(Plant_data_cleaned_Stats$LogDeltaCT, na.rm = TRUE) - 0.5, 
+        label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+Plot_PLant_at
+
+#Save The table for HeatMap
+Plant_data_cleaned_Stats_At <- Plant_data_cleaned_Stats
+```
+## 4.  Tomato
+
+### a) - Colonization Matrixes
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset At
+Matrix_data <- subset(Matrix_data2, Plant %in% c("Micro_Tomato"))
+
+# Calculate adjusted CT
+Matrix_data$CT[is.na(Matrix_data$CT)]<-40
+
+# Remove Glucose
+Matrix_data <- subset(Matrix_data, !Treatment %in% c("Glucose"))
+
+# Clean soil data: remove invalid combinations
+Matrix_data_cleaned <- Matrix_data %>%
+  filter(
+    (Primers == "Primer_16S" & Microbes == c("BSC", "BFSC")) |
+    (Primers == "RS" & Microbes == c("Rs")) |
+    (Primers == "ITS1" & Microbes == c("Pu")) |
+    (Primers == "ITS" & !(Microbes %in% c("BSC", "Rs", "Pu", "MF")))
+  )
+
+# Create concat variable
+Matrix_data_cleaned$concat <- paste0(Matrix_data_cleaned$Microbes, "/", Matrix_data_cleaned$Primers,"/",  Matrix_data_cleaned$Plant, "/", Matrix_data_cleaned$System)
+
+
+# Stats: Wilcoxon test by group
+get_signif_results <- function(data, x_start = 1, x_end = 2) {
+  
+  # Optional: see counts
+  data %>%
+    count(concat, Treatment) %>%
+    print()
+  
+  # Nest data by concat
+  data %>%
+    group_by(concat) %>%
+    nest() %>%
+    mutate(
+      test_result = map(data, ~ tryCatch(
+        t.test(CT ~ Treatment, data = .x),
+        error = function(e) NA_real_
+      )),
+      p_value = map_dbl(test_result, ~ if(is.list(.x)) .x$p.value else NA_real_),
+      y_pos = map_dbl(data, ~ max(.x$CT, na.rm = TRUE) + 0.5),
+      x_start = x_start,
+      x_end = x_end,
+      significance = case_when(
+        is.na(p_value) ~ "ns",
+        p_value < 0.001 ~ "***",
+        p_value < 0.01 ~ "**",
+        p_value < 0.05 ~ "*",
+        TRUE ~ "ns"
+      )) %>%
+    select(concat, p_value, y_pos, x_start, x_end, significance) %>%
+    unnest(cols = c())
+}
+
+#Run Stats
+Stats_Matrix <- get_signif_results(Matrix_data_cleaned)
+
+#Add Group Treatment
+Stats_Matrix$group1 <- c("Water")
+Stats_Matrix$group2 <- c("3OMG")
+
+#Remake columns 
+Stats_Matrix <- Stats_Matrix %>%
+  separate(
+    concat,
+    into = c("Microbes", "Primers", "Plant", "System"),
+    sep = "/",
+    remove = FALSE  # keeps the original concat column
+  )
+
+
+
+# Merge stats with soil data
+Matrix_data_cleaned_Stats <- Matrix_data_cleaned %>%
+  left_join(Stats_Matrix, by = c("Microbes", "Primers", "Plant", "System"))
+
+# Prepare the stats table for plotting
+Matrix_data_cleaned_Stats <- Matrix_data_cleaned_Stats %>%
+  mutate(
+    # Only show significant p-values (< 0.05), rounded to 3 decimals
+    label_text = ifelse(
+      p_value < 0.05,
+      paste0("P = ", round(p_value,5)),
+      NA_character_
+    )
+  )
+
+#Remove MiniSynCom
+Matrix_data_cleaned_Stats <- subset(Matrix_data_cleaned_Stats, !Experiment %in% c("MiniSC"))
+
+#Order
+Matrix_data_cleaned_Stats$Treatment <- factor(Matrix_data_cleaned_Stats$Treatment, levels = c ("Water", "Glucose", "3OMG"))
+
+#Number of samples
+rep_counts <- Matrix_data_cleaned_Stats %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Reorder the 'System' and 'Microbes' factors
+Matrix_data_cleaned_Stats$Microbes <- factor(Matrix_data_cleaned_Stats$Microbes, levels = c("MF" ,"F16", "Vd", "F96", "AMF"))  # desired order
+
+rep_counts$Microbes <- factor(rep_counts$Microbes, levels = c("MF" ,"F16", "Vd", "F96", "AMF"))  # desired order
+
+
+# Plot
+Plot_Matrix_T <- ggplot(Matrix_data_cleaned_Stats, aes(x = Treatment, y = -CT, fill = Treatment)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(alpha = 0.6, width = 0.2) +
+  ylab(expression("Matrix Colonization (-Ct)")) +
+  xlab("") +
+  facet_grid(System ~Microbes , space = "free", scales = "free", labeller = as_labeller(labels2)) +
+    scale_fill_manual(values = color_palette) +
+  labs(shape = "Biological Replicates") +
+  base_theme +
+  # Add significant p-values
+  stat_pvalue_manual(
+    ok <- Matrix_data_cleaned_Stats %>%
+  filter(Treatment != "3OMG") %>%                       # 🔹 remove 3OMG
+  distinct(System, Microbes, Treatment, label_text,     # 🔹 avoid duplicates
+           p_value, y_pos, .keep_all = TRUE),
+    label = "label_text",
+    y.position = -10,
+    tip.length = 0.02,
+    hide.ns = TRUE,
+    size = 3
+  )+
+  # Add replicate counts
+  geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = -40, 
+        label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+Plot_Matrix_T
+
+#Save The table for HeatMap
+Matrix_data_cleaned_Stats_MT <- Matrix_data_cleaned_Stats
+```
+
+
+### b) - Colonization Plant
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset At
+Plant_data <- subset(Plant_data2, Plant %in% c("Micro_Tomato"))
+
+#Put non detected Microbial primers as a value of 40
+Plant_data$UBQ10[is.na(Plant_data$UBQ10)] <- 40
+Plant_data$CT[is.na(Plant_data$CT)] <- 40
+
+#Remove when plants are not detected
+Plant_data <- subset(Plant_data, !UBQ10 %in% c(40))
+
+
+# Remove Glucose
+Plant_data <- subset(Plant_data, !Treatment %in% c("Glucose"))
+
+# Clean soil data: remove invalid combinations
+Plant_data_cleaned <- Plant_data %>%
+  filter(
+    (Primers == "Primer_16S" & Microbes == c("BSC", "BFSC")) |
+    (Primers == "RS" & Microbes == c("Rs")) |
+    (Primers == "ITS1" & Microbes == c("Pu")) |
+    (Primers == "ITS" & !(Microbes %in% c("BSC", "Rs", "Pu", "MF")))
+  )
+
+# Calculate the ratio for each row (2^Dekta CT)
+Plant_data_cleaned$LogDeltaCT <- log(2^(-(Plant_data_cleaned$CT - Plant_data_cleaned$UBQ10)))
+Plant_data_cleaned$DeltaCT <- 2^(-(Plant_data_cleaned$CT - Plant_data_cleaned$UBQ10))
+
+  
+# Create concat variable
+Plant_data_cleaned$concat <- paste0(Plant_data_cleaned$Microbes, "/", Plant_data_cleaned$Primers,"/",  Plant_data_cleaned$Plant, "/", Plant_data_cleaned$System)
+
+
+# Stats: Wilcoxon test by group
+
+get_signif_results <- function(data, x_start = 1, x_end = 2) {
+  
+  # Optional: see counts
+  data %>%
+    count(concat, Treatment) %>%
+    print()
+  
+  # Nest data by concat
+  data %>%
+    group_by(concat) %>%
+    nest() %>%
+    mutate(
+      test_result = map(data, ~ tryCatch(
+        t.test(LogDeltaCT ~ Treatment, data = .x),
+        error = function(e) NA_real_
+      )),
+      p_value = map_dbl(test_result, ~ if(is.list(.x)) .x$p.value else NA_real_),
+      y_pos = map_dbl(data, ~ max(.x$DeltaCT, na.rm = TRUE) + 0.5),
+      x_start = x_start,
+      x_end = x_end,
+      significance = case_when(
+        is.na(p_value) ~ "ns",
+        p_value < 0.001 ~ "***",
+        p_value < 0.01 ~ "**",
+        p_value < 0.05 ~ "*",
+        TRUE ~ "ns"
+      )) %>%
+    select(concat, p_value, y_pos, x_start, x_end, significance) %>%
+    unnest(cols = c())
+}
+
+#Run Stats
+Stats_Plant <- get_signif_results(Plant_data_cleaned)
+
+#Add Group Treatment
+Stats_Plant$group1 <- c("Water")
+Stats_Plant$group2 <- c("3OMG")
+
+#Remake columns 
+Stats_Plant <- Stats_Plant %>%
+  separate(
+    concat,
+    into = c("Microbes", "Primers", "Plant", "System"),
+    sep = "/",
+    remove = FALSE  # keeps the original concat column
+  )
+
+
+
+# Merge stats with soil data
+Plant_data_cleaned_Stats <- Plant_data_cleaned %>%
+  left_join(Stats_Plant, by = c("Microbes", "Primers", "Plant", "System"))
+
+# Prepare the stats table for plotting
+Plant_data_cleaned_Stats <- Plant_data_cleaned_Stats %>%
+  mutate(
+    # Only show significant p-values (< 0.05), rounded to 3 decimals
+    label_text = ifelse(
+      p_value < 0.05,
+      paste0("P = ", round(p_value,5)),
+      NA_character_
+    )
+  )
+
+
+
+#Remove MiniSynCom
+Plant_data_cleaned_Stats <- subset(Plant_data_cleaned_Stats, !Experiment %in% c("MiniSC"))
+
+#Order
+Plant_data_cleaned_Stats$Treatment <- factor(Plant_data_cleaned_Stats$Treatment, levels = c ("Water", "Glucose", "3OMG"))
+
+#Number of samples
+rep_counts <- Plant_data_cleaned_Stats %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Reorder the 'System' and 'Microbes' factors
+Plant_data_cleaned_Stats$Microbes <- factor(Plant_data_cleaned_Stats$Microbes, levels = c("MF" ,"F16", "Vd", "F96", "AMF"))  # desired order
+
+rep_counts$Microbes <- factor(rep_counts$Microbes, levels = c("MF" ,"F16", "Vd", "F96", "AMF"))  # desired order
+
+# Plot
+Plot_PLant_T <- ggplot(Plant_data_cleaned_Stats, aes(x = Treatment, y = LogDeltaCT, fill = Treatment)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(alpha = 0.6, width = 0.2) +
+  ylab(expression("Root Colonization " ~ 2^{Delta*CT} ~ italic(AtUBQ10))) +
+  xlab("") +
+  facet_grid(System~Microbes, space = "free", scales = "free", labeller = as_labeller(labels2)) +
+    scale_fill_manual(values = color_palette) +
+  labs(shape = "Biological Replicates") +
+  base_theme +
+   # Add significant p-values
+  stat_pvalue_manual(
+    ok <- Plant_data_cleaned_Stats %>%
+  filter(Treatment != "3OMG") %>%                       # 🔹 remove 3OMG
+  distinct(System, Microbes, Treatment, label_text,     # 🔹 avoid duplicates
+           p_value, y_pos, .keep_all = TRUE),
+    label = "label_text",
+    y.position = 6,
+    tip.length = 0.02,
+    hide.ns = TRUE,
+    size = 3
+  )+
+  # Add replicate counts
+  geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = min(Plant_data_cleaned_Stats$LogDeltaCT, na.rm = TRUE) - 0.5, 
+        label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+Plot_PLant_T
+
+#Save The table for HeatMap
+Plant_data_cleaned_Stats_MT <- Plant_data_cleaned_Stats
+
+#MAke plot but Plecrto alone
+Plant_data_cleaned_Stats_F16 <- subset(Plant_data_cleaned_Stats, Microbes %in% c("F16"))
+Plant_data_cleaned_Stats_F16 <- subset(Plant_data_cleaned_Stats, Microbes %in% c("F16"))
+rep_counts_F16 <- subset(rep_counts, Microbes %in% c("F16"))
+
+#Plot
+Plot_PLant_F16 <- ggplot(Plant_data_cleaned_Stats_F16, 
+                       aes(x = Treatment, y = LogDeltaCT, fill = Treatment)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(alpha = 0.6, width = 0.2) +
+  ylab(expression("Root Colonization " ~ 2^{Delta*CT} ~ italic(AtUBQ10))) +
+  xlab("") +
+  facet_grid(System ~ Microbes, 
+             space = "free", 
+             scales = "free_y",
+             labeller = as_labeller(labels2)) +
+  scale_fill_manual(values = color_palette) +
+  labs(shape = "Biological Replicates") +
+  base_theme +
+  stat_pvalue_manual(
+    ok <- Plant_data_cleaned_Stats_F16 %>%
+      filter(Treatment != "3OMG") %>%
+      distinct(System, Microbes, Treatment, label_text,
+               p_value, y_pos, .keep_all = TRUE),
+    label = "label_text",
+    y.position = 6,
+    tip.length = 0.02,
+    hide.ns = TRUE,
+    size = 3
+  ) +
+  geom_text(
+    data = rep_counts_F16,
+    aes(x = Treatment, 
+        y = min(Plant_data_cleaned_Stats_F16$LogDeltaCT, na.rm = TRUE) - 0.5,
+        label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white")
+  ) 
+
+Plot_PLant_F16
+```
+
+## 5.  Barley
+
+### a) - Colonization Matrixes
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset At
+Matrix_data <- subset(Matrix_data2, Plant %in% c("Hordeum_vulgare"))
+
+# Calculate adjusted CT
+Matrix_data$CT[is.na(Matrix_data$CT)]<-40
+
+# Remove Glucose
+Matrix_data <- subset(Matrix_data, !Treatment %in% c("Glucose"))
+
+# Clean soil data: remove invalid combinations
+Matrix_data_cleaned <- Matrix_data %>%
+  filter(
+    (Primers == "Primer_16S" & Microbes == c("BSC", "BFSC")) |
+    (Primers == "RS" & Microbes == c("Rs")) |
+    (Primers == "ITS1" & Microbes == c("Pu")) |
+    (Primers == "ITS" & !(Microbes %in% c("BSC", "Rs", "Pu", "MF")))
+  )
+
+# Create concat variable
+Matrix_data_cleaned$concat <- paste0(Matrix_data_cleaned$Microbes, "/", Matrix_data_cleaned$Primers,"/",  Matrix_data_cleaned$Plant, "/", Matrix_data_cleaned$System)
+
+# Stats: Wilcoxon test by group
+
+get_signif_results <- function(data, x_start = 1, x_end = 2) {
+  
+  # Optional: see counts
+  data %>%
+    count(concat, Treatment) %>%
+    print()
+  
+  # Nest data by concat
+  data %>%
+    group_by(concat) %>%
+    nest() %>%
+    mutate(
+      test_result = map(data, ~ tryCatch(
+        t.test(CT ~ Treatment, data = .x),
+        error = function(e) NA_real_
+      )),
+      p_value = map_dbl(test_result, ~ if(is.list(.x)) .x$p.value else NA_real_),
+      y_pos = map_dbl(data, ~ max(.x$CT, na.rm = TRUE) + 0.5),
+      x_start = x_start,
+      x_end = x_end,
+      significance = case_when(
+        is.na(p_value) ~ "ns",
+        p_value < 0.001 ~ "***",
+        p_value < 0.01 ~ "**",
+        p_value < 0.05 ~ "*",
+        TRUE ~ "ns"
+      )) %>%
+    select(concat, p_value, y_pos, x_start, x_end, significance) %>%
+    unnest(cols = c())
+}
+
+#Run Stats
+Stats_Matrix <- get_signif_results(Matrix_data_cleaned)
+
+#Add Group Treatment
+Stats_Matrix$group1 <- c("Water")
+Stats_Matrix$group2 <- c("3OMG")
+
+#Remake columns 
+Stats_Matrix <- Stats_Matrix %>%
+  separate(
+    concat,
+    into = c("Microbes", "Primers", "Plant", "System"),
+    sep = "/",
+    remove = FALSE  # keeps the original concat column
+  )
+
+# Merge stats with soil data
+Matrix_data_cleaned_Stats <- Matrix_data_cleaned %>%
+  left_join(Stats_Matrix, by = c("Microbes", "Primers", "Plant", "System"))
+
+# Prepare the stats table for plotting
+Matrix_data_cleaned_Stats <- Matrix_data_cleaned_Stats %>%
+  mutate(
+    # Only show significant p-values (< 0.05), rounded to 3 decimals
+    label_text = ifelse(
+      p_value < 0.05,
+      paste0("P = ", round(p_value,5)),
+      NA_character_
+    )
+  )
+
+#Remove MiniSynCom
+Matrix_data_cleaned_Stats <- subset(Matrix_data_cleaned_Stats, !Experiment %in% c("MiniSC"))
+
+#Order
+Matrix_data_cleaned_Stats$Treatment <- factor(Matrix_data_cleaned_Stats$Treatment, levels = c ("Water", "Glucose", "3OMG"))
+
+#Number of samples
+rep_counts <- Matrix_data_cleaned_Stats %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Reorder the 'System' and 'Microbes' factors
+Matrix_data_cleaned_Stats$Microbes <- factor(Matrix_data_cleaned_Stats$Microbes, levels = c("MF" ,"F16", "AMF", "Bs"))  # desired order
+
+rep_counts$Microbes <- factor(rep_counts$Microbes, levels = c("MF" ,"F16", "AMF", "Bs"))  # desired order
+
+# Plot
+Plot_Matrix_B <- ggplot(Matrix_data_cleaned_Stats, aes(x = Treatment, y = -CT, fill = Treatment)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(alpha = 0.6, width = 0.2) +
+  ylab(expression("Matrix Colonization (-Ct)")) +
+  xlab("") +
+  facet_grid(System ~Microbes , space = "free", scales = "free", labeller = as_labeller(labels2)) +
+    scale_fill_manual(values = color_palette) +
+  labs(shape = "Biological Replicates") +
+  base_theme +
+  # Add significant p-values
+  stat_pvalue_manual(
+    ok <- Matrix_data_cleaned_Stats %>%
+  filter(Treatment != "3OMG") %>%                       # 🔹 remove 3OMG
+  distinct(System, Microbes, Treatment, label_text,     # 🔹 avoid duplicates
+           p_value, y_pos, .keep_all = TRUE),
+    label = "label_text",
+    y.position = -10,
+    tip.length = 0.02,
+    hide.ns = TRUE,
+    size = 3
+  )+
+  # Add replicate counts
+  geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = -40, 
+        label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+Plot_Matrix_B
+
+#Save The table for HeatMap
+Matrix_data_cleaned_Stats_B <- Matrix_data_cleaned_Stats
+```
+
+### b) - Colonization Plant
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset At
+Plant_data <- subset(Plant_data2, Plant %in% c("Hordeum_vulgare"))
+
+#Put non detected Microbial primers as a value of 40
+Plant_data$UBQ10[is.na(Plant_data$UBQ10)] <- 40
+Plant_data$CT[is.na(Plant_data$CT)] <- 40
+
+#Remove when plants are not detected
+Plant_data <- subset(Plant_data, !UBQ10 %in% c(40))
+
+# Remove Glucose
+Plant_data <- subset(Plant_data, !Treatment %in% c("Glucose"))
+
+# Clean soil data: remove invalid combinations
+Plant_data_cleaned <- Plant_data %>%
+  filter(
+    (Primers == "Primer_16S" & Microbes == c("BSC", "BFSC")) |
+    (Primers == "RS" & Microbes == c("Rs")) |
+    (Primers == "ITS1" & Microbes == c("Pu")) |
+    (Primers == "ITS" & !(Microbes %in% c("BSC", "Rs", "Pu", "MF")))
+  )
+
+# Calculate the ratio for each row (2^Dekta CT)
+Plant_data_cleaned$LogDeltaCT <- log(2^(-(Plant_data_cleaned$CT - Plant_data_cleaned$UBQ10)))
+Plant_data_cleaned$DeltaCT <- 2^(-(Plant_data_cleaned$CT - Plant_data_cleaned$UBQ10))
+
+# Create concat variable
+Plant_data_cleaned$concat <- paste0(Plant_data_cleaned$Microbes, "/", Plant_data_cleaned$Primers,"/",  Plant_data_cleaned$Plant, "/", Plant_data_cleaned$System)
+
+# Stats: Wilcoxon test by group
+get_signif_results <- function(data, x_start = 1, x_end = 2) {
+  
+  # Optional: see counts
+  data %>%
+    count(concat, Treatment) %>%
+    print()
+  
+  # Nest data by concat
+  data %>%
+    group_by(concat) %>%
+    nest() %>%
+    mutate(
+      test_result = map(data, ~ tryCatch(
+        t.test(LogDeltaCT ~ Treatment, data = .x),
+        error = function(e) NA_real_
+      )),
+      p_value = map_dbl(test_result, ~ if(is.list(.x)) .x$p.value else NA_real_),
+      y_pos = map_dbl(data, ~ max(.x$DeltaCT, na.rm = TRUE) + 0.5),
+      x_start = x_start,
+      x_end = x_end,
+      significance = case_when(
+        is.na(p_value) ~ "ns",
+        p_value < 0.001 ~ "***",
+        p_value < 0.01 ~ "**",
+        p_value < 0.05 ~ "*",
+        TRUE ~ "ns"
+      )) %>%
+    select(concat, p_value, y_pos, x_start, x_end, significance) %>%
+    unnest(cols = c())
+}
+
+#Run Stats
+Stats_Plant <- get_signif_results(Plant_data_cleaned)
+
+#Add Group Treatment
+Stats_Plant$group1 <- c("Water")
+Stats_Plant$group2 <- c("3OMG")
+
+#Remake columns 
+Stats_Plant <- Stats_Plant %>%
+  separate(
+    concat,
+    into = c("Microbes", "Primers", "Plant", "System"),
+    sep = "/",
+    remove = FALSE  # keeps the original concat column
+  )
+
+# Merge stats with soil data
+Plant_data_cleaned_Stats <- Plant_data_cleaned %>%
+  left_join(Stats_Plant, by = c("Microbes", "Primers", "Plant", "System"))
+
+# Prepare the stats table for plotting
+Plant_data_cleaned_Stats <- Plant_data_cleaned_Stats %>%
+  mutate(
+    # Only show significant p-values (< 0.05), rounded to 3 decimals
+    label_text = ifelse(
+      p_value < 0.05,
+      paste0("P = ", round(p_value,5)),
+      NA_character_
+    )
+  )
+
+#Remove MiniSynCom
+Plant_data_cleaned_Stats <- subset(Plant_data_cleaned_Stats, !Experiment %in% c("MiniSC"))
+
+#Order
+Plant_data_cleaned_Stats$Treatment <- factor(Plant_data_cleaned_Stats$Treatment, levels = c ("Water", "Glucose", "3OMG"))
+
+#Number of samples
+rep_counts <- Plant_data_cleaned_Stats %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Reorder the 'System' and 'Microbes' factors
+Plant_data_cleaned_Stats$Microbes <- factor(Plant_data_cleaned_Stats$Microbes, levels = c("MF" ,"F16", "AMF", "Bs"))  # desired order
+
+rep_counts$Microbes <- factor(rep_counts$Microbes, levels = c("MF" ,"F16", "AMF", "Bs"))  # desired order
+
+# Plot
+Plot_PLant_B <- ggplot(Plant_data_cleaned_Stats, aes(x = Treatment, y = LogDeltaCT, fill = Treatment)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(alpha = 0.6, width = 0.2) +
+  ylab(expression("Root Colonization " ~ 2^{Delta*CT} ~ italic(AtUBQ10))) +
+  xlab("") +
+  facet_grid(System~Microbes, space = "free", scales = "free", labeller = as_labeller(labels2)) +
+    scale_fill_manual(values = color_palette) +
+  labs(shape = "Biological Replicates") +
+  base_theme +
+  # Add significant p-values
+  stat_pvalue_manual(
+    ok <- Plant_data_cleaned_Stats %>%
+  filter(Treatment != "3OMG") %>%                       # 🔹 remove 3OMG
+  distinct(System, Microbes, Treatment, label_text,     # 🔹 avoid duplicates
+           p_value, y_pos, .keep_all = TRUE),
+    label = "label_text",
+    y.position = 12,
+    tip.length = 0.02,
+    hide.ns = TRUE,
+    size = 3
+  )+
+  # Add replicate counts
+  geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = min(Plant_data_cleaned_Stats$LogDeltaCT, na.rm = TRUE) - 0.5, 
+        label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+Plot_PLant_B
+
+#Save The table for HeatMap
+Plant_data_cleaned_Stats_B <- Plant_data_cleaned_Stats
+
+#Get median
+median <- Plant_data_cleaned_Stats %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(
+    median_area = median(DeltaCT, na.rm = TRUE),
+    .groups = "drop"
+  )
+median
+```
+
+
+## 4 - Final Plot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Stack plots vertically with matching widths
+final_plot_At <- plot_grid(
+  Plot_PLant_at,
+  Plot_Matrix_at,
+  ncol = 1,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+ scale = c(1, 1)   # scale individual plots
+)
+final_plot_At
+
+# Stack plots vertically with matching widths
+final_plot_At <- plot_grid(
+  Plot_PLant_at,
+  Plot_Matrix_at,
+  ncol = 1,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+ scale = c(1, 1)   # scale individual plots
+)
+final_plot_At
+
+# Stack plots vertically with matching widths
+final_plot_MT_B <- plot_grid(
+  Plot_PLant_T,
+  Plot_PLant_B,
+  Plot_Matrix_T,
+  Plot_Matrix_B,
+  ncol = 2,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+ scale = c(1, 1,1,1)   # scale individual plots
+)
+final_plot_MT_B
+```
+# B] HeatMap Colonization
+
+## 1 - Combine tables
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Add missing columns
+Matrix_data_cleaned_Stats_At$DeltaCT <- NA
+Matrix_data_cleaned_Stats_MT$DeltaCT <- NA
+Matrix_data_cleaned_Stats_B$DeltaCT <- NA
+Matrix_data_cleaned_Stats_At$LogDeltaCT <- NA
+Matrix_data_cleaned_Stats_MT$LogDeltaCT <- NA
+Matrix_data_cleaned_Stats_B$LogDeltaCT <- NA
+
+Full_table_bind <- rbind(Matrix_data_cleaned_Stats_At, Plant_data_cleaned_Stats_At, Matrix_data_cleaned_Stats_MT, Plant_data_cleaned_Stats_MT, Matrix_data_cleaned_Stats_B, Plant_data_cleaned_Stats_B)
+```
+
+## 1 - Arabidopsis
+
+### a) - Colonization Matrixes
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Data for matrix
+Full_table_bind
+
+#Data for matrix
+Matrix_data_cleaned_Stats_At <- subset(Full_table_bind, Plant %in% c("Arabidopsis_thaliana"))
+Matrix_data_cleaned_Stats_At <- subset(Matrix_data_cleaned_Stats_At, !Microbes %in% c("Vd", "Bs", "AMF"))
+
+#Add column Microba + primer
+Matrix_data_cleaned_Stats_At$Microbes_Primers <- paste0(Matrix_data_cleaned_Stats_At$Microbes, "_", Matrix_data_cleaned_Stats_At$Primers)
+
+# Add a column indicating significance
+Matrix_data_cleaned_Stats_At <- Matrix_data_cleaned_Stats_At %>%
+  mutate(Significant = ifelse(p_value < 0.05, TRUE, FALSE))
+
+#Subset
+Matrix_data_cleaned_Stats_At_Agar <- subset(Matrix_data_cleaned_Stats_At, System %in% c("MS_Agar"))
+Matrix_data_cleaned_Stats_At_Plant <- subset(Matrix_data_cleaned_Stats_At, !System %in% c("MS_Agar"))
+
+# Reorder the 'System' and 'Microbes' factors
+Matrix_data_cleaned_Stats_At_Agar$Microbes <- factor(Matrix_data_cleaned_Stats_At_Agar$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+# Heatmap with conditional dark outline
+plot_Matrix_Agar_at <- ggplot(Matrix_data_cleaned_Stats_At_Agar, 
+               aes(x = Treatment, y = System, fill = -CT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+  scale_fill_gradientn(
+  colors = c("#ffffff", "#fee0d2", "#fc9272", "#de2d26", "darkred"),
+  values = c(0, 0.3, 0.6, 0.8, 1),
+    na.value = "grey90",
+    name = "Colonization\n(adjCT)"
+  ) +
+  facet_grid(~Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "System",
+    title = "Plant Colonization Matrix Agar"
+  ) +
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Matrix_Agar_at
+
+# Reorder the 'System' and 'Microbes' factors
+Matrix_data_cleaned_Stats_At_Plant$Microbes <- factor(Matrix_data_cleaned_Stats_At_Plant$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+# Assume your data frame is called df
+plot_Matrix_FP_At <- ggplot(Matrix_data_cleaned_Stats_At_Plant, 
+               aes(x = Treatment, y = System, fill = -CT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+  scale_fill_gradientn(
+  colors = c("#ffffff", "#fee0d2", "#fc9272", "#de2d26", "darkred"),
+  values = c(0, 0.3, 0.6, 0.8, 1),
+    na.value = "grey90",
+    name = "Colonization\n(adjCT)"
+  ) +
+  facet_grid(~ Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "Matrix",
+    title = "Plant Colonization Matrix FP (Arabidopsis thaliana)"
+  )+
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Matrix_FP_At
+```
+
+### b) - Colonization Plants
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Data for matrix
+Full_table_bind
+
+#Data for matrix
+Plant_data_cleaned_Stats_At <- subset(Full_table_bind, Plant %in% c("Arabidopsis_thaliana"))
+
+
+#Add column Microba + primer
+Plant_data_cleaned_Stats_At$Microbes_Primers <- paste0(Plant_data_cleaned_Stats_At$Microbes, "_", Plant_data_cleaned_Stats_At$Primers)
+
+# Add a column indicating significance
+Plant_data_cleaned_Stats_At <- Plant_data_cleaned_Stats_At %>%
+  mutate(Significant = ifelse(p_value < 0.05, TRUE, FALSE))
+
+#Subset
+Plant_data_cleaned_Stats_At_Agar <- subset(Plant_data_cleaned_Stats_At, System %in% c("MS_Agar"))
+
+Plant_data_cleaned_Stats_At_Plant <- subset(Plant_data_cleaned_Stats_At, !System %in% c("MS_Agar"))
+
+# Reorder the 'System' and 'Microbes' factors
+Plant_data_cleaned_Stats_At_Agar$Microbes <- factor(Plant_data_cleaned_Stats_At_Agar$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+
+# Heatmap with conditional dark outline
+plot_Plant_Agar_At <- ggplot(Plant_data_cleaned_Stats_At_Agar, 
+               aes(x = Treatment, y = System, fill = LogDeltaCT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+   scale_fill_gradientn(
+  colors = c("#ffffff", "#fee0d2", "#fc9272", "#de2d26", "darkred"),
+  values = c(0, 0.3, 0.6, 0.8, 1),
+  name = "Colonization\n(adjCT)",
+  na.value = "grey90"
+) +
+  facet_grid(~ Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "System",
+    title = "Plant Colonization Agar (Arabidopsis thaliana)"
+  )+
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Plant_Agar_At
+
+# Reorder the 'System' and 'Microbes' factors
+Plant_data_cleaned_Stats_At_Plant$Microbes <- factor(Plant_data_cleaned_Stats_At_Plant$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+
+
+# Assume your data frame is called df
+plot_Plant_FP_At <- ggplot(Plant_data_cleaned_Stats_At_Plant, 
+               aes(x = Treatment, y = System, fill = LogDeltaCT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+  scale_fill_gradientn(
+  colors = c("#ffffff", "#fee0d2", "#fc9272", "#de2d26", "darkred"),
+  values = c(0, 0.3, 0.6, 0.8, 1),
+  name = "Colonization\n(adjCT)",
+  na.value = "grey90"
+)+
+  facet_grid(~ Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "System",
+    title = "Plant Colonization Flowpots (Arabidopsis thaliana)"
+  )+
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Plant_FP_At
+```
+
+## 2 - Tomato
+
+### a) - Colonization Matrixes
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Data for matrix
+Full_table_bind
+
+#Data for matrix
+Matrix_data_cleaned_Stats_MT <- subset(Full_table_bind, Plant %in% c("Micro_Tomato"))
+
+#Add column Microba + primer
+Matrix_data_cleaned_Stats_MT$Microbes_Primers <- paste0(Matrix_data_cleaned_Stats_MT$Microbes, "_", Matrix_data_cleaned_Stats_MT$Primers)
+
+# Add a column indicating significance
+Matrix_data_cleaned_Stats_MT <- Matrix_data_cleaned_Stats_MT %>%
+  mutate(Significant = ifelse(p_value < 0.05, TRUE, FALSE))
+
+#Subset
+Matrix_data_cleaned_Stats_MT_Plant <- subset(Matrix_data_cleaned_Stats_MT, !System %in% c("MS_Agar"))
+
+# Reorder the 'System' and 'Microbes' factors
+Matrix_data_cleaned_Stats_MT_Plant$Microbes <- factor(Matrix_data_cleaned_Stats_MT_Plant$Microbes, levels = c("MF" ,"F16", "Vd", "F96", "AMF"))  # desired order
+
+# Assume your data frame is called df
+plot_Matrix_FP_MT <- ggplot(Matrix_data_cleaned_Stats_MT_Plant, 
+               aes(x = Treatment, y = System, fill = -CT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+  scale_fill_gradientn(
+  colors = c("#7FC29B", "#dff5eb", "#f7f7f7", "#000000"),
+    values = c(0, 0.5,  0.8, 1),
+    na.value = "grey90",
+    name = "Colonization\n(adjCT)"
+  ) +
+  facet_grid(~ Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "System",
+    title = "Plant Colonization Matrix FP (Micro tomato)"
+  )+
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Matrix_FP_MT
+```
+
+### b) - Colonization Plants
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Data for matrix
+Full_table_bind
+
+#Data for matrix
+Plant_data_cleaned_Stats_MT <- subset(Full_table_bind, Plant %in% c("Micro_Tomato"))
+
+
+#Add column Microba + primer
+Plant_data_cleaned_Stats_MT$Microbes_Primers <- paste0(Plant_data_cleaned_Stats_MT$Microbes, "_", Plant_data_cleaned_Stats_MT$Primers)
+
+# Add a column indicating significance
+Plant_data_cleaned_Stats_MT <- Plant_data_cleaned_Stats_MT %>%
+  mutate(Significant = ifelse(p_value < 0.05, TRUE, FALSE))
+
+#Subset
+Plant_data_cleaned_Stats_MT_Plant <- subset(Plant_data_cleaned_Stats_MT, !System %in% c("MS_Agar"))
+
+# Plot
+plot_Plant_FP_MT <- ggplot(Plant_data_cleaned_Stats_MT_Plant, 
+               aes(x = Treatment, y = System, fill = LogDeltaCT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+  scale_fill_gradientn(
+    colors = c("#7FC29B", "#dff5eb", "#f7f7f7", "#bfbfbf", "#7f7f7f", "#000000"),
+    values = c(0, 0.2, 0,4, 0.6,  0.8, 1),
+    na.value = "grey90",
+    name = "Colonization\n(adjCT)"
+  ) +
+  facet_grid(~ Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "System",
+    title = "Plant Colonization Flowpots (Micro tomato)"
+  )+
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Plant_FP_MT
+  
+```
+
+## 3 - Barley
+
+### a) - Colonization Matrixes
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Data for matrix
+Full_table_bind
+
+#Data for matrix
+Matrix_data_cleaned_Stats_HV <- subset(Full_table_bind, Plant %in% c("Hordeum_vulgare"))
+
+#Add column Microba + primer
+Matrix_data_cleaned_Stats_HV$Microbes_Primers <- paste0(Matrix_data_cleaned_Stats_HV$Microbes, "_", Matrix_data_cleaned_Stats_HV$Primers)
+
+# Add a column indicating significance
+Matrix_data_cleaned_Stats_HV <- Matrix_data_cleaned_Stats_HV %>%
+  mutate(Significant = ifelse(p_value < 0.05, TRUE, FALSE))
+
+#Subset
+Matrix_data_cleaned_Stats_HV_Plant <- subset(Matrix_data_cleaned_Stats_HV, !System %in% c("MS_Agar"))
+
+# Reorder the 'System' and 'Microbes' factors
+Matrix_data_cleaned_Stats_HV_Plant$Microbes <- factor(Matrix_data_cleaned_Stats_HV_Plant$Microbes, levels = c("MF" ,"F16", "AMF", "Bs")) # desired order
+
+# Assume your data frame is called df
+plot_Matrix_FP_HV <- ggplot(Matrix_data_cleaned_Stats_HV_Plant, 
+               aes(x = Treatment, y = System, fill = -CT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+  scale_fill_gradientn(
+  colors = c("#7FC29B", "#dff5eb", "#f7f7f7", "#000000"),
+    values = c(0, 0.5,  0.8, 1),
+    na.value = "grey90",
+    name = "Colonization\n(adjCT)"
+  ) +
+  facet_grid(~Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "System",
+    title = "Plant Colonization Matrix FP (Micro tomato)"
+  )+
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Matrix_FP_HV
+```
+
+### b) - Colonization Plants
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Data for matrix
+Full_table_bind
+
+#Data for matrix
+Plant_data_cleaned_Stats_HV <- subset(Full_table_bind, Plant %in% c("Hordeum_vulgare"))
+
+
+#Add column Microba + primer
+Plant_data_cleaned_Stats_HV$Microbes_Primers <- paste0(Plant_data_cleaned_Stats_HV$Microbes, "_", Plant_data_cleaned_Stats_HV$Primers)
+
+# Add a column indicating significance
+Plant_data_cleaned_Stats_HV <- Plant_data_cleaned_Stats_HV %>%
+  mutate(Significant = ifelse(p_value < 0.05, TRUE, FALSE))
+
+#Subset
+Plant_data_cleaned_Stats_HV_Plant <- subset(Plant_data_cleaned_Stats_HV, !System %in% c("MS_Agar"))
+
+# Plot
+plot_Plant_FP_HV <- ggplot(Plant_data_cleaned_Stats_HV_Plant, 
+               aes(x = Treatment, y = System, fill = LogDeltaCT)) +
+  geom_tile(aes(color = ifelse(Significant, "black", "white")), size = 0.8) +
+  scale_color_identity() +  # use the colors as-is
+  scale_fill_gradientn(
+    colors = c("#7FC29B", "#dff5eb", "#f7f7f7", "#bfbfbf", "#7f7f7f", "#000000"),
+    values = c(0, 0.2, 0,4, 0.6,  0.8, 1),
+    na.value = "grey90",
+    name = "Colonization\n(adjCT)"
+  ) +
+  facet_grid(~ Microbes, scales = "free_y", labeller = as_labeller(labels2)) +
+  labs(
+    x = "Treatment",
+    y = "System",
+    title = "Plant Colonization Flowpots (Micro tomato)"
+  )+
+  base_theme + theme(
+    strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Plant_FP_HV
+```
+
+## 4 - All plots Heatmaps
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#A. thaliana
+# Plot Arabido Full
+Plot_Arabido_Full <- plot_grid(
+  plot_Plant_FP_At,
+  plot_Matrix_FP_At,
+    plot_Plant_Agar_At,
+  plot_Matrix_Agar_at,
+  ncol = 1,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+    rel_widths = c(1,0.1))  
+Plot_Arabido_Full
+
+
+#M. tomato
+plot_Matrix_FP_MT
+plot_Plant_FP_MT
+
+#Barley
+plot_Matrix_FP_HV
+plot_Plant_FP_HV
+```
+
+# C] Correlation Map
+
+## 1 - Prepare data
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+#Load data PPI
+    raw_data_PPI<-read.csv(file = "Total_PlantPhenotype.csv", header = TRUE, sep=",")
+    
+    raw_data_PPI<-raw_data_PPI%>%
+      dplyr::left_join(Kingdom,by = "Microbes")%>%
+      filter(Treatment!="Glucose")
+    
+    raw_data_PPI$Weight_length[is.na(raw_data_PPI$Weight_length)]<-0
+    raw_data_PPI$Weight_length_per_plant<-raw_data_PPI$Weight_length/raw_data_PPI$Nb
+    
+    #Remove NA
+    raw_data_PPI$Weight_length_per_plant[is.na(raw_data_PPI$Weight_length_per_plant)] <- 0
+    
+    #Calculate GR
+    raw_data_PPI$GR <- raw_data_PPI$Nb / max(raw_data_PPI$Nb, na.rm = TRUE)
+        
+    #Calculate PPI (Plant Performance Index)   
+    raw_data_PPI$PPI <- ifelse(
+  raw_data_PPI$System == "Flowpots",
+  raw_data_PPI$GR * raw_data_PPI$Weight_length_per_plant,   # Flowpots
+  raw_data_PPI$Weight_length_per_plant                       # Other systems
+)
+
+raw_data_PPI$PPI[is.na(raw_data_PPI$PPI)] <- 0
+        
+
+    #Calcualte the median PPI
+      raw_data_PPI_summary <- raw_data_PPI %>%
+        group_by(Plant, System, Experiment, Bio_rep, Microbes, Treatment, Element, Kingdom) %>%
+        summarise(
+          Median_PPI = median(PPI, na.rm = TRUE)
+        ) %>%
+        ungroup()
+      
+      #For merging need to change column System MS_agar into MS_Agar
+raw_data_PPI_summary$System[raw_data_PPI_summary$System == "MS_agar"] <- "MS_Agar"
+
+
+#Load data CT
+    raw_data_Ct <- Full_table_bind
+    
+     #Calcualte the median LogDeltaCT
+      raw_data_Ct_summary <- raw_data_Ct %>%
+        group_by(Plant, System, Experiment, Bio_rep, Microbes, Treatment, Element) %>%
+        summarise(
+          Median_Ct = median(CT, na.rm = TRUE),
+          Median_LogDeltaCT = median(LogDeltaCT, na.rm = TRUE)
+        ) %>%
+        ungroup()
+      
+    # Merge the two tables on conditions
+Data_full <- merge(
+  raw_data_PPI_summary[, c("Plant", "System", "Bio_rep", 
+                           "Microbes", "Treatment","Kingdom", "Median_PPI")],
+  raw_data_Ct_summary[, c("Plant", "System", "Bio_rep", 
+                          "Microbes", "Treatment", "Element", "Median_Ct", "Median_LogDeltaCT")],
+  by = c("Plant", "System", "Bio_rep", 
+         "Microbes", "Treatment"),
+  all.x = TRUE
+)
+
+#Remove MF
+Data_full <- subset(Data_full, !Microbes %in% c("MF", "BSC", "FSC", "BFSC"))
+```
+
+## 2 - Arabidopsis 
+
+### a) - Colonization Matrixes
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+# Keep only Arabidopsis_thaliana, Matrix, Fungi
+Data_full_At_Matrix <- subset(
+  Data_full,
+  Plant %in% c("Arabidopsis_thaliana") &
+    Element %in% c("Matrix") &
+    Kingdom %in% c("Fungi")
+)
+
+# Compute correlation stats per Plant *and* System
+cor_stats <- Data_full_At_Matrix %>%
+  group_by(Plant, System) %>%
+  summarise(
+    r = cor(-Median_Ct, Median_PPI, use = "complete.obs"),
+    r2 = r^2,
+    p_value = cor.test(-Median_Ct, Median_PPI)$p.value,
+    .groups = "drop"
+  )
+
+# Compute x-position per facet for correlation labels
+cor_stats_labels <- cor_stats %>%
+  group_by(System, Plant) %>%
+  summarise(
+    y_pos = max(Data_full_At_Matrix$Median_PPI[Data_full_At_Matrix$System == System &
+                                             Data_full_At_Matrix$Plant == Plant], na.rm = TRUE),
+    x_pos = -max(Data_full_At_Matrix$Median_Ct[Data_full_At_Matrix$System == System &
+                                                     Data_full_At_Matrix$Plant == Plant], na.rm = TRUE),
+    label = paste0("\nR² = ", round(r2, 2), ", P = ", signif(p_value, 2)),
+    .groups = "drop"
+  )
+
+Plot_corr_Matrix_at <- ggplot(Data_full_At_Matrix, aes(x = -Median_Ct, y = Median_PPI, color = Treatment)) +
+  geom_point(size = 2, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 0.5) +
+ facet_wrap(~ System,
+  scales = "free",
+  labeller = labeller(
+    System = c(
+      "Flowpots" = "System : FlowPot",
+      "MS_Agar"  = "System : Agar 1/2 MS"))) + 
+  labs(
+   x = expression(Matrix~Colonization~(-CT)),
+    y = "Median PPI",
+    title = "",
+    shape = "System",
+    linetype = "System",
+    color = "Kingdom"
+  ) +
+  scale_color_manual(values = color_palette) +
+  base_theme +
+  theme(
+    strip.text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right"
+  ) +
+  geom_text(
+    data = cor_stats_labels,
+    aes(x = x_pos, y = y_pos, label = label),
+    hjust = 0,
+    vjust = 1,
+    size = 2.5,
+    color = "black",
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  )
+
+Plot_corr_Matrix_at
+
+#Get median
+median <- Data_full_At_Matrix %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(
+    median_area = median(Median_PPI, na.rm = TRUE),
+    .groups = "drop"
+  )
+median
+```
+
+### b) - Colonization Plants
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+#Keep only At, Matrix
+Data_full_At_Root <- subset(Data_full, Plant %in% c("Arabidopsis_thaliana") & !Element %in% c("Matrix") & Kingdom %in% c("Fungi"))
+
+#test normality
+normality <- Data_full_At_Root %>%
+  select(System, Median_LogDeltaCT, Median_PPI) %>%
+  gather(Variable, Value, -System) %>% 
+  group_by(System, Variable) %>%
+  shapiro_test(Value) 
+normality # Good exept for Ct flowpots
+
+#qqplot
+qqplots <- qqplots <- Data_full_At_Root %>%
+  group_by(System) %>%
+  summarise(
+    qq_FP = list(ggqqplot(Median_LogDeltaCT, title = paste0("QQ: ", System, " - FP"))),
+    qq_CT = list(ggqqplot(Median_PPI,   title = paste0("QQ: ", System, " - CT")))
+  ) #Really good
+
+# Compute correlation stats per Plant *and* System
+cor_stats <- Data_full_At_Root %>%
+  group_by(Plant, System) %>%
+  summarise(
+    r = cor(-Median_LogDeltaCT, Median_PPI, use = "complete.obs"),
+    r2 = r^2,
+    p_value = cor.test(-Median_LogDeltaCT, Median_PPI)$p.value,
+    .groups = "drop"
+  )
+
+# Compute x-position per facet for correlation labels
+cor_stats_labels <- cor_stats %>%
+  group_by(System, Plant) %>%
+  summarise(
+    y_pos = max(Data_full_At_Root$Median_PPI[Data_full_At_Root$System == System &
+                                             Data_full_At_Root$Plant == Plant], na.rm = TRUE),
+    x_pos = -max(Data_full_At_Root$Median_LogDeltaCT[Data_full_At_Root$System == System &
+                                                     Data_full_At_Root$Plant == Plant], na.rm = TRUE),
+    label = paste0("\nR² = ", round(r2, 2), ", P = ", signif(p_value, 2)),
+    .groups = "drop"
+  )
+
+Plot_corr_PLant_at <- ggplot(Data_full_At_Root, 
+                             aes(x = Median_LogDeltaCT, y = Median_PPI)) +
+  geom_point(aes(fill = Treatment),
+             shape = 21,
+             color = "black",
+             size = 2,
+             alpha = 1) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 0.5) +
+  facet_wrap(~ System,
+             scales = "free",
+             labeller = labeller(
+               System = c(
+                 Flowpots = "System : FlowPot",
+                 MS_Agar  = "System : Agar 1/2 MS"
+               )
+             )) +
+  labs(
+    x = expression(Root~Colonization~(2^DeltaCT)),
+    y = "Median PPI",
+    color = "Kingdom"
+  ) +
+  scale_fill_manual(values = color_palette) +
+  base_theme +
+  theme(
+    strip.text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right"
+  ) +
+  base_theme +
+  geom_text(
+    data = cor_stats_labels,
+    aes(x = 3, y = y_pos, label = label),
+    hjust = 0,
+    vjust = 1,
+    size = 2.5,
+    color = "black",
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  )
+
+Plot_corr_PLant_at
+```
+
+## 3 - Correlation Systems 
+
+### a) Plant Performance
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+#Prepare tables
+Data_full_At_Root_FP <- subset(Data_full_At_Root, System %in% c("Flowpots"))
+Data_full_At_Root_Agar <- subset(Data_full_At_Root, System %in% c("MS_Agar"))
+
+#Summarize bio_rep fro FP
+Data_full_At_Root_FP_median <- Data_full_At_Root_FP %>%
+  group_by(Plant, System, Microbes, Treatment, Kingdom) %>%
+  summarise(
+    median_PPI_FP = median(Median_PPI, na.rm = TRUE),
+    Median_LogDeltaCT_FP  = median(Median_LogDeltaCT, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+#Merge tables
+Merged_At_Data <- Data_full_At_Root_FP_median %>%
+  left_join(
+    Data_full_At_Root_Agar %>%
+      select(Plant, System, Microbes, Treatment, Kingdom, Median_PPI, Median_LogDeltaCT),
+    by = c("Plant", "Microbes", "Treatment", "Kingdom")
+  )
+
+#Add condition for facetting
+Merged_At_Data$Data_type <- c("Plant phenotype")
+
+#test normality
+normality <- Merged_At_Data %>%
+  select(median_PPI_FP, Median_PPI) %>%
+  gather(Variable, Value) %>% 
+  group_by(Variable) %>%
+  shapiro_test(Value)
+normality # Good only for protection Agar
+
+#qqplot
+qqplot <- ggqqplot(Merged_At_Data$median_PPI_FP, title = "QQ plot: Median_LogDeltaCT_FP") #Really good
+qqplot2 <- ggqqplot(Merged_At_Data$Median_PPI,   title = "QQ plot: Median_LogDeltaCT") #Less good for first values
+
+# Compute correlation stats per Plant *and* System
+cor_stats_PPI <- Merged_At_Data %>%
+  summarise(
+    r = cor(median_PPI_FP, Median_PPI, use = "complete.obs"),
+    r2 = r^2,
+    p_value = cor.test(median_PPI_FP, Median_PPI)$p.value,
+    .groups = "drop"
+  )
+
+cor_stats_PPI$Data_type <-  c("Root phenotype")
+
+# Compute x-position per facet for correlation labels
+cor_stats_labels <- cor_stats_PPI %>%
+  summarise(
+    y_pos = max(Merged_At_Data$Median_PPI),
+    x_pos = min(Merged_At_Data$median_PPI_FP),
+    label = paste0("\nR² = ", round(r2, 2), ", P = ", signif(p_value, 2)),
+    .groups = "drop"
+  )
+
+#Plot correlation Systems
+Plot_corr_PPI <- ggplot(Merged_At_Data, 
+                        aes(x = median_PPI_FP, y = Median_PPI, color = Treatment)) +
+  geom_point(size = 2, alpha = 1) +
+  geom_smooth(method = "lm", se = FALSE, 
+              color = "black", linewidth = 1) +
+  facet_wrap(~ Data_type, scales = "free") +   # independent axes per panel
+  labs(
+    x = "Flowpot (Plant Performance Index)",
+    y = "Agar 1/2 MS (Root length (mm))",
+    title = "",
+    shape = "System",
+    linetype = "System",
+    color = "Treatment"
+  ) +
+  scale_color_manual(values = color_palette) +
+  base_theme +
+  theme(
+    strip.text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right"
+  ) +
+  geom_text(
+    data = cor_stats_labels,   # pre-calculated correlation stats
+    aes(x = x_pos, y = y_pos, label = label),
+    hjust = 0,
+    vjust = 1,
+    size = 2.5,
+    color = "gray30",
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) 
+Plot_corr_PPI
+```
+
+### b) Colonization
+
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+#Merge tables
+Merged_At_Data <- Data_full_At_Root_FP_median %>%
+  left_join(
+    Data_full_At_Root_Agar %>%
+      select(Plant, System, Microbes, Treatment, Kingdom, Median_PPI, Median_LogDeltaCT),
+    by = c("Plant", "Microbes", "Treatment", "Kingdom")
+  )
+
+#Add condition for facetting
+Merged_At_Data$Data_type <- c("Plant colonization")
+
+#test normality
+normality <- Merged_At_Data %>%
+  select(Median_LogDeltaCT_FP, Median_LogDeltaCT) %>%
+  gather(Variable, Value) %>% 
+  group_by(Variable) %>%
+  shapiro_test(Value)
+normality #Really good
+
+#qqplot
+qqplot <- ggqqplot(Merged_At_Data$Median_LogDeltaCT_FP, title = "QQ plot: Median_LogDeltaCT_FP") #Really good
+qqplot2 <- ggqqplot(Merged_At_Data$Median_LogDeltaCT,   title = "QQ plot: Median_LogDeltaCT") #Really good
+
+# Compute correlation stats per Plant *and* System
+cor_stats_Ct <- Merged_At_Data %>%
+  summarise(
+    r = cor(Median_LogDeltaCT_FP, Median_LogDeltaCT, use = "complete.obs"),
+    r2 = r^2,
+    p_value = cor.test(Median_LogDeltaCT_FP, Median_LogDeltaCT)$p.value,
+    .groups = "drop"
+  )
+
+cor_stats_Ct$Data_type <-  c("Root colonization")
+
+# Compute x-position per facet for correlation labels
+cor_stats_labels <- cor_stats_Ct %>%
+  summarise(
+    y_pos = max(Merged_At_Data$Median_LogDeltaCT),
+    x_pos = min(Merged_At_Data$Median_LogDeltaCT_FP),
+    label = paste0("\nR² = ", round(r2, 2), ", P = ", signif(p_value, 2)),
+    .groups = "drop"
+  )
+
+#Plot correlation Systems
+Plot_corr_Ct <- ggplot(Merged_At_Data, 
+                        aes(x = Median_LogDeltaCT_FP, y = Median_LogDeltaCT, color = Treatment)) +
+  geom_point(size = 2, alpha = 1) +
+  geom_smooth(method = "lm", se = FALSE, 
+              color = "black", linewidth = 1) +
+  facet_wrap(~ Data_type, scales = "free") +   # independent axes per panel
+  labs(
+    x = expression(Flowpot~(2^{Delta*CT}~italic(AtUBQ10))),
+    y = expression(Agar~(2^{Delta*CT}~italic(AtUBQ10))),
+    title = "",
+    shape = "System",
+    linetype = "System",
+    color = "Treatment"
+  ) +
+  scale_color_manual(values = color_palette) +
+  base_theme +
+  theme(
+    strip.text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right"
+  ) +
+  geom_text(
+    data = cor_stats_labels,   # pre-calculated correlation stats
+    aes(x = x_pos, y = y_pos, label = label),
+    hjust = 0,
+    vjust = 1,
+    size = 2.5,
+    color = "gray30",
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) 
+Plot_corr_Ct
+
+#write.csv(Merged_At_Data, "Colonization_Roots.csv")
+```
+
+## 3 - Tomato 
+
+### a) - Colonization Matrixes
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+# Keep only Arabidopsis_thaliana, Matrix, Fungi
+Data_full_MT_Matrix <- subset(
+  Data_full,
+  Plant %in% c("Micro_Tomato") &
+    Element %in% c("Matrix") &
+    Kingdom %in% c("Fungi")
+)
+
+# Compute correlation stats per Plant *and* System
+cor_stats <- Data_full_MT_Matrix %>%
+  group_by(Plant, System) %>%
+  summarise(
+    r = cor(-Median_Ct, Median_PPI, use = "complete.obs"),
+    r2 = r^2,
+    p_value = cor.test(-Median_Ct, Median_PPI)$p.value,
+    .groups = "drop"
+  )
+
+# Compute x-position per facet for correlation labels
+cor_stats_labels <- cor_stats %>%
+  group_by(System, Plant) %>%
+  summarise(
+    y_pos = max(Data_full_MT_Matrix$Median_PPI[Data_full_MT_Matrix$System == System &
+                                             Data_full_MT_Matrix$Plant == Plant], na.rm = TRUE),
+    x_pos = -max(Data_full_MT_Matrix$Median_Ct[Data_full_MT_Matrix$System == System &
+                                                     Data_full_MT_Matrix$Plant == Plant], na.rm = TRUE),
+    label = paste0("System: ", System, "\nR² = ", round(r2, 2), ", P = ", signif(p_value, 2)),
+    .groups = "drop"
+  )
+
+Plot_corr_Matrix_MT <- ggplot(Data_full_MT_Matrix, aes(x = -Median_Ct, y = Median_PPI, shape = System, color = Kingdom)) +
+  geom_point(size = 2, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, aes(linetype = System), color = "black", linewidth = 1) +
+  facet_wrap(~System, scales = "free", labeller = labeller(System = c("Flowpots" = "System : Flowpots"))) +  # fully independent x & y axes per panel
+  labs(
+    x = "Median Ct",
+    y = "Median PPI",
+    title = "",
+    shape = "System",
+    linetype = "System",
+    color = "Kingdom"
+  ) +
+  scale_color_manual(values = c("Fungi" = "#F9B244")) +
+  base_theme +
+  theme(
+    strip.text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right"
+  ) +
+  geom_text(
+    data = cor_stats_labels,
+    aes(x = x_pos, y = y_pos, label = label),
+    hjust = 0,
+    vjust = 1,
+    size = 2.5,
+    color = "gray30",
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  )
+
+Plot_corr_Matrix_MT
+```
+
+### b) - Colonization Plants
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+#Keep only At, Matrix
+Data_full_MT_Root <- subset(Data_full, Plant %in% c("Micro_Tomato") & !Element %in% c("Matrix") & Kingdom %in% c("Fungi"))
+
+# Compute correlation stats per Plant *and* System
+cor_stats <- Data_full_MT_Root %>%
+  group_by(Plant, System) %>%
+  summarise(
+    r = cor(Median_LogDeltaCT, Median_PPI, use = "complete.obs"),
+    r2 = r^2,
+    p_value = cor.test(Median_LogDeltaCT, Median_PPI)$p.value,
+    .groups = "drop"
+  )
+
+# Compute x-position per facet for correlation labels
+cor_stats_labels <- cor_stats %>%
+  group_by(System, Plant) %>%
+  summarise(
+    y_pos = max(Data_full_MT_Root$Median_PPI[Data_full_MT_Root$System == System &
+                                             Data_full_MT_Root$Plant == Plant], na.rm = TRUE),
+    x_pos = min(Data_full_MT_Root$Median_LogDeltaCT[Data_full_MT_Root$System == System &
+                                                     Data_full_MT_Root$Plant == Plant], na.rm = TRUE),
+    label = paste0("System: ", System, "\nR² = ", round(r2, 2), ", P = ", signif(p_value, 2)),
+    .groups = "drop"
+  )
+
+Plot_corr_Plant_MT <- ggplot(Data_full_MT_Root, aes(x = Median_LogDeltaCT, y = Median_PPI, shape = System, color = Kingdom)) +
+  geom_point(size = 2, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, aes(linetype = System), color = "black", linewidth = 1) +
+  facet_wrap(~ System, scales = "free", labeller = labeller(System = c("Flowpots" = "System : Flowpots"))) +  # fully independent x & y axes per panel
+  labs(
+    x = expression(Root~Colonization~(2^{Delta*CT}~italic(AtUBQ10))),
+    y = "Median PPI",
+    title = "",
+    shape = "System",
+    linetype = "System",
+    color = "Kingdom"
+  ) +
+  scale_color_manual(values = c("Fungi" = "#F9B244")) +
+  base_theme +
+  theme(
+    strip.text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right"
+  ) +
+  geom_text(
+    data = cor_stats_labels,
+    aes(x = x_pos, y = y_pos, label = label),
+    hjust = 0,
+    vjust = 1,
+    size = 2.5,
+    color = "gray30",
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  )
+
+Plot_corr_Plant_MT
+```
+
+## 4 - Final Plot Root
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Plot Colonization
+Plot_PLant_at
+Plot_PLant_T
+Plot_PLant_B
+
+#Plot Correlation
+Plot_corr_Plant_at
+Plot_corr_PPI
+Plot_corr_Ct
+
+final_plot_corr <- plot_grid(
+  Plot_corr_Plant_at,
+  Plot_corr_PPI,
+  Plot_corr_Ct,
+  ncol = 3,
+  rel_heights = c(1),
+  rel_widths = c(1,0.6, 0.6),
+   align = "hv",
+  axis = "tb")
+
+final_plot_corr
+```
+
+---
+END
+---
+
+

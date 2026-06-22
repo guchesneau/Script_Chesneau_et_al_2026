@@ -1,0 +1,511 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "/Post_doc/Postdoc/Scripts/2-Biolog/Biolog_Plant_FSC") 
+```
+
+
+# Before you start
+
+This script has been made on R 4.5.3 (and Rstudio 2023.09.1+494)
+
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load Packages
+library(rstatix)  # For statistical analysis
+library(ggpubr)   # For creating publication-ready plots using ggplot2
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(cowplot)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(ggrepel)
+
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    panel.border = element_rect(color = "black", fill = NA))
+```
+
+
+# A] Screen Biolog
+
+## 1 - Prepare data
+
+### a) Load raw_data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Data <- read.table(file="Table_Df.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+```
+
+### b) Integrate Sources
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Sources_PM1 <- read.csv("PM01.csv", header= TRUE)
+colnames(Sources_PM1)[2] <- c("Well")
+Data_PM1 <- merge(Data, Sources_PM1, by = c("Well", "Plate"))  
+
+Sources_PM2 <- read.csv("PM02A.csv", header= TRUE)
+colnames(Sources_PM2)[2] <- c("Well")
+Data_PM2 <- merge(Data, Sources_PM2, by = c("Well", "Plate"))  
+
+#Bind datasets
+Data_final <- rbind(Data_PM1,Data_PM2)
+```
+
+### c) Veen diagramm carbon sources
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Bind files
+Sources_PM_tot <- rbind(Sources_PM1, Sources_PM2)
+
+# Summarize counts per family
+family_counts <- Sources_PM_tot %>%
+  group_by(Family_compounds) %>%
+  summarise(count = n()) %>%
+  mutate(label = paste0(count))  # optional: add count as label
+
+# Simple horizontal bar plot
+bar_plot <- ggplot(family_counts, aes(x = reorder(Family_compounds, count), y = count, fill = Family_compounds)) +
+  geom_bar(stat = "identity", color = "black", fill = "white") +  # white bars with black borders
+  geom_text(aes(label = label), hjust = -0.1, size = 4) +        # labels outside the bar
+  coord_flip() +                                                  # horizontal bars
+  theme_minimal() +
+  theme(legend.position = "none") +                               # hide legend
+  labs(x = "Carbon Source Families", y = "Number of Carbon Source", title = "Number of Compounds per Family")
+bar_plot
+```
+
+### c) Germination Rate
+
+I calculate the germination rate for each condition for each carbon source
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Data_final <- Data_final %>%
+  group_by( Microbe,Compound) %>%
+  mutate(
+    Germination_rate = mean(Germination, na.rm = TRUE) * 100
+  ) %>%
+  ungroup()
+```
+
+
+## 2 - Fungal dataset
+
+### a) Calculate Ratio
+
+I calculate the ratio of the FSC phennotype in "Negative Control" / FSC Phenotype in "Carbon Sources".
+The objective is to look at the impact of the Carbon Sources in protection against Fungal Pathogens
+I'm using the MiniSynCom compoased of 4 fungal root pathogens.
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+# Filter to only FSC rows
+FSC_df <- Data_final %>%
+  filter(Microbe == "FSC")
+
+#Ratio Relative Shoot Area (+F) C vs NC
+# Step 1: Compute median White.pixels for Negative Control within FSC
+neg_control_median_FSC <- FSC_df %>%
+  filter(Microbe == "FSC", Compound == "Negative Control") %>%
+  summarise(neg_median = median(White.pixels, na.rm = TRUE)) %>%
+  pull(neg_median)
+
+
+# Step 2: Compute per-replicate log2 normalized values for FSC only,
+# normalized by Negative Control median in FSC
+FSC_df <- FSC_df %>%
+  mutate(log2_norm = ifelse(
+    Microbe == "FSC",
+    log2(White.pixels / neg_control_median_FSC),
+    NA
+  ))
+```
+
+### b) Plot Fungi
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Test for normality per group
+normality_results <- FSC_df %>%
+  group_by(Compound) %>%
+  shapiro_test(log2_norm) %>%   # this returns a tibble with 'stat' and 'p'
+  mutate(
+    normal = p > 0.05           # TRUE if p > 0.05, FALSE otherwise
+  )
+
+normality_results # 11% not normal I perform therefore t-test
+
+# Pairwise t-test vs Negative Control
+t_results <- FSC_df %>%
+  t_test(log2_norm ~ Compound, ref.group = "Negative Control", p.adjust.method = "bonferroni", alternative = "two.sided"  ) %>%
+  add_significance("p.adj") %>%
+  mutate(
+    stars = case_when(
+      p <= 0.001 ~ "***",
+      p <= 0.01  ~ "**",
+      p <= 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  )
+
+# Rename columns to match previous format
+colnames(t_results) <- c("y", "Control", "Compound", "n1", "n2", 
+                         "statistic", "df", "p", "p.adj", "p.adj.signif", "stars")
+
+# Summarize log2-normalized values
+summary_df_FSC <- FSC_df %>%
+  group_by(Compound) %>%
+  summarise(
+    median_log2 = median(log2_norm, na.rm = TRUE),
+    se_log2 = sd(log2_norm, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Compound_reordered = reorder(Compound, median_log2)
+  )
+
+# Merge significance into summary_df_FSC
+summary_df_FSC <- summary_df_FSC %>%
+  left_join(t_results %>% dplyr::select(Compound, stars), by = "Compound")
+
+# Reorder FSC_df for jitter
+FSC_df <- FSC_df %>%
+  mutate(Compound_reordered = reorder(Compound, log2_norm))
+
+# Add horizontal line for Negative Control
+neg_se <- summary_df_FSC %>%
+  filter(Compound == "Negative Control") %>%
+  summarise(
+    median_val = median_log2,
+    ymin = median_log2 - se_log2,
+    ymax = median_log2 + se_log2
+  )
+
+# Add colors
+summary_df_FSC <- summary_df_FSC %>%
+  mutate(
+    bar_color = case_when(
+      stars != "" ~ "#7FC29B",                       # highlight significant bars
+      median_log2 < neg_se$ymin ~ "#817E9F",        # downregulated
+      median_log2 > neg_se$ymax ~ "#D3E8DA",        # upregulated
+      TRUE ~ "darkgray"                              # neutral
+    )
+  )
+
+# Plot
+Plot_FSC <- ggplot() +
+  geom_bar(data = summary_df_FSC,
+           aes(x = Compound_reordered, y = median_log2, fill = bar_color),
+           stat = "identity", width = 0.7, show.legend = FALSE, size = 0.7) +
+  geom_errorbar(data = summary_df_FSC,
+                aes(x = Compound_reordered, ymin = median_log2 - se_log2, ymax = median_log2 + se_log2),
+                width = 0.2) +
+  geom_jitter(data = FSC_df,
+              aes(x = Compound_reordered, y = log2_norm),
+              width = 0.15, alpha = 0.5, size = 1, color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = neg_se$ymin, ymax = neg_se$ymax),
+            fill = "black", alpha = 0.1) +
+  scale_fill_identity() +
+  scale_color_identity() +
+  scale_x_discrete(position = "top") +
+  labs(x = "",
+       y = expression( ~ log[2]("Shoot Area + FSC (Carbon / No Carbon)")),
+       title = "") +
+  theme(
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 0,
+      vjust = 0.5,
+      size = 5,
+      margin = margin(b = 5)
+    )
+  ) +
+  geom_text(data = summary_df_FSC,
+            aes(x = Compound_reordered, y = 4.2, label = stars),
+            vjust = 0, size = 6, angle =90) +
+  geom_segment(
+    data = summary_df_FSC[summary_df_FSC$Compound_reordered == "Negative Control", ],
+    aes(x = Compound_reordered, xend = Compound_reordered, y = max(FSC_df$log2_norm), yend = min(FSC_df$log2_norm)),
+    color = "black",
+    linetype = "dashed",
+    size = 0.5
+  ) +
+  ylim(-2,4.4) +
+  base_theme +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+Plot_FSC
+
+```
+
+### c) Plot Fungi Germination
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+FSC_df$Germination_rate
+
+# Reorder FSC_df for jitter
+FSC_df <- FSC_df %>%
+  mutate(Compound_reordered = reorder(Compound, log2_norm))
+
+GR_FSC <- ggplot(FSC_df, aes(x = Compound_reordered, y = "", fill = Germination_rate)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "#A88B6D", mid = "#A88B6D", high = "darkgreen", midpoint = 0, name = "GR FSC")+
+  labs(
+    title = "",
+    x = "Compound",
+    y = "GR FSC",
+    fill = "%"
+  ) + 
+  base_theme +
+  theme(axis.text.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+        axis.ticks.y = element_blank())
+
+GR_FSC
+```
+
+## 3 - MF dataset
+
+### a) Calculate Ratio
+
+I calculate the ratio of the MF phennotype in "Negative Control" / MF Phenotype in "Carbon Sources".
+The objective is to look at the impact of the Carbon Sources in protection against Fungal Pathogens
+I'm using the MiniSynCom compoased of 4 fungal root pathogens.
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Filter to only MF rows
+MF_df <- Data_final %>%
+  filter(Microbe == "MF")
+
+# Step 1: Compute median White.pixels for Negative Control within MF
+neg_control_median_MF <- MF_df %>%
+  filter(Microbe == "MF", Compound == "Negative Control") %>%
+  summarise(neg_median = median(White.pixels, na.rm = TRUE)) %>%
+  pull(neg_median)
+
+# Step 2: Compute per-replicate log2 normalized values for MF only,
+# normalized by Negative Control median in MF
+MF_df <- MF_df %>%
+  mutate(log2_norm = ifelse(
+    Microbe == "MF",
+    log2(White.pixels / neg_control_median_MF),
+    NA
+  ))
+```
+
+### b) Plot MF 
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Test for normality per compound
+normality_results <- MF_df %>%
+  group_by(Compound) %>%
+  shapiro_test(log2_norm) %>%
+  mutate(normal = p > 0.05)
+
+normality_results  # inspect normality; TRUE = approximately normal
+
+# Since most are normal, perform t-test vs Negative Control
+t_results <- MF_df %>%
+  t_test(log2_norm ~ Compound, ref.group = "Negative Control", p.adjust.method = "bonferroni") %>%
+  add_significance("p.adj") %>%
+  mutate(
+    stars = case_when(
+      p <= 0.001 ~ "***",
+      p <= 0.01  ~ "**",
+      p <= 0.05  ~ "*",
+      TRUE ~ ""     # non-significant
+    )
+  )
+
+# Rename columns to match previous format
+colnames(t_results) <- c("y", "Control", "Compound", "n1", "n2",
+                         "statistic", "df", "p", "p.adj", "p.adj.signif", "stars")
+
+# Summarize log2-normalized values
+summary_df <- MF_df %>%
+  group_by(Compound) %>%
+  summarise(
+    median_log2 = median(log2_norm, na.rm = TRUE),
+    se_log2 = sd(log2_norm, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Compound_reordered = reorder(Compound, median_log2)
+  )
+
+# Merge significance into summary_df
+summary_df <- summary_df %>%
+  left_join(t_results %>% dplyr::select(Compound, stars), by = "Compound")
+
+# Reorder MF_df for jitter
+MF_df <- MF_df %>%
+  mutate(Compound_reordered = reorder(Compound, log2_norm))
+
+# Add horizontal line for Negative Control
+neg_se <- summary_df %>%
+  filter(Compound == "Negative Control") %>%
+  summarise(
+    median_val = median_log2,
+    ymin = median_log2 - se_log2,
+    ymax = median_log2 + se_log2
+  )
+
+# Add colors: only highlight significant bars
+summary_df <- summary_df %>%
+  mutate(
+    bar_color = case_when(
+      stars != "" ~ "#817E9F",          # significant
+      TRUE ~ "darkgray"                  # non-significant neutral
+    )
+  )
+
+# Order compounds based on FSC condition (if needed)
+compound_order <- summary_df_FSC %>% arrange(median_log2) %>% pull(Compound)
+MF_df$Compound <- factor(MF_df$Compound, levels = compound_order)
+summary_df$Compound <- factor(summary_df$Compound, levels = compound_order)
+
+# Plot
+Plot_MF <- ggplot() +
+  geom_bar(data = summary_df,
+           aes(x = Compound, y = median_log2, fill = bar_color),
+           stat = "identity", width = 0.7, show.legend = FALSE, size = 0.7) +
+  geom_errorbar(data = summary_df,
+                aes(x = Compound, ymin = median_log2 - se_log2, ymax = median_log2 + se_log2),
+                width = 0.2) +
+  geom_jitter(data = MF_df,
+              aes(x = Compound, y = log2_norm),
+              width = 0.15, alpha = 0.5, size = 1, color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = neg_se$ymin, ymax = neg_se$ymax),
+            fill = "black", alpha = 0.1) +
+  scale_fill_identity() +
+  scale_color_identity() +
+  scale_x_discrete(position = "top") +
+  labs(x = "",
+       y = expression(log[2]~"Shoot Area + MF (Carbon / No Carbon)"),
+       title = "") +
+  geom_text(data = summary_df %>% filter(stars != ""),  # only plot significant stars
+            aes(x = Compound_reordered, y = 1.8, label = stars),
+            vjust = 0, size = 6, angle =90) +
+  geom_segment(
+    data = summary_df[summary_df$Compound_reordered == "Negative Control", ],
+    aes(x = Compound_reordered, xend = Compound_reordered,
+        y = max(MF_df$log2_norm), yend = min(MF_df$log2_norm)),
+    color = "black",
+    linetype = "dashed",
+    size = 0.5
+  ) +
+  ylim(-4.2,2) +
+  base_theme +
+  theme(axis.text.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank())
+
+Plot_MF
+```
+
+### c) Plot MF Germination
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Order compounds based only on the FSC condition
+compound_order <- summary_df %>%
+  arrange(median_log2) %>%
+  pull(Compound)
+MF_df$Compound <- factor(MF_df$Compound, levels = compound_order)
+
+#Plot
+GR_MF <- ggplot(MF_df, aes(x = Compound, y = "", fill = Germination_rate)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "#A88B6D", mid = "#A88B6D", high = "darkgreen", midpoint = 0, name = "GR MF")+
+  labs(
+    title = "",
+    x = "Compound",
+    y = "GR MF",
+    fill = "%"
+  )  + 
+  base_theme +
+  theme(axis.text.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+        axis.ticks.y = element_blank())
+
+GR_MF
+```
+
+# B] Final Plot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Plot Biolog
+Plot_FSC
+Plot_MF
+
+#Plot Biolog with legend
+Plot_FSC_Legend <- Plot_FSC  + theme( axis.text.x = element_text(size = 6, color = "black", angle =90, hjust= 0))
+Plot_MF_Legend <- Plot_MF + theme( axis.text.x = element_text(size = 6, color = "black", angle =90, hjust= 0))
+
+#Plot Biolog zoom
+zoom_FSC <- Plot_FSC +coord_cartesian(xlim = c(171, 191))  + theme( axis.text.x = element_text(size = 10, color = "black", angle =90, hjust= 0))
+zoom_MF <- Plot_MF +coord_cartesian(xlim = c(171, 191))  + theme( axis.text.x = element_text(size = 10, color = "black", angle =90, hjust= 0))
+
+#Plot Germination Rate
+GR_MF
+GR_FSC
+
+#Plot Germination Rate zoom
+zoom_FSC_GR <- GR_FSC +coord_cartesian(xlim = c(171, 191)) 
+zoom_MF_GR <- GR_MF +coord_cartesian(xlim = c(171, 191)) 
+
+#Plot figure S1
+Figure_full <- plot_grid(
+  Plot_FSC_Legend,
+  Plot_MF_Legend,
+  GR_FSC,
+  GR_MF,
+  ncol = 2,
+  nrow=2,
+  rel_heights = c(1,0.6),
+  rel_widths = c(1,1),
+    align = "hv", 
+ axis = "tblr"
+)
+Figure_full
+
+#Plot Zoom
+Figure_zoom <- plot_grid(
+  zoom_MF,
+  zoom_FSC,
+  zoom_MF_GR,
+  zoom_FSC_GR,
+  ncol = 2,
+  nrow=2,
+  rel_heights = c(1,0.6),
+  rel_widths = c(1,1),
+    align = "hv", 
+ axis = "tblr"
+)
+Figure_zoom
+```
+
+---
+END
+---

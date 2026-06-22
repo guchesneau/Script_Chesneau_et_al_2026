@@ -1,0 +1,357 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=FALSE, autodep = TRUE, warning = FALSE)
+#Set working direction
+knitr::opts_knit$set(root.dir = "/Post_doc/Postdoc/Scripts/") 
+```
+
+
+# Before you start
+
+This script has been made on R 4.2.2 (and Rstudio 2023.09.1+494)
+
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load Packages
+library(rstatix)
+library(ggpubr) 
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggplot2)
+library(PMCMRplus)
+library(rcompanion)
+library(cowplot)
+library(dplyr)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+     axis.text.y = element_text(size = 10, color = "black"),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+```
+ 
+# A] Agar Assay
+
+## 1 - Prepare Data
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Read the data
+df <- read.csv(file = "Table_Df.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+```
+
+## 2 - Statistics
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Create a new combined variable for unique conditions of Microbes and Carbon
+df$Microbes_Carbon_Carbon2 <- paste(df$Microbes, df$Carbon, df$Carbon2, sep = "_")
+
+# Get unique time points
+unique_times <- unique(df$Time)
+
+# Create empty data frames to store the results
+kruskal_results <- data.frame()
+dunn_results <- data.frame()
+
+# Loop over unique time points
+for (time_point in unique_times) {
+  # Subset the data for the current time point
+  subset_data <- df[df$Time == time_point, ]
+  
+  # Perform Kruskal-Wallis test comparing Microbes_Carbon_Carbon2 conditions
+  kruskal_result <- kruskal.test(Length ~ Microbes_Carbon_Carbon2, data = subset_data)
+  
+  # Perform Dunn's test for post hoc comparisons
+  dunn_result <- dunn.test(subset_data$Length, g = subset_data$Microbes_Carbon_Carbon2, method = "bonferroni")
+  
+  # Store the results in data frames
+  kruskal_results <- rbind(kruskal_results, data.frame(Time = time_point, P_Value = kruskal_result$p.value))
+  dunn_results <- rbind(dunn_results, data.frame(Comparison = dunn_result$comparison, P_Adjusted = dunn_result$P.adjusted, Time = time_point))
+}
+
+# Print Kruskal-Wallis results
+print(kruskal_results)
+
+# Print Dunn test results
+print(dunn_results)
+
+# Create group letters
+# Create empty data frame to store results
+groups_results <- data.frame()
+
+for (time_point in unique_times) {
+  # Subset Dunn test results
+  subset_data <- dunn_results[dunn_results$Time == time_point, ]
+  
+  if (nrow(subset_data) > 0) {  # Ensure there's data to analyze
+    group <- cldList(comparison = subset_data$Comparison, 
+                      p.value    = subset_data$P_Adjusted,
+                      threshold  = 0.05, remove.zero = FALSE)
+    
+    # Create a data frame for the results of the current time point
+    time_results <- data.frame(Time = time_point,
+                               Microbes_Carbon_Carbon2 = group$Group,
+                               Letter = group$Letter,
+                               MonoLetter = group$MonoLetter)
+    
+    # Append results
+    groups_results <- rbind(groups_results, time_results)
+  }
+}
+
+# Rename columns
+colnames(groups_results) <- c("Time", "Microbes_Carbon_Carbon2", "Letter", "MonoLetter")
+
+# Print final grouping results
+print(groups_results)
+
+# Split the 'Microbes_Carbon_Carbon2' column into two columns: 'Microbes' and 'Carbon'
+groups_results <- groups_results %>%
+  separate(Microbes_Carbon_Carbon2, into = c("Microbes", "Carbon", "Carbon2"), sep = "_")
+```
+
+## 3 - Plot
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Order factors
+df$Carbon <- factor(df$Carbon, levels = c("Water", "Glucose", "Mannose","Galactose", 
+                                          "OM.Glucose", "OM.Mannose", "OM.Galactose", 
+                                          "3OM.Glucose", "3OM.Mannose", "3OM.Galactose")) 
+groups_results$Carbon <- factor(groups_results$Carbon, levels = levels(df$Carbon))
+
+df$Microbes <- factor(df$Microbes, levels = c("MF","F16")) 
+groups_results$Microbes <- factor(groups_results$Microbes, levels = levels(df$Microbes))
+
+df$Time <- factor(df$Time, levels = c("72h","1W")) 
+groups_results$Time <- factor(groups_results$Time, levels = levels(df$Time))
+
+# Calculate the maximum Length per Time condition
+max_lengths <- df %>%
+  group_by(Time) %>%
+  summarise(max_length = max(Length))
+
+# Join the max lengths with the groups_results to get the correct max for each Time
+groups_results <- groups_results %>%
+  left_join(max_lengths, by = "Time")
+
+# Colors for Carbon
+condition_colors <- c("Water" = "darkgrey", 
+                      "Glucose" = "#7FC29B",   
+                      "Galactose" = "#7FC29B", 
+                      "Mannose" = "#7FC29B", 
+                      "OM.Glucose" = "#7FC29B",   
+                      "OM.Galactose" = "#7FC29B",
+                      "OM.Mannose" = "#7FC29B",  
+                      "3OM.Glucose" = "#7FC29B",
+                      "3OM.Galactose" = "#7FC29B",
+                      "3OM.Mannose" = "#7FC29B")
+
+# Custom labels
+microbe_labels <- c("MF" = "Microbe Free", 
+                    "F16" = "Plectosphaerella R16")
+
+# Calculate mean and error for MF
+mf_summary <- df %>%
+  filter(Microbes == "MF") %>%
+  group_by(Carbon, Time) %>%
+  summarise(mean_length = mean(Length),
+            se_length = sd(Length)/sqrt(n()),
+            .groups = "drop") %>%
+  left_join(df %>% dplyr::select(Carbon, Carbon2) %>% distinct(), by = "Carbon")
+
+# Add annotation height
+groups_results <- groups_results %>%
+  mutate(height = case_when(
+    Microbes == "F16" ~ max_length*0.8,
+    Microbes == "MF" ~ max_length*0.70
+  ))
+
+# Calculate number of replicates per Carbon and Time (for F16 only)
+replicates_count <- df %>%
+  filter(Microbes == "F16") %>%
+  group_by(Carbon, Time) %>%
+  summarise(n_replicates = n(), .groups = "drop") %>%
+  left_join(df %>% dplyr::select(Carbon, Carbon2) %>% distinct(), by = "Carbon") %>%
+  mutate(y_pos = -0.5)
+
+# Factor ordering for Carbon2
+df$Carbon2 <- factor(df$Carbon2, levels = c("Water", "Glucose", "Mannose","Galactose")) 
+mf_summary$Carbon2 <- factor(mf_summary$Carbon2, levels = levels(df$Carbon2)) 
+groups_results$Carbon2 <- factor(groups_results$Carbon2, levels = levels(df$Carbon2)) 
+replicates_count$Carbon2 <- factor(replicates_count$Carbon2, levels = levels(df$Carbon2)) 
+
+# Plot
+Plot <- ggplot() +
+  geom_boxplot(data = filter(df, Microbes == "F16"),
+               aes(x = Carbon, y = Length, fill = Carbon),
+               outlier.shape = NA) +
+  geom_jitter(data = filter(df, Microbes == "F16"),
+              aes(x = Carbon, y = Length, fill = Carbon, shape = Rep),
+              width = 0.1, size = 0.5) +
+  geom_point(data = mf_summary,
+             aes(x = Carbon, y = mean_length),
+             color = "darkgrey", size = 2) +
+  geom_errorbar(data = mf_summary,
+                aes(x = Carbon,
+                    ymin = mean_length - se_length,
+                    ymax = mean_length + se_length),
+                width = 0.2, color = "darkgrey") +
+  geom_text(data = groups_results %>% filter(Microbes == "F16"),
+            aes(x = Carbon, y = 15, label = Letter),
+            size = 3, color = "black") +
+  geom_text(data = groups_results %>% filter(Microbes == "MF"),
+            aes(x = Carbon, y = 14, label = Letter),
+            size = 3, color = "darkgrey") +
+  geom_text(data = replicates_count,
+            aes(x = Carbon, y = y_pos, label = paste0("n=", n_replicates)),
+            size = 2.5, color = "black") +
+  facet_grid(Time ~ Carbon2, scales = "free") +
+  scale_fill_manual(values = condition_colors) +
+  labs(x = "", y = "Root Length (mm)", fill = "Carbon Sources") +
+  base_theme +
+  theme(legend.position = "none")+
+  ggh4x::facet_grid2(
+    Time ~ Carbon2,
+    scales = "free_x",
+    space  = "free_x",
+    labeller = labeller(Time = c("1W" = "1 week"), Carbon2 = c("Glucose" = "D-Glucose", "Mannose" = "D-Mannose", "Galactose" = "D-Galactose"))  # <- directly change label here
+  )
+
+Plot
+```
+## 4 - Plot Split per time
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare split
+df_72h <- subset(df, Time %in% c("72h"))
+mf_summary_72h <- subset(mf_summary, Time %in% c("72h"))
+groups_results_72h <- subset(groups_results, Time %in% c("72h"))
+replicates_count_72h <- subset(replicates_count, Time %in% c("72h"))
+
+df_1W <- subset(df, Time %in% c("1W"))
+mf_summary_1W <- subset(mf_summary, Time %in% c("1W"))
+groups_results_1W <- subset(groups_results, Time %in% c("1W"))
+replicates_count_1W <- subset(replicates_count, Time %in% c("1W"))
+
+
+# Plot 72h
+Plot_72h <- ggplot() +
+  geom_boxplot(data = filter(df_72h, Microbes == "F16"),
+               aes(x = Carbon, y = Length, fill = Carbon),
+               outlier.shape = NA) +
+ geom_jitter(data = filter(df_72h, Microbes == "F16"),
+              aes(x = Carbon, y = Length, fill = Carbon, shape = Rep),
+              alpha = 0.2) +
+  geom_point(data = mf_summary_72h,
+             aes(x = Carbon, y = mean_length),
+             color = "darkgrey", size = 2) +
+  geom_errorbar(data = mf_summary_72h,
+                aes(x = Carbon,
+                    ymin = mean_length - se_length,
+                    ymax = mean_length + se_length),
+                width = 0.2, color = "darkgrey") +
+  geom_text(data = groups_results_72h %>% filter(Microbes == "F16"),
+            aes(x = Carbon, y = 5, label = Letter),
+            size = 3, color = "black") +
+  geom_text(data = groups_results_72h %>% filter(Microbes == "MF"),
+            aes(x = Carbon, y = 4.5, label = Letter),
+            size = 3, color = "darkgrey") +
+  geom_text(data = replicates_count_72h,
+            aes(x = Carbon, y = y_pos, label = paste0("n=", n_replicates)),
+            size = 2.5, color = "black") +
+  facet_grid(Time ~ Carbon2, scales = "free") +
+  scale_fill_manual(values = condition_colors) +
+  labs(x = "", y = "Root Length (mm)", fill = "Carbon Sources") +
+  base_theme +
+  ggh4x::facet_grid2(
+    Time ~ Carbon2,
+    scales = "free_x",
+    space  = "free_x",
+    labeller = labeller(Time = c("1W" = "1 week"), Carbon2 = c("Glucose" = "D-Glucose", "Mannose" = "D-Mannose", "Galactose" = "D-Galactose"))  # <- directly change label here
+  )
+
+Plot_72h
+
+# Plot 1w
+Plot_1W <- ggplot() +
+  geom_boxplot(data = filter(df_1W, Microbes == "F16"),
+               aes(x = Carbon, y = Length, fill = Carbon),
+               outlier.shape = NA) +
+  geom_jitter(data = filter(df_1W, Microbes == "F16"),
+              aes(x = Carbon, y = Length, fill = Carbon, shape = Rep),
+              alpha = 0.2) +
+  geom_point(data = mf_summary_1W,
+             aes(x = Carbon, y = mean_length),
+             color = "darkgrey", size = 2) +
+  geom_errorbar(data = mf_summary_1W,
+                aes(x = Carbon,
+                    ymin = mean_length - se_length,
+                    ymax = mean_length + se_length),
+                width = 0.2, color = "darkgrey") +
+  geom_text(data = groups_results_1W %>% filter(Microbes == "F16"),
+            aes(x = Carbon, y = 15, label = Letter),
+            size = 3, color = "black") +
+  geom_text(data = groups_results_1W %>% filter(Microbes == "MF"),
+            aes(x = Carbon, y = 14, label = Letter),
+            size = 3, color = "darkgrey") +
+  geom_text(data = replicates_count_1W,
+            aes(x = Carbon, y = y_pos, label = paste0("n=", n_replicates)),
+            size = 2.5, color = "black") +
+  facet_grid(Time ~ Carbon2, scales = "free") +
+  scale_fill_manual(values = condition_colors) +
+  labs(x = "", y = "Root Length (mm)", fill = "Carbon Sources") +
+  base_theme +
+  ggh4x::facet_grid2(
+    Time ~ Carbon2,
+    scales = "free_x",
+    space  = "free_x",
+     labeller = labeller(Time = c("1W" = "1 week"), Carbon2 = c("Glucose" = "D-Glucose", "Mannose" = "D-Mannose", "Galactose" = "D-Galactose"))  # <- directly change label here
+  )
+
+Plot_1W
+
+#Get median
+median <- df_1W %>%
+  group_by(Carbon, Microbes) %>%
+  summarise(
+    median_area = median(Length, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+# B] Final plots
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Plot figure S1
+Figure_full <- plot_grid(
+  Plot_72h,
+  Plot_1W,
+  ncol = 2,
+  nrow=1,
+  rel_heights = c(1,1),
+  rel_widths = c(1,1),
+    align = "hv", 
+ axis = "tblr"
+)
+Figure_full
+```
+
+---
+END
+---

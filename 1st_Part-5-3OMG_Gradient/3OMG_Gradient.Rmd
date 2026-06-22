@@ -1,0 +1,528 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+This script has been made on R 4.2.2 (and Rstudio 2023.09.1+494)
+
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load packages
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(cowplot)
+library(ggplot2)
+library(rcompanion)
+library(dplyr)
+library(FSA)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Label
+labels <- c(
+  'MF' = "Microbe free",
+  'FSC'="Fungal Syncom (n=4)",
+  '5weeks'="Flowpot",
+  '2weeks'="System : Agar 1/2 MS")
+```
+
+# A] Flowpots
+
+## 1) Upload Data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+Table <- read.table(file="Df_Flowpots_Phenotype_Concentrations.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+Table
+```
+
+## 2) Plot + Statistics
+ 
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Test normality 
+normality_test <- Table %>%
+  group_by(Concentration_3OMG_2) %>%
+  shapiro_test(PPI)
+
+normality_test #2 are not normal out of 7 --> non parametric tests
+
+# Perform the Kruskal-Wallis test on the entire dataset
+kruskal_result <- kruskal.test(PPI ~ Concentration_3OMG_2, data = Table)
+
+# Perform Dunn's test
+dunn_result <- FSA::dunnTest(PPI ~ Concentration_3OMG_2, data = Table, method = "holm")
+
+# Generate compact letter display
+cld <- cldList(
+  p.value = dunn_result$res$P.adj,
+  comparison = dunn_result$res$Comparison,
+  threshold = 0.05,
+  remove.zero = FALSE
+)
+
+# Format the output as a data frame
+Stats_KW_Dunn <- data.frame(Group = cld)
+
+# Display the results
+Stats_KW_Dunn
+
+
+# Add y positions for the letters (above boxplots)
+Stats_KW_Dunn <- data.frame(Stats_KW_Dunn %>%
+  mutate(y_position = max(Table$PPI + 100)))
+
+#Add information on stats table
+colnames(Stats_KW_Dunn)[1] <- c("Concentration_3OMG_2")
+Stats_KW_Dunn$Microbes <- c("FSC")
+
+#Order plots
+Table$Sugar_Treatment <- factor(Table$Concentration_3OMG_2, levels = c ("0_mM", "0.01_mM", "0.9_mM", "1.87_mM",  "3.75_mM", "7.5_mM",    "7.5_mM_Weekly"))
+
+#Add timing
+Table$Time_Points <- c("5weeks")
+
+# Compute replicate counts per Concentration, Microbes, and Time_Point
+rep_counts <- Table %>%
+  group_by(Concentration_3OMG_2, Microbes, Time_Points) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y_pos = min(Table$PPI)-200)  # Position slightly above max PPI for labels
+
+#Stats
+control <- "0_mM"
+
+other_levels <- setdiff(
+  unique(Table$Concentration_3OMG_2),
+  control
+)
+comparisons_list <- lapply(other_levels, function(x) c(control, x))
+
+#Wilcoxon
+stat.test <- Table %>%
+  wilcox_test(PPI ~ Concentration_3OMG_2,
+              comparisons = comparisons_list,
+              ) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance() %>%
+  filter(p.adj.signif != "ns")
+
+#Add label
+stat.test <- stat.test %>%
+  mutate(label = paste0(
+    "P = ", 
+    formatC(p.adj, format = "e", digits = 2)  # 2 significant digits in scientific notation
+  ))
+
+stat.test$Concentration_3OMG_2 <- stat.test$group2
+
+# Plotting
+box_fill <- c("#949494", "#D2F0E3", "#C7E7D0", "#B3DAC0",
+              "#A0D2AF", "#98C7A5", "#7FC29B", "darkgreen")
+
+# Plot
+Plot_PPI <- ggplot(Table, aes(x = Concentration_3OMG_2, y = PPI, fill = Concentration_3OMG_2)) +
+  geom_boxplot(outlier.shape = NA, position = position_dodge(width = 0.75)) +
+  geom_jitter(aes(shape = Rep), alpha = 0.2,
+              position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75)) +
+  geom_text(data = rep_counts,
+            aes(x = Concentration_3OMG_2, y = y_pos, label = paste0("n=", n)),
+            inherit.aes = FALSE, size = 3) +  # Add replicate counts
+  ggtitle("") +
+  ylab("Plant Performance Index (PPI)") +
+  labs(shape = "Biological Replicates") +
+  xlab("") +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  ylim(-200,2600) +
+  scale_fill_manual(
+    name = "3OMG gradient",  # <-- rename fill legend
+    values = box_fill,            # your existing color mapping
+    labels = c("0 mM", "0.01 mM", "0.9 mM", "1.87 mM", "3.75 mM", "7.5 mM", "7.5 mM weekly")) +
+  # Facet only by Time_Points (since Microbes is now just FSC stp)
+  facet_grid(Microbes ~ Time_Points, scales = "free_y",labeller = as_labeller(labels)) +
+  # Change x-axis labels
+  scale_x_discrete(labels = c("0 mM", "0.01 mM", "0.9 mM", "1.87 mM", "3.75 mM", "7.5 mM", "7.5 mM weekly")) +
+  stat_pvalue_manual(
+    stat.test,
+    label = "label",
+    step.increase = 0.08,
+    y.position = 2500
+  ) +
+  ylim(-200,3800) +
+  base_theme
+
+# Print plot
+Plot_PPI
+```
+# B] Agar Plate
+
+## 1) Upload Data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+Table <- read.csv(file = "Df_Plate-Concentration.csv", header = TRUE, sep=",")
+Table
+```
+
+## 2) Plot + Statistics Full
+ 
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Ensure factors are ordered
+Table$Concentration_3OMG_2 <- factor(Table$Concentration_3OMG_2,
+                                     levels = c("0_mM","0.001_mM","0.01_mM","0.1_mM",
+                                                "0.9_mM","1.87_mM","3.75_mM","7.5_mM"))
+Table$Time_Points <- factor(Table$Time_Points,
+                                     levels = c("72h","1week","2weeks"))
+
+# Compute replicate counts per facet
+rep_counts <- Table %>%
+  group_by(Concentration_3OMG_2, Microbes, Time_Points) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y_pos = min(Table$Root_length, na.rm = TRUE) - 0.5)  # position below boxes
+
+
+# Compute MF averages and SD per facet
+Table_avg_MF <- Table %>%
+  filter(Microbes == "MF") %>%
+  group_by(Concentration_3OMG_2, Microbes, Time_Points) %>%
+  summarise(
+    PPI = mean(Root_length, na.rm = TRUE),
+    SD_PPI = sd(Root_length, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+#Test normality 
+normality_test <- Table %>%
+  group_by(Concentration_3OMG_2) %>%
+  shapiro_test(Root_length)
+
+normality_test #2 nothing is normal
+
+
+# Compute Kruskal-Wallis + Dunn letters per facet
+Stats_KW_Dunn <- Table %>%
+  group_by(Microbes, Time_Points) %>%
+  group_modify(~{
+    dt <- FSA::dunnTest(Root_length ~ Concentration_3OMG_2, data = .x, method = "holm")
+    cld <- cldList(
+      p.value = dt$res$P.adj,
+      comparison = dt$res$Comparison,
+      threshold = 0.05,
+      remove.zero = FALSE
+    )
+    data.frame(
+      Concentration_3OMG_2 = cld$Group,
+      Group.Letter = cld$Letter,
+      y_position = max(.x$Root_length, na.rm = TRUE) * 1.05
+    )
+  }) %>%
+  ungroup()
+
+
+
+Plot_Root_Length <- ggplot(Table, aes(x = Concentration_3OMG_2, y = Root_length, fill = Concentration_3OMG_2)) +
+  # MF averages as gray points and error bars
+  geom_point(data = Table_avg_MF, aes(x = Concentration_3OMG_2, y = PPI),
+             size = 2, color = "gray", inherit.aes = FALSE) +
+  geom_errorbar(data = Table_avg_MF,
+                aes(x = Concentration_3OMG_2, ymin = PPI - SD_PPI, ymax = PPI + SD_PPI),
+                width = 0.1, color = "gray", inherit.aes = FALSE) +
+  
+  # Boxplots
+  geom_boxplot(outlier.shape = NA, position = position_dodge(width = 0.75)) +
+  
+  # Jittered points
+  geom_jitter(alpha = 0.2,
+              position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75)) +
+  
+  # Kruskal-Wallis letters
+  geom_text(data = Stats_KW_Dunn,
+            aes(x = Concentration_3OMG_2, y = y_position, label = Group.Letter),
+            size = 4, inherit.aes = FALSE) +
+  
+  # Replicate counts
+  geom_text(data = rep_counts,
+            aes(x = Concentration_3OMG_2, y = y_pos, label = paste0("n=", n)),
+            size = 3, inherit.aes = FALSE) +
+  
+  # Labels and theme
+  ylab("Plant Performance Index (PPI)") +
+  xlab("") +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  
+  # Boxplot fill colors
+  scale_fill_manual(values = box_fill) +
+  # Facet by Microbes (rows) and Time_Points (columns)
+  facet_grid(Microbes ~ Time_Points, scales = "free_y")
+
+# Print plot
+Plot_Root_Length
+```
+
+## 3) Plot + Statistics FSC
+ 
+#### a) 1 week
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Calculate median MF for plotting
+median_root <- Table %>%
+  filter(Microbes == "MF", Concentration_3OMG_2 == "0_mM", Time_Points == "1week") %>%
+  summarise(median_root_length = median(Root_length, na.rm = TRUE)) %>%
+  pull(median_root_length) 
+
+# Filter Table and Stats_KW_Dunn for Microbes == "FSC" AND remove unwanted concentrations
+exclude_conc <- c("0.001_mM", "0.1_mM")
+Table_facet <- Table %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "1week")
+Table_facet <- droplevels(Table_facet)
+Stats_KW_Dunn_facet <- Stats_KW_Dunn %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "1week")
+Stats_KW_Dunn_facet <- droplevels(Stats_KW_Dunn_facet)
+rep_counts_facet <- rep_counts %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "1week")
+rep_counts_facet <- droplevels(rep_counts_facet)
+Table_avg_MF_facet <- Table_avg_MF %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "1week")
+Table_avg_MF_facet <- droplevels(Table_avg_MF_facet)
+
+#Prepare Stats
+control <- "0_mM"
+
+other_levels <- setdiff(
+  levels(Table_facet$Concentration_3OMG_2),
+  control
+)
+comparisons_list <- lapply(other_levels, function(x) c(control, x))
+
+#Wilcoxon
+stat.test <- Table_facet %>%
+  wilcox_test(Root_length ~ Concentration_3OMG_2,
+              comparisons = comparisons_list,
+              ) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance() %>%
+  filter(p.adj.signif != "ns")
+
+#Add label
+stat.test <- stat.test %>%
+  mutate(label = paste0("P = ", format(p.adj, scientific = TRUE)))
+
+stat.test$Concentration_3OMG_2 <- stat.test$group2
+
+# Plotting
+box_fill <- c("#949494", "#D2F0E3", "#C7E7D0", "#B3DAC0",
+              "#A0D2AF", "#98C7A5", "#7FC29B", "#7FC29B")
+
+Plot_Root_Length_1W <- ggplot(Table_facet, aes(x = Concentration_3OMG_2, y = Root_length, fill = Concentration_3OMG_2)) +
+  geom_point(data = Table_avg_MF_facet, aes(x = Concentration_3OMG_2, y = PPI),
+             size = 2, color = "gray", inherit.aes = FALSE) +
+  geom_errorbar(data = Table_avg_MF_facet,
+                aes(x = Concentration_3OMG_2, ymin = PPI - SD_PPI, ymax = PPI + SD_PPI),
+                width = 0.1, color = "gray", inherit.aes = FALSE) +
+  labs(fill = "3OMG gradient") + 
+  geom_boxplot(outlier.shape = NA, position = position_dodge(width = 0.75)) +
+  geom_jitter(alpha = 0.2,
+              position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75)) +
+  geom_text(data = rep_counts_facet,
+            aes(x = Concentration_3OMG_2, y = 0, label = paste0("n=", n)),
+            size = 3, inherit.aes = FALSE) +
+  ylab("Root Length (mm)") +
+  xlab("") +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  scale_fill_manual(
+    values = box_fill,  # your existing color mapping
+    labels = c("0 mM", "0.01 mM", "0.9 mM", "1.87 mM", "3.75 mM", "7.5 mM")) +
+  # Facet only by Time_Points (since Microbes is now just FSC stp)
+ # facet_grid(Microbes ~ Time_Points, scales = "free_y",labeller = as_labeller(labels)) +
+  # Change x-axis labels
+  scale_x_discrete(labels = c("0 mM", "0.01 mM", "0.9 mM", "1.87 mM", "3.75 mM", "7.5 mM")) + 
+  base_theme +
+  geom_hline(yintercept = median_root, linetype = "dashed", color = "darkgray", size = 0.8) + 
+  stat_pvalue_manual(
+    stat.test,
+    label = "label",
+    step.increase = 0.08,
+    y.position = 1.2
+  ) +
+  ylim(0,1.3) +
+  base_theme
+
+# Print plot
+Plot_Root_Length_1W
+```
+
+#### a) 2 weeks
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Calculate median MF for plotting
+median_root <- Table %>%
+  filter(Microbes == "MF", Concentration_3OMG_2 == "0_mM", Time_Points == "2weeks") %>%
+  summarise(median_root_length = median(Root_length, na.rm = TRUE)) %>%
+  pull(median_root_length) 
+
+# Filter Table and Stats_KW_Dunn for Microbes == "FSC" AND remove unwanted concentrations
+exclude_conc <- c("0.001_mM", "0.1_mM")
+Table_facet <- Table %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "2weeks")
+Table_facet <- droplevels(Table_facet)
+Stats_KW_Dunn_facet <- Stats_KW_Dunn %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "2weeks")
+Stats_KW_Dunn_facet <- droplevels(Stats_KW_Dunn_facet)
+rep_counts_facet <- rep_counts %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "2weeks")
+rep_counts_facet <- droplevels(rep_counts_facet)
+Table_avg_MF_facet <- Table_avg_MF %>% 
+  filter(Microbes == "FSC", !Concentration_3OMG_2 %in% exclude_conc, Time_Points == "2weeks")
+Table_avg_MF_facet <- droplevels(Table_avg_MF_facet)
+
+#Prepare Stats
+control <- "0_mM"
+
+other_levels <- setdiff(
+  levels(Table_facet$Concentration_3OMG_2),
+  control
+)
+comparisons_list <- lapply(other_levels, function(x) c(control, x))
+
+#Wilcoxon
+stat.test <- Table_facet %>%
+  wilcox_test(Root_length ~ Concentration_3OMG_2,
+              comparisons = comparisons_list,
+              ) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance() %>%
+  filter(p.adj.signif != "ns")
+
+#Add label
+stat.test <- stat.test %>%
+  mutate(label = paste0("P = ", format(p.adj, scientific = TRUE)))
+
+stat.test$Concentration_3OMG_2 <- stat.test$group2
+
+# Plotting
+box_fill <- c("#949494", "#D2F0E3", "#C7E7D0", "#B3DAC0",
+              "#A0D2AF", "#98C7A5", "#7FC29B", "#7FC29B")
+
+Plot_Root_Length_2W <- ggplot(Table_facet, aes(x = Concentration_3OMG_2, y = Root_length, fill = Concentration_3OMG_2)) +
+  geom_point(data = Table_avg_MF_facet, aes(x = Concentration_3OMG_2, y = PPI),
+             size = 2, color = "gray", inherit.aes = FALSE) +
+  geom_errorbar(data = Table_avg_MF_facet,
+                aes(x = Concentration_3OMG_2, ymin = PPI - SD_PPI, ymax = PPI + SD_PPI),
+                width = 0.1, color = "gray", inherit.aes = FALSE) +
+  labs(fill = "3OMG gradient") + 
+  geom_boxplot(outlier.shape = NA, position = position_dodge(width = 0.75)) +
+  geom_jitter(alpha = 0.2,
+              position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75)) +
+  geom_text(data = rep_counts_facet,
+            aes(x = Concentration_3OMG_2, y = 0, label = paste0("n=", n)),
+            size = 3, inherit.aes = FALSE) +
+  ylab("Root Length (mm)") +
+  xlab("") +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  scale_fill_manual(
+    values = box_fill,  # your existing color mapping
+    labels = c("0 mM", "0.01 mM", "0.9 mM", "1.87 mM", "3.75 mM", "7.5 mM")) +
+  # Facet only by Time_Points (since Microbes is now just FSC stp)
+ # facet_grid(Microbes ~ Time_Points, scales = "free_y",labeller = as_labeller(labels)) +
+  # Change x-axis labels
+  scale_x_discrete(labels = c("0 mM", "0.01 mM", "0.9 mM", "1.87 mM", "3.75 mM", "7.5 mM")) + 
+  base_theme +
+  geom_hline(yintercept = median_root, linetype = "dashed", color = "darkgray", size = 0.8) + 
+  stat_pvalue_manual(
+    stat.test,
+    label = "label",
+    step.increase = 0.08,
+    y.position = 3.8
+  )+
+  ylim(0,4) +
+  base_theme
+
+# Print plot
+Plot_Root_Length_2W
+```
+
+
+# C] Final Plot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Remove legends from the individual plots
+Plot_PPI_no_legend <- Plot_PPI + theme(legend.position = "none")
+Plot_Root_Length_no_legend <- Plot_Root_Length + theme(legend.position = "none")
+
+#Get Legend
+legend<- get_legend(Plot_PPI)
+
+# Combine Plots
+Plot1 <- plot_grid(
+  Plot_PPI_no_legend,
+  Plot_Root_Length_no_legend,
+  ncol = 1,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+ scale = c(1,1)   # scale individual plots
+)
+Plot1
+
+# Combien Plots + Legend
+PlotFinal <- plot_grid(
+  Plot1,
+  legend,
+  ncol = 2,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+  rel_widths = c(1,0.4)   # double width vs half width
+)
+PlotFinal
+
+
+# Plot Horizontal
+PlotFinal <- plot_grid(
+  Plot_PPI_no_legend,
+  Plot_Root_Length_2W,
+  legend,
+  ncol = 3,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+  rel_widths = c(1,1.1,0.4)   # double width vs half width
+)
+PlotFinal
+```
+
+---
+END
+---

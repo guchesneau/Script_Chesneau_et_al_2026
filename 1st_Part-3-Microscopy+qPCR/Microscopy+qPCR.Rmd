@@ -1,0 +1,403 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=FALSE, autodep = TRUE, warning = FALSE)
+#Set working direction
+knitr::opts_knit$set(root.dir = "")
+```
+
+# Before you start
+
+This script has been made on R 4.2.2 (and Rstudio 2023.09.1+494)
+
+```{r R version}
+R.version
+```
+
+```{r}
+#Load packages
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+library(cowplot)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    panel.border = element_rect(color = "black", fill = NA))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF", "F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free"
+)
+```
+
+# A] qPCR colonization
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+Table <- read.table(file="Df_qPCR.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+Table
+```
+
+## 1) Prepare dataset
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#1 )Roots
+Table_R <- subset(Table, Environment %in% c("Root"))
+
+#Get max UBQ10
+maxUBQ10 <- max(Table_R$UBQ10, na.rm = TRUE)
+
+#Put non detected UBQ10 primers as a value of 39
+Table_R$UBQ10[is.na(Table_R$UBQ10)] <- 39
+
+# Calculate the ratio for each row (2^Dekta CT)
+Table_R$LogDeltaCT <- log(2^(-(Table_R$Microbial_primers - Table_R$UBQ10)))
+Table_R$DeltaCT <- 2^(-(Table_R$Microbial_primers - Table_R$UBQ10))
+
+#2) Agar
+Table_A <- subset(Table, Environment %in% c("Agar"))
+
+# Normalizer Ct Agar by dividing by the wiegth
+Table_A$DeltaCT <- Table_A$Microbial_primers / Table_A$Plant..mg.
+Table_A$LogDeltaCT <- Table_A$Microbial_primers / Table_A$Plant..mg.
+
+#Bind table
+df_f <- rbind(Table_R, Table_A)
+```
+ 
+## 2) Root Colonization
+ 
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Préparer les données
+Table_R$Media <- factor(Table_R$Media, levels = c("Water", "3OMG"))
+Table_R$Condition <- "Root colonization"
+
+# Vérifier la normalité par Time × Media
+normality_results <- Table_R %>%
+  group_by(Time, Media) %>%
+  shapiro_test(LogDeltaCT) 
+normality_results #Test ok for all groups
+
+# Calculer les stats t-test par Time × Condition
+Stats_R <- Table_R %>%
+  group_by(Time, Condition) %>%
+  t_test(LogDeltaCT ~ Media) %>%
+    adjust_pvalue(method = "bonferroni") %>%       # correction bonferroni
+  mutate(
+label_text = paste0("P=", formatC(p.adj, format = "e", digits = 2)) 
+  )
+
+# Calculer positions pour les brackets
+Stats_R <- Stats_R %>%
+  left_join(
+    Table_R %>%
+      group_by(Time, Condition, Media) %>%
+      summarise(ymax = max(LogDeltaCT, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = Media, values_from = ymax),
+    by = c("Time", "Condition")
+  ) %>%
+  mutate(
+    # Option 1: hauteur fixe (au top du plot)
+    y_position = 8,   # <- ajuster selon ton échelle
+    x1 = as.numeric(factor(Time)) - 0.2,  # gauche de la bracket
+    x2 = as.numeric(factor(Time)) + 0.2   # droite de la bracket
+  )
+
+# Calculer n pour chaque box
+rep_counts_R <- Table_R %>%
+  group_by(Condition, Time, Media) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  left_join(
+    Table_R %>%
+      group_by(Condition) %>%
+      summarise(y_pos = min(LogDeltaCT, na.rm = TRUE) - 0.05 * diff(range(LogDeltaCT))),
+    by = "Condition"
+  )
+
+#Add meida for plotting
+Stats_R$Media <- c("3OMG")
+
+# Put NA if not significant
+Stats_R <- Stats_R %>%
+  mutate(
+    p.adj      = ifelse(p.adj < 0.05, p.adj, NA),
+    label_text = ifelse(p.adj < 0.05, label_text, NA),
+    x1         = ifelse(p.adj < 0.05, x1, NA),
+    x2         = ifelse(p.adj < 0.05, x2, NA)
+  )
+
+
+
+# Reorder the 'System' and 'Microbes' factors
+Table_R$Time <- factor(Table_R$Time, levels = c( "72h" ,"1week", "2weeks"))
+Stats_R$Time <- factor(Stats_R$Time, levels = c( "72h" ,"1week", "2weeks"))
+rep_counts_R$Time <- factor(rep_counts_R$Time, levels = c( "72h" ,"1week", "2weeks"))
+
+# Plot
+Plot_qPCR <- ggplot(Table_R, aes(x = Time, y = LogDeltaCT, fill = Media)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.75))+
+  geom_jitter(aes( fill = Media, shape = Bio_rep), alpha = 0.6,
+              position = position_jitterdodge(dodge.width = 0.75))+
+  geom_segment(data = Stats_R,
+               aes(x = x1, xend = x2, y = 8 , yend = 8)) +
+  geom_text(data = Stats_R,
+            aes(x = (x1 + x2)/2, y = 8.5, label = label_text),
+            size = 3) +
+  geom_text(data = rep_counts_R,
+            aes(x = Time, y = y_pos, label = paste0("n=", n)),
+            position = position_dodge(width = 0.75),
+            vjust = 1, size = 3) +
+  ggtitle("") +
+ylab(expression("Root Colonization" ~ 2^{Delta*C[T]} ~ italic(AtUBQ10))) +
+  scale_fill_manual(values = c("#949494", "#7FC29B"), name = "Treatment") +
+  labs(shape = "Biological Replicates") +
+  xlab("") +
+  facet_grid(~ Condition) +
+  ylim(1, 9) +
+  base_theme
+
+Plot_qPCR
+
+#Get median
+median <- Table_R %>%
+  group_by(Media, Time) %>%
+  summarise(
+    median_area = median(LogDeltaCT, na.rm = TRUE),
+    .groups = "drop"
+  )
+median
+```
+
+## 3) Agar Colonization
+ 
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Préparer les données
+Table_A$Media <- factor(Table_A$Media, levels = c("Water", "3OMG"))
+Table_A$Condition <- "Agar colonization"
+
+# Vérifier la normalité par Time × Media
+normality_results <- Table_A %>%
+  group_by(Time, Media) %>%
+  shapiro_test(Microbial_primers) 
+normality_results #Test ok for groups, only one not normal
+
+# Calculer les stats t-test par Time × Condition
+Stats_A <- Table_A %>%
+  group_by(Time, Condition) %>%
+  t_test(Microbial_primers ~ Media) %>%
+    adjust_pvalue(method = "bonferroni") %>%       # correction bonferroni
+  mutate(
+label_text = paste0("P=", formatC(p, format = "e", digits = 2)) 
+  )
+
+# Calculer positions pour les brackets
+Stats_A <- Stats_A %>%
+  left_join(
+    Table_A %>%
+      group_by(Time, Condition, Media) %>%
+      summarise(ymax = max(Microbial_primers, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = Media, values_from = ymax),
+    by = c("Time", "Condition")
+  ) %>%
+  mutate(
+    # Option 1: hauteur fixe (au top du plot)
+    y_position = 8,   # <- ajuster selon ton échelle
+    x1 = as.numeric(factor(Time)) - 0.2,  # gauche de la bracket
+    x2 = as.numeric(factor(Time)) + 0.2   # droite de la bracket
+  )
+
+# Calculer n pour chaque box
+rep_counts_A <- Table_A %>%
+  group_by(Condition, Time, Media) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  left_join(
+    Table_A %>%
+      group_by(Condition) %>%
+      summarise(y_pos = 10),
+    by = "Condition"
+  )
+
+#Add meida for plotting
+Stats_A$Media <- c("3OMG")
+
+# Put NA if not significant
+Stats_A <- Stats_A %>%
+  mutate(
+    p      = ifelse(p < 0.05, p, NA),
+    label_text = ifelse(p < 0.05, label_text, NA),
+    x1         = ifelse(p < 0.05, x1, NA),
+    x2         = ifelse(p < 0.05, x2, NA)
+  )
+
+# Reorder the 'System' and 'Microbes' factors
+Table_A$Time <- factor(Table_A$Time, levels = c( "72h" ,"1week", "2weeks"))
+Stats_A$Time <- factor(Stats_A$Time, levels = c( "72h" ,"1week", "2weeks"))
+rep_counts_A$Time <- factor(rep_counts_A$Time, levels = c( "72h" ,"1week", "2weeks"))
+
+#Add column for plotting
+Stats_A$Bio_rep <- c("Rep 1")
+rep_counts_A$Bio_rep <- c("Rep 1")
+
+
+# Plot
+Plot_qPCR_Agar <- ggplot(Table_A, aes(x = Time, y = -Microbial_primers, fill = Media)) +
+   geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.75))+
+  geom_jitter(aes( fill = Media, shape = Bio_rep), alpha = 0.6,
+              position = position_jitterdodge(dodge.width = 0.75))+
+  geom_segment(data = Stats_A,
+               aes(x = x1, xend = x2, y = -14.5 , yend = -14.5)) +
+  geom_text(data = Stats_A,
+            aes(x = (x1 + x2)/2, y = -14, label = label_text),
+            size = 3) +
+  geom_text(data = rep_counts_A,
+            aes(x = Time, y = -20, label = paste0("n=", n)),
+            position = position_dodge(width = 0.75),
+            vjust = 1, size = 3) +
+  ggtitle("") +
+ ylab(expression("Agar Colonization" ~ -Ct ~ (25 * mm^2))) +
+  scale_fill_manual(values = c("#949494", "#7FC29B"), name = "Treatment") +
+  labs(shape = "Biological Replicates") +
+  xlab("") +
+  theme(strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+        strip.text.x = element_text(size = 12, color = "black"),
+        strip.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(angle = 90, hjust = 1)) +
+  facet_grid(~ Condition) +
+  ylim(-20.5, -14) +
+  base_theme
+
+Plot_qPCR_Agar
+```
+
+# B] Root Length
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+Table_Root_length <- read.table(file="DF_Root_length.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+Table_Root_length
+```
+
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Order plots
+Table_Root_length$Media <- factor(Table_Root_length$Media, levels = c ("Water", "3OMG"))
+Table_Root_length$Time <- factor(Table_Root_length$Time, levels = c ("72h", "1week", "2weeks"))
+
+# Vérifier la normalité par Time × Media
+normality_results <- Table_Root_length %>%
+  group_by(Time, Media) %>%
+  shapiro_test(Root_length) #Test ok for groups
+normality_results #Not ok half are not normal
+
+# Calculer les stats Wilcoxon par Time
+Stats_Root_length <- Table_Root_length %>%
+  group_by(Time) %>%
+  wilcox_test(Root_length ~ Media, paired = FALSE) %>%  # non apparié
+  adjust_pvalue(method = "bonferroni") %>%                    
+  mutate(
+    label_text = paste0("P=", signif(p.adj, 3))           # raw p-value ou ajustée
+  )
+
+
+# Calculer positions pour les brackets
+Stats_Root_length <- Stats_Root_length %>%
+  left_join(
+    Table_Root_length %>%
+      group_by(Time, Media) %>%
+      summarise(ymax = max(Root_length, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = Media, values_from = ymax),
+    by = "Time"
+  ) %>%
+  mutate(
+    y_position = pmax(Water, `3OMG`) + 0.2,   # fixer au-dessus de la box la plus haute
+    x1 = as.numeric(factor(Time)) - 0.2,     # gauche du bracket
+    x2 = as.numeric(factor(Time)) + 0.2      # droite du bracket
+  )
+
+#Add Media for plotting
+Stats_Root_length$Media <- c("3OMG")
+
+# Filtrer uniquement les comparaisons significatives
+Stats_Root_length <- Stats_Root_length %>% filter(p < 0.05)
+
+#Add a condition for plotting
+Table_Root_length$Condition <- c("Root Length")
+
+# Calculer n pour chaque box
+rep_counts <- Table_Root_length %>%
+  group_by(Condition, Time, Media) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  left_join(
+    Table_Root_length %>%
+      group_by(Condition) %>%
+      summarise(y_pos = min(Root_length, na.rm = TRUE) - 0.5, .groups = "drop"),
+    by = "Condition"
+  )
+
+# Plot
+Plot_P <- ggplot(Table_Root_length, aes(x = Time, y = Root_length, fill = Media)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.75))+
+  geom_jitter(aes( fill = Media, shape = Bio_rep), alpha = 0.2,
+              position = position_jitterdodge(dodge.width = 0.75))+
+  # Brackets et p-values
+  geom_segment(data = Stats_Root_length,
+               aes(x = x1, xend = x2, y = 16.5 , yend = 16.5)) +
+  geom_text(data = Stats_Root_length,
+            aes(x = (x1 + x2)/2, y = 17.5, label = label_text),
+            size = 3) +
+  geom_text(data = rep_counts,
+            aes(x = Time, y = y_pos-1, label = paste0("n=", n)),
+            position = position_dodge(width = 0.5),
+            vjust = 1, size = 3) +
+  ggtitle("") +
+  ylab("Root length (mm)") +
+  scale_fill_manual(values = c("darkgray", "#7FC29B"), name = "Treatment") +
+  labs(shape = "Biological Replicates") +
+  xlab("") +
+  theme(strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+        strip.text.x = element_text(size = 12, color = "black"),
+        strip.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(angle = 90, hjust = 1)) +
+  facet_grid(~ Condition) +
+  ylim(-2,18) +
+  base_theme
+
+Plot_P
+```
+
+# C] Figure Final
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Plot_Comb1 <- plot_grid(Plot_P, Plot_qPCR ,Plot_qPCR_Agar,  rel_heights = c(1,1,1), rel_widths = c(1,1,1), nrow=3,ncol=1,   align="hv",  axis = "tb")
+Plot_Comb1
+```
+
+---
+END
+---

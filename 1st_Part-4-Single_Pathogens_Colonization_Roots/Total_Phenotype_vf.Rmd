@@ -1,0 +1,533 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau & Dorcas Lin"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "/Post_doc/Postdoc/Scripts/2-Biolog/Full_Pathogenecity_3OMG") 
+```
+
+
+# Before you start
+
+This script has been made on R 4.2.2 (and Rstudio 2023.09.1+494)
+
+```{r R version}
+R.version
+```
+
+```{r}
+#Load Packages
+library(rstatix)  # For statistical analysis
+library(ggpubr)   # For creating publication-ready plots using ggplot2
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggtree)
+library(ape)
+library(cowplot)
+library(ggplot2)
+library(rstatix)
+library(dplyr)
+
+#Colors
+color_palette <- c(
+  "Water" = "#949494",
+  "3OMG"  = "#7FC29B"
+)
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    panel.border = element_rect(color = "black", fill = NA))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF","BFSC","BSC","FSC","F16","F44","F64","F96","F100","F117","F147","F212","F243","Pu","Rs","Vd","Bs","AMF")
+Kingdom_levels <- c("MiniSynCom", "Fungi","Oomycetes","Bacteria")
+
+Kingdom <- tibble(Microbes = Microbes_levels) %>%
+  mutate(Kingdom = dplyr::case_when(
+    Microbes %in% c("BFSC","BSC","FSC") ~ "MiniSynCom",
+    Microbes %in% c("F16","F44","F64","F96","F100","F117","F147","F212","F243","Vd","Bs","AMF") ~ "Fungi",
+    Microbes == "Pu" ~ "Oomycetes",
+    Microbes == "Rs" ~ "Bacteria",
+    TRUE ~ NA_character_
+  ))
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'BFSC'="Bacterial and Fungal<br>SynCom",
+  'BSC'="Bacterial<br>SynCom",
+  'FSC' = "Fungal<br>SynCom",
+  'F16' = "*Plecto.*<br>*cucumerina*",
+  'F44' = "*Fusarium*<br>*tricinctum*",
+  'F64' = "*Alternaria*<br>*alternata*",
+  'F96' = "*Rhizoctonia*<br>*solani*",
+  'F100' = "*Boeremia*<br>*exigua*",
+  'F117' = "*Plecto.*<br>*plurivora*",
+  'F147' = "*Dactylo.*<br>*macrodidyma*",
+  'F212' = "*Fusarium*<br>*oxysporum*",
+  'F243' = "*Dendryphion*<br>*nanum*",
+  'Pu' = "*Globispor.*<br>*ultimum*",
+  'Rs' = "*Ralstonia*<br>*solanacear.*",
+  'Bs' = "*Bipolaris*<br>*sorokiniana*",
+  'NoAMF' = "Microbe free",
+  'Vd' = "*Verticilium*<br> *dahliae*",
+  'AMF' = "*Rhizophagus*<br>*irregularis*",
+  'Fungi' = "Fungi",
+  'Oomycetes' = "Oomycetes",
+  'Bacteria' = "Bacteria",
+  'Flowpots' = "Flowpots",
+  'MS_agar' = "Agar 1/2 MS",
+  'Arabidopsis_thaliana' = "A. thaliana",
+  'Micro_Tomato' = "S. lycopersicum",
+  'Hordeum_vulgare' = "H. vulgare"
+)
+
+#Load data
+raw_data<-read.csv(file = "Df_Total_PlantPhenotype.csv", header = TRUE, sep=",")
+raw_data
+
+raw_data<-raw_data%>%
+  dplyr::left_join(Kingdom,by = "Microbes")%>%
+  filter(Treatment!="Glucose")
+
+raw_data$Weight_length[is.na(raw_data$Weight_length)]<-0
+
+# raw_data<-raw_data%>%
+#   filter(Experiment!="FPath1")
+
+raw_data$Weight_length_per_plant<-raw_data$Weight_length/raw_data$Nb
+# Setting Factor Levels:
+raw_data$Microbes <- factor(raw_data$Microbes, levels = Microbes_levels)
+raw_data$Treatment <- factor(raw_data$Treatment, levels = Treatment_levels)
+raw_data$Kingdom <- factor(raw_data$Kingdom, levels = Kingdom_levels)
+
+plot<- ggplot(raw_data, aes(x = Treatment, y = Weight_length_per_plant, fill = Treatment)) +
+     geom_boxplot(outlier.shape = NA) +
+     geom_jitter(aes(shape = as.character(Bio_rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+     scale_fill_manual(values = color_palette) +
+     facet_grid(System+Plant~Microbes, labeller = as_labeller(labels),scales = "free_y") +
+     labs(y = "Weight (mg)/plant", x = "", fill = "Treatment", shape = "Biological Replicate") +
+     base_theme +
+  theme(strip.background = element_rect(color = "black", fill = "white"))
+ plot
+
+```
+
+# A] Plant Phenotype
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Data <- raw_data
+
+#Remove NA
+Data$Weight_length_per_plant[is.na(Data$Weight_length_per_plant)] <- 0
+
+#Calculate GR
+Data$GR <- Data$Nb / max(Data$Nb, na.rm = TRUE)
+    
+#Calculate PPI (Plant Performance Index)   
+Data$PPI <- ifelse(
+  Data$System == "Flowpots",
+  Data$GR * Data$Weight_length_per_plant,  # Flowpots
+  Data$Weight_length_per_plant              # other systems
+)
+```  
+
+## 1 - Arabidopsis MiniSynCom
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset
+Data_At_MiniSC <- subset(Data, Plant %in% c("Arabidopsis_thaliana") & Experiment %in% c("MiniSC"))
+
+# Normality test per System × Microbes
+normality_test <- Data_At_MiniSC %>%
+  group_by(System, Microbes) %>%
+  shapiro_test(PPI)
+
+normality_test #One not normal out of 4
+
+#Compute Wilcoxon test per System × Microbes
+stat_test <- Data_At_MiniSC %>%
+  group_by(System, Microbes) %>%
+  wilcox_test(PPI ~ Treatment) %>%
+  add_significance("p") %>%  # optional: adds *, **, ***
+  adjust_pvalue(method = "BH")  # optional: multiple testing correction
+
+#Compute dynamic y positions per System
+y_positions <- Data_At_MiniSC %>%
+  group_by(System) %>%
+  summarise(max_PPI = max(PPI, na.rm = TRUE)) %>%
+  mutate(y.position = max_PPI * 1.05)  # adjust multiplier for spacing
+
+#Add for plotting
+stat_test$Treatment <- c("Water")
+
+#Join y-position to the stat_test table
+stat_test <- stat_test %>%
+  left_join(y_positions %>% dplyr::select(System, y.position), by = "System")
+
+#Compute median of Water treatment for Microbes = "MF"
+median_line <- Data_At_MiniSC %>%
+  filter(Treatment == "Water", Microbes == "MF") %>%
+  summarise(median_PPI = median(PPI, na.rm = TRUE))
+
+# Create a column with "P = ..." formatting
+stat_test <- stat_test %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+#Plot with ggplot and add stats
+plot_MiniSynCom <- ggplot(Data_At_MiniSC, aes(x = Treatment, y = PPI, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette) +
+  facet_grid(System ~ Microbes, labeller = as_labeller(labels), scales = "free_y") +
+  labs(y = "PPI (Plant Performance Index)", x = "", fill = "Treatment", shape = "Biological Replicate") +
+  base_theme +
+  stat_pvalue_manual(stat_test, label = "label_text", tip.length = 0.02, hide.ns = TRUE, size = 3) +
+  geom_hline(data = median_line, aes(yintercept = median_PPI),
+             linetype = "dashed", color = "black")+
+  theme(strip.background = element_rect(color = "black", fill = "white"))
+
+plot_MiniSynCom
+```
+
+## 2 - Arabidopsis Single Pathognes
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset
+Data_At_Mono <- subset(Data, Plant %in% c("Arabidopsis_thaliana") & !Experiment %in% c("MiniSC"))
+
+#Normality test
+normality_test_Mono <- Data_At_Mono %>%
+  group_by(System, Microbes) %>%
+  shapiro_test(PPI)
+
+normality_test_Mono # Lager number are not normal - non-parametric test
+
+#Caluclate significance for pathogenecity
+Data_At_Mono <- Data_At_Mono %>%
+  mutate(ref_condition = ifelse(Treatment == "Water" & Microbes == "MF", "ref", as.character(Microbes)))
+
+stat_test_patho <- data.frame(Data_At_Mono %>%
+  group_by(System) %>%                   # test within each System × Microbes
+  wilcox_test(PPI ~ ref_condition, alternative = "two.sided") %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance() %>%
+  mutate(label = paste0("P = ", formatC(p.adj, format = "e", digits = 2))))
+
+#Export table
+#write.csv(stat_test_patho, "stat_test_patho.csv")
+
+#Compute Wilcoxon test per System × Microbes
+stat_test_Mono <- Data_At_Mono %>%
+  group_by(System, Microbes) %>%
+  wilcox_test(PPI ~ Treatment) %>%
+  add_significance("p") %>%  # optional: adds *, **, ***
+  adjust_pvalue(method = "BH")  # optional: multiple testing correction
+
+#Compute dynamic y positions per System
+y_positions <- Data_At_Mono %>%
+  group_by(System) %>%
+  summarise(max_PPI = max(PPI, na.rm = TRUE)) %>%
+  mutate(y.position = max_PPI * 1.05)  # adjust multiplier for spacing
+
+#Add for plotting
+stat_test_Mono$Treatment <- c("Water")
+
+#Join y-position to the stat_test table
+stat_test_Mono <- stat_test_Mono %>%
+  left_join(y_positions %>% dplyr::select(System, y.position), by = "System")
+
+# Compute median of Water treatment for Microbes = "MF" per System
+median_line_mono <- Data_At_Mono %>%
+  filter(Treatment == "Water", Microbes == "MF") %>%
+  group_by(System) %>%
+  summarise(median_PPI = median(PPI, na.rm = TRUE), .groups = "drop")
+
+
+# Create a column with "P = ..." formatting
+stat_test_Mono <- stat_test_Mono %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+c("F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs")
+
+# Reorder the 'System' and 'Microbes' factors
+Data_At_Mono$Microbes <- factor(Data_At_Mono$Microbes, levels = c( "MF" ,"F16", "F117", "F96", "F147", "F212", "F44", "F243", "F100", "F64", "Pu", "Rs"))  # desired order
+
+# Calculate number of replicates and dynamic y positions per facet
+rep_counts <- Data_At_Mono %>%
+  dplyr::group_by(System, Microbes, Treatment) %>%
+  dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+  dplyr::left_join(
+    Data_At_Mono %>%
+      dplyr::group_by(System) %>%
+      dplyr::summarise(y_pos = min(PPI, na.rm = TRUE) - 0.05 * diff(range(PPI, na.rm = TRUE))),
+    by = "System"
+  )
+
+#Plot with ggplot and add stats
+plot_Mono <- ggplot(Data_At_Mono, aes(x = Treatment, y = PPI, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette) +
+  facet_grid(System ~ Microbes, labeller = as_labeller(labels), scales = "free_y") +
+  labs(y = "", x = "", fill = "Treatment", shape = "Biological Replicate") +
+  base_theme +
+  stat_pvalue_manual(stat_test_Mono, label = "label_text", tip.length = 0.02, hide.ns = TRUE, size = 3) +
+  geom_hline(data = median_line_mono, aes(yintercept = median_PPI),
+             linetype = "dashed", color = "black") +
+   geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = y_pos, label = paste0("n=", n)),
+    vjust = 1,
+    size = 3
+  )+
+  theme(strip.background = element_rect(color = "black", fill = "white"))
+plot_Mono
+
+#Get median
+median <- Data_At_Mono %>%
+  group_by(System, Microbes, Treatment) %>%
+  summarise(
+    median_area = median(PPI, na.rm = TRUE),
+    .groups = "drop"
+  )
+median
+
+#write.csv(median, "df_Med_Phenotypes.csv")
+```
+
+## 3 - Tomato Pathogens
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset
+Data_Tomato <- subset(Data, Plant %in% c("Micro_Tomato"))
+
+#Normality test
+normality_test_Tomato <- Data_Tomato %>%
+  group_by(System, Microbes) %>%
+  shapiro_test(PPI)
+
+normality_test_Tomato # Lager number are not normal - non-parametric test
+
+#Compute Wilcoxon test per System × Microbes
+stat_test_Tom <- Data_Tomato %>%
+  group_by(System, Microbes) %>%
+  wilcox_test(PPI ~ Treatment) %>%
+  add_significance("p") %>%  # optional: adds *, **, ***
+  adjust_pvalue(method = "BH")  # optional: multiple testing correction
+
+#Compute dynamic y positions per System
+y_positions <- Data_Tomato %>%
+  group_by(System) %>%
+  summarise(max_PPI = max(PPI, na.rm = TRUE)) %>%
+  mutate(y.position = max_PPI * 1.05)  # adjust multiplier for spacing
+
+#Add for plotting
+stat_test_Tom$Treatment <- c("Water")
+
+#Join y-position to the stat_test table
+stat_test_Tom <- stat_test_Tom %>%
+  left_join(y_positions %>% dplyr::select(System, y.position), by = "System")
+
+# Compute median of Water treatment for Microbes = "MF" per System
+median_line_Tom <- Data_Tomato %>%
+  filter(Treatment == "Water", Microbes == "MF") %>%
+  group_by(System) %>%
+  summarise(median_PPI = median(PPI, na.rm = TRUE), .groups = "drop")
+
+
+# Create a column with "P = ..." formatting
+stat_test_Tom <- stat_test_Tom %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+# Reorder the 'System' and 'Microbes' factors
+Data_Tomato$Microbes <- factor(Data_Tomato$Microbes, levels = c( "MF" ,"F16", "Vd", "F96", "AMF"))  # desired order
+
+# Calculate number of replicates and dynamic y positions per facet
+rep_counts <- Data_Tomato %>%
+  dplyr::group_by(System, Microbes, Treatment) %>%
+  dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+  dplyr::left_join(
+    Data_Tomato %>%
+      dplyr::group_by(System) %>%
+      dplyr::summarise(y_pos = min(PPI, na.rm = TRUE) - 0.05 * diff(range(PPI, na.rm = TRUE))),
+    by = "System"
+  )
+
+#Plot with ggplot and add stats
+plot_Tomato <- ggplot(Data_Tomato, aes(x = Treatment, y = PPI, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette) +
+  facet_grid(System ~ Microbes, labeller = as_labeller(labels), scales = "free_y") +
+  labs(y = "", x = "", fill = "Treatment", shape = "Biological Replicate") +
+  base_theme +
+  stat_pvalue_manual(stat_test_Tom, label = "label_text", tip.length = 0.02, hide.ns = TRUE, size = 3) +
+  geom_hline(data = median_line_Tom, aes(yintercept = median_PPI),
+             linetype = "dashed", color = "black")+
+   geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = y_pos, label = paste0("n=", n)),
+    vjust = 1,
+    size = 3
+  )+
+  theme(strip.background = element_rect(color = "black", fill = "white"))
+
+plot_Tomato
+```
+
+## 4 - Barley Pathogens
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset
+Data_Barley <- subset(Data, Plant %in% c("Hordeum_vulgare"))
+
+#Normality test
+normality_test_Barley <- Data_Barley %>%
+  group_by(System, Microbes) %>%
+  shapiro_test(PPI)
+
+normality_test_Barley # Lager number are not normal - non-parametric test
+
+#Compute Wilcoxon test per System × Microbes
+stat_test_Barley <- Data_Barley %>%
+  group_by(System, Microbes) %>%
+  wilcox_test(PPI ~ Treatment) %>%
+  add_significance("p") %>%  # optional: adds *, **, ***
+  adjust_pvalue(method = "BH")  # optional: multiple testing correction
+
+#Compute dynamic y positions per System
+y_positions <- Data_Barley %>%
+  group_by(System) %>%
+  summarise(max_PPI = max(PPI, na.rm = TRUE)) %>%
+  mutate(y.position = max_PPI * 1.05)  # adjust multiplier for spacing
+
+#Add for plotting
+stat_test_Barley$Treatment <- c("Water")
+
+#Join y-position to the stat_test table
+stat_test_Barley <- stat_test_Barley %>%
+  left_join(y_positions %>% dplyr::select(System, y.position), by = "System")
+
+# Compute median of Water treatment for Microbes = "MF" per System
+median_line_Barley <- Data_Barley %>%
+  filter(Treatment == "Water", Microbes == "MF") %>%
+  group_by(System) %>%
+  summarise(median_PPI = median(PPI, na.rm = TRUE), .groups = "drop")
+
+
+# Create a column with "P = ..." formatting
+stat_test_Barley <- stat_test_Barley %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+# Reorder the 'System' and 'Microbes' factors
+Data_Barley$Microbes <- factor(Data_Barley$Microbes, levels = c( "MF" ,"F16", "AMF", "Bs"))  # desired order
+
+# Calculate number of replicates and dynamic y positions per facet
+rep_counts <- Data_Barley %>%
+  dplyr::group_by(System, Microbes, Treatment) %>%
+  dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+  dplyr::left_join(
+    Data_Barley %>%
+      dplyr::group_by(System) %>%
+      dplyr::summarise(y_pos = min(PPI, na.rm = TRUE) - 0.05 * diff(range(PPI, na.rm = TRUE))),
+    by = "System"
+  )
+
+#Plot with ggplot and add stats
+plot_Barley <- ggplot(Data_Barley, aes(x = Treatment, y = PPI, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette) +
+  facet_grid(System ~ Microbes, labeller = as_labeller(labels), scales = "free_y") +
+  labs(y = "", x = "", fill = "Treatment", shape = "Biological Replicate") +
+  base_theme +
+  stat_pvalue_manual(stat_test_Barley, label = "label_text", tip.length = 0.02, hide.ns = TRUE, size = 3) +
+  geom_hline(data = median_line_Barley, aes(yintercept = median_PPI),
+             linetype = "dashed", color = "black")+
+   geom_text(
+    data = rep_counts,
+    aes(x = Treatment, y = y_pos, label = paste0("n=", n)),
+    vjust = 1,
+    size = 3
+  )+
+  theme(strip.background = element_rect(color = "black", fill = "white"))
+
+
+
+plot_Barley
+```
+
+# B] Final Plots
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Remove legends from the individual plots
+plot_MiniSynCom_no_legend <- plot_MiniSynCom + theme(legend.position = "none")
+plot_Mono_no_legend <- plot_Mono + theme(legend.position = "none")
+plot_Tomato_no_legend <- plot_Tomato + theme(legend.position = "none")
+plot_Barley_no_legend <- plot_Barley + theme(legend.position = "none")
+
+# Stack plots vertically with matching widths
+final_plot <- plot_grid(
+  plot_MiniSynCom_no_legend,
+  plot_Mono_no_legend,
+  plot_Tomato_no_legend,
+  plot_Barley_no_legend,
+  ncol = 4,
+   align = "hv",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+ scale = c(0.5, 1, 0.5, 1)   # scale individual plots
+)
+final_plot
+
+# Create an empty plot
+empty_plot <- ggplot() + theme_void()
+
+#Plot 1
+Plot1 <- plot_grid(
+  plot_MiniSynCom_no_legend,
+  empty_plot, ncol =1,
+  rel_heights = c(1,0.75))
+  
+Plot2 <- plot_grid(
+  plot_Tomato_no_legend,
+  empty_plot, ncol =1,
+    rel_heights = c(1,0.75))
+  
+final_plot <- plot_grid(
+  Plot1,
+  plot_Mono_no_legend,         
+  Plot2, 
+  plot_Barley_no_legend,    
+  ncol = 4,
+  align = "v",                 # align horizontally
+  axis = "tb",                 # align top and bottom axes
+  rel_widths = c(1, 2, 1, 1)   # double width vs half width
+)
+
+#Get Legend
+legendGRFSC <- get_legend(plot_MiniSynCom)
+
+# Combine plots with legend on the right
+final_plot_with_legend <- plot_grid(final_plot, legendGRFSC, ncol = 2, rel_widths = c(2, 0.2))
+
+final_plot_with_legend
+```
+
+
+---
+END
+---

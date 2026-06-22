@@ -1,0 +1,595 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.0.0 (and Rstudio 1.2.5019)
+
+```{r R version}
+R.version
+```
+
+```{r}
+#Load Packages
+library(rstatix)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(dplyr)
+library(cowplot)
+library(ggplot2)
+library(ggpubr)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF","F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'F16' = "*Plectosphaerella*<br>*cucumerina*",
+  'MS_agar' = "Agar 1/2 MS",
+  'Arabidopsis_thaliana' = "A. thaliana"
+)
+```
+
+# A] Prepare Data length
+
+## 1) Upload
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+Table <- read.table(file="df_flux.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+Table
+
+#transfrom NA into 0
+Table[is.na(Table)] <- 1
+```
+## 2) Normalize
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Normalize by substracting blanks
+#Calculate the average Peak_Area for MF_MF condition for each Compound
+average_peak_area <- Table %>%
+  filter(Microbes == "MF") %>%  # Filter rows where Microbe is MF_MF
+  group_by(Compound, Environment) %>%  # Group by Compound
+  summarise(Average_Peak_Area = max(Peak_Area, na.rm = TRUE))  # Calculate average Peak_Area
+
+#Merge the average values back into the original dataframe
+Table2 <- Table %>%
+  left_join(average_peak_area, by = c("Compound","Environment"))  # Add Average_Peak_Area column to original dataframe
+
+# View the updated dataframe
+head(Table2)
+
+#Substract by average
+Table2$Norm_Peak_area <- Table2$Peak_Area - Table2$Average_Peak_Area
+
+# Create the new column with the conditional logic
+Table2 <- Table2 %>%
+  mutate(Peak_Area_f = ifelse(Environment == "Supernatant" & Compound == "3OMG_C6", Peak_Area, Norm_Peak_area))
+
+# Replace negative values with 0 directly in the 'ColumnName'
+Table2$Peak_Area_f[Table2$Peak_Area_f < 0] <- 0
+
+#Remove 3OMG control and non-labelled molecules
+Table3 <- subset(Table2, !Environment %in% c("3OMG"))
+Table3 <- subset(Table3, !Labelled %in% c("No"))
+```
+
+
+
+# B] F16 3OMG Supernatant
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# 1. Filter data
+Table4 <- Table3 %>%
+  filter(!Environment %in% c("3OMG"),
+         !Labelled %in% c("No"),
+         Microbes %in% c("MF", "F16"),
+         Compound %in% c("3OMG_C6", "3OMG6P_C6"))
+
+Table_supernatant <- Table4 %>%
+  filter(Environment == "Supernatant")
+
+# Order factors
+Table_supernatant$Microbes <- factor(Table_supernatant$Microbes, levels = c("MF", "F16"))
+
+#Test normality for 13C_3OMG_C6 only other group not possible
+Table_supernatant_stats <- subset(Table_supernatant, Compound %in% c("3OMG_C6"))
+
+# Test for normality per Compound and Microbes
+normality_tests <- Table_supernatant_stats %>%
+  group_by(Compound, Microbes) %>%
+  summarise(
+    shapiro = list(shapiro_test(log(Peak_Area_f + 1))),
+    .groups = "drop"
+  ) %>%
+  tidyr::unnest(cols = c(shapiro)) #Normal can do t-test
+normality_tests #Good normal
+
+# Pairwise t-test per Compound
+Stats_Supernatant <- Table_supernatant %>%
+  group_by(Compound) %>%
+  pairwise_t_test(Peak_Area_f ~ Microbes, p.adjust.method = "BH") %>%
+  mutate(Significance = case_when(
+    p.adj < 0.001 ~ "***",
+    p.adj < 0.01  ~ "**",
+    p.adj < 0.05  ~ "*",
+    TRUE ~ "ns"
+  )) %>%
+  mutate(
+    xmin = "MF",
+    xmax = "F16",
+    y.position = max(log(Table_supernatant$Peak_Area_f + 1))+0.05
+  )
+
+#Remove stats for 3OMG-P since not possible to do
+Stats_Supernatant <- data.frame(Stats_Supernatant %>%
+  mutate(
+    p = ifelse(Compound == "3OMG6P_C6", 1, p),
+    p.signif = ifelse(Compound == "3OMG6P_C6", "ns", p.signif),
+    p.adj = ifelse(Compound == "3OMG6P_C6", 1, p.adj),
+    p.adj.signif = ifelse(Compound == "3OMG6P_C6", "ns", p.adj.signif)
+  ))
+
+# Create a column with "P = ..." formatting
+Stats_Supernatant <- Stats_Supernatant %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+
+# Summarize data for barplot
+Table_supernatant_summary <- Table_supernatant %>%
+  group_by(Microbes, Environment, Compound) %>%
+  summarise(
+    mean_log = mean(log(Peak_Area_f + 1), na.rm = TRUE),
+    se_log = sd(log(Peak_Area_f + 1), na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+# Define colors and labels
+treat_colors <- c("MF" = "darkgray", "F16" = "black")
+compound_labels <- c(
+  "3OMG_C6" = "13C_3OMG_C6",
+  "3OMG6P_C6" = "13C_3OMG6P_C6"
+)
+
+# Create a custom facet label mapping
+compound_labels_custom <- c(
+  "3OMG_C6" = "3OMG (13C)",
+  "3OMG6P_C6" = "3OMG-6P (13C)"
+)
+
+
+# Calculate number of replicates per group
+n_labels_supernatant <- Table_supernatant %>%
+  group_by(Microbes, Environment, Compound) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Filter all relevant tables for Compound == "3OMG_C6"
+Table_supernatant_summary_3OMG_C6 <- Table_supernatant_summary %>% 
+  dplyr::filter(Compound == "3OMG_C6")
+Table_supernatant_3OMG_C6 <- Table_supernatant %>% 
+  dplyr::filter(Compound == "3OMG_C6")
+n_labels_supernatant_3OMG_C6 <- n_labels_supernatant %>% 
+  dplyr::filter(Compound == "3OMG_C6")
+Stats_Supernatant_3OMG_C6 <- Stats_Supernatant %>% 
+  dplyr::filter(Compound == "3OMG_C6")
+
+Table_supernatant_summary_3OMG6P_C6 <- Table_supernatant_summary %>% 
+  dplyr::filter(Compound == "3OMG6P_C6")
+Table_supernatant_3OMG6P_C6 <- Table_supernatant %>% 
+  dplyr::filter(Compound == "3OMG6P_C6")
+n_labels_supernatant_3OMG6P_C6 <- n_labels_supernatant %>% 
+  dplyr::filter(Compound == "3OMG6P_C6")
+Stats_Supernatant_3OMG6P_C6 <- Stats_Supernatant %>% 
+  dplyr::filter(Compound == "3OMG6P_C6")
+
+
+# Plot full
+Plot_supernatant_bar_3OMG_full <- ggplot() +
+  geom_bar(
+    data = Table_supernatant_summary_3OMG_C6,
+    aes(x = Microbes, y = mean_log, fill = Microbes),
+    stat = "identity",
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_errorbar(
+    data = Table_supernatant_summary_3OMG_C6,
+    aes(x = Microbes, ymin = mean_log - se_log, ymax = mean_log + se_log),
+    width = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  
+  geom_jitter(
+    data = Table_supernatant_3OMG_C6,
+    aes(x = Microbes, y = log(Peak_Area + 1)),
+    size = 2,
+    position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+    shape = 21,
+    color = "black", fill = "white"
+  ) +
+  geom_text(
+    data = n_labels_supernatant_3OMG_C6,
+    aes(x = Microbes, y = 0 , label = paste0("n=", n)),
+    vjust = 1.5,  # position below bars
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Environment + Compound, scales = "fixed", labeller = labeller(Compound = compound_labels_custom)) +
+   scale_fill_manual(values = treat_colors, labels = labels) +  # relabel legend
+  scale_x_discrete(labels = labels) +  # relabel x-axis
+  labs(x = "Microbes", y = "Log Peak Area") +
+  base_theme +
+  stat_pvalue_manual(
+    Stats_Supernatant_3OMG_C6,
+    label = "label_text",
+    xmin = "xmin",
+    xmax = "xmax",
+    y.position = 19,
+    tip.length = 0.02,
+    bracket.size = 0.5,
+    hide.ns = TRUE
+  ) +
+   theme(
+    axis.text.x = element_markdown(),   # for italics and line breaks on x-axis
+    legend.text = element_markdown()    # for italics in legend
+  ) +
+  theme(legend.position = "none") +
+  ylim(-1,21)
+
+# Display plot
+Plot_supernatant_bar_3OMG_full
+
+
+# Plot TOP
+Plot_supernatant_bar_3OMG_top <- ggplot() +
+  geom_bar(
+    data = Table_supernatant_summary_3OMG_C6,
+    aes(x = Microbes, y = mean_log, fill = Microbes),
+    stat = "identity",
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_errorbar(
+    data = Table_supernatant_summary_3OMG_C6,
+    aes(x = Microbes, ymin = mean_log - se_log, ymax = mean_log + se_log),
+    width = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_jitter(
+    data = Table_supernatant_3OMG_C6,
+    aes(x = Microbes, y = log(Peak_Area + 1)),
+    size = 2,
+    position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+    shape = 21,
+    color = "black", fill = "white"
+  ) +
+  geom_text(
+    data = n_labels_supernatant_3OMG_C6,
+    aes(x = Microbes, y = 16.65, label = paste0("n=", n)),
+    vjust = 1.5,  # position below bars
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Environment + Compound, scales = "fixed", labeller = labeller(Compound = compound_labels_custom)) +
+   scale_fill_manual(values = treat_colors, labels = labels) +  # relabel legend
+  scale_x_discrete(labels = labels) +  # relabel x-axis
+  labs(x = "Microbes", y = "Log Peak Area") +
+  base_theme +
+  stat_pvalue_manual(
+    Stats_Supernatant_3OMG_C6,
+    label = "label_text",
+    xmin = "xmin",
+    xmax = "xmax",
+    y.position = "y.position",
+    tip.length = 0.02,
+    bracket.size = 0.5,
+    hide.ns = TRUE
+  ) +
+  theme(
+    axis.text.x = element_markdown(),   # for italics and line breaks on x-axis
+    legend.text = element_markdown()    # for italics in legend
+  ) +
+     coord_cartesian(ylim = c(16.6, 17.2)) +
+  theme(legend.position = "none")
+
+# Display plot
+Plot_supernatant_bar_3OMG_top
+
+# Plot BOTTOM
+Plot_supernatant_bar_3OMG_bottom <- ggplot() +
+  geom_bar(
+    data = Table_supernatant_summary_3OMG_C6,
+    aes(x = Microbes, y = mean_log, fill = Microbes),
+    stat = "identity",
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_errorbar(
+    data = Table_supernatant_summary_3OMG_C6,
+    aes(x = Microbes, ymin = mean_log - se_log, ymax = mean_log + se_log),
+    width = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_jitter(
+    data = Table_supernatant_3OMG_C6,
+    aes(x = Microbes, y = log(Peak_Area + 1)),
+    size = 2,
+    position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+    shape = 21,
+    color = "black", fill = "white"
+  ) +
+  geom_text(
+    data = n_labels_supernatant_3OMG_C6,
+    aes(x = Microbes, y = 0, label = paste0("n=", n)),
+    vjust = 1.5,  # position below bars
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Environment + Compound, scales = "fixed", labeller = labeller(Compound = compound_labels_custom)) +
+   scale_fill_manual(values = treat_colors, labels = labels) +  # relabel legend
+  scale_x_discrete(labels = labels) +  # relabel x-axis
+  labs(x = "Microbes", y = "Log Peak Area") +
+  base_theme +
+  stat_pvalue_manual(
+    Stats_Supernatant_3OMG_C6,
+    label = "label_text",
+    xmin = "xmin",
+    xmax = "xmax",
+    y.position = "y.position",
+    tip.length = 0.2,
+    bracket.size = 0.5,
+    hide.ns = TRUE
+  ) +
+   theme(
+    axis.text.x = element_markdown(),   # for italics and line breaks on x-axis
+    legend.text = element_markdown()    # for italics in legend
+  ) +
+     coord_cartesian(ylim = c(-1, 15))  +
+  theme(legend.position = "none")
+
+# Display plot
+Plot_supernatant_bar_3OMG_bottom
+
+
+# Plot 3OMG6P
+Plot_supernatant_bar_3OMG6P <- ggplot() +
+  geom_bar(
+    data = Table_supernatant_summary_3OMG6P_C6,
+    aes(x = Microbes, y = mean_log, fill = Microbes),
+    stat = "identity",
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_errorbar(
+    data = Table_supernatant_summary_3OMG6P_C6,
+    aes(x = Microbes, ymin = mean_log - se_log, ymax = mean_log + se_log),
+    width = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_jitter(
+    data = Table_supernatant_3OMG6P_C6,
+    aes(x = Microbes, y = log(Peak_Area + 1)),
+    size = 2,
+    position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+    shape = 21,
+    color = "black", fill = "white"
+  ) +
+  geom_text(
+    data = n_labels_supernatant_3OMG6P_C6,
+    aes(x = Microbes, y = 0, label = paste0("n=", n)),
+    vjust = 1.5,  # position below bars
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Environment + Compound, scales = "fixed", labeller = labeller(Compound = compound_labels_custom)) +
+   scale_fill_manual(values = treat_colors, labels = labels) +  # relabel legend
+  scale_x_discrete(labels = labels) +  # relabel x-axis
+  labs(x = "Microbes", y = "Log Peak Area") +
+  base_theme +
+   theme(
+    axis.text.x = element_markdown(),   # for italics and line breaks on x-axis
+    legend.text = element_markdown()    # for italics in legend
+  ) +
+  ylim(-1,17.2)+
+  theme(legend.position = "none")
+
+# Display plot
+Plot_supernatant_bar_3OMG6P
+
+
+
+```
+
+
+# C] F16 3OMG Cells
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# 1. Filter data
+Table4 <- Table3 %>%
+  filter(!Environment %in% c("3OMG"),
+         !Labelled %in% c("No"),
+         Microbes %in% c("MF", "F16"),
+         Compound %in% c("3OMG_C6", "3OMG6P_C6"))
+
+Table_Cell <- Table4 %>%
+  filter(Environment == "Cell")
+
+# Order factors
+Table_Cell$Microbes <- factor(Table_Cell$Microbes, levels = c("MF", "F16"))
+
+#No stats since not enough datapoint
+
+# Summarize data for barplot
+Table_Cell_summary <- Table_Cell %>%
+  group_by(Microbes, Environment, Compound) %>%
+  summarise(
+    mean_log = mean(log(Peak_Area_f + 1), na.rm = TRUE),
+    se_log = sd(log(Peak_Area_f + 1), na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+# Define colors and labels
+treat_colors <- c("MF" = "darkgray", "F16" = "black")
+compound_labels <- c(
+  "3OMG_C6" = "13C_3OMG_C6",
+  "3OMG6P_C6" = "13C_3OMG6P_C6"
+)
+
+# Create a custom facet label mapping
+compound_labels_custom <- c(
+  "3OMG_C6" = "3OMG (13C)",
+  "3OMG6P_C6" = "3OMG-6P (13C)"
+)
+
+
+# Calculate number of replicates per group
+n_labels <- Table_Cell %>%
+  group_by(Microbes, Environment, Compound) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+# Filter all relevant tables for Compound == "3OMG_C6"
+Table_Cell_summary_3OMG_C6 <- Table_Cell_summary %>% 
+  dplyr::filter(Compound == "3OMG_C6")
+Table_Cell_3OMG_C6 <- Table_Cell %>% 
+  dplyr::filter(Compound == "3OMG_C6")
+n_labels_3OMG_C6 <- n_labels %>% 
+  dplyr::filter(Compound == "3OMG_C6")
+
+Table_Cell_summary_3OMG6P_C6 <- Table_Cell_summary %>% 
+  dplyr::filter(Compound == "3OMG6P_C6")
+Table_Cell_3OMG6P_C6 <- Table_Cell %>% 
+  dplyr::filter(Compound == "3OMG6P_C6")
+n_labels_3OMG6P_C6 <- n_labels %>% 
+  dplyr::filter(Compound == "3OMG6P_C6")
+
+# Create barplot
+Plot_Cell_bar_3OMG <- ggplot() +
+  geom_bar(
+    data = Table_Cell_summary_3OMG_C6,
+    aes(x = Microbes, y = mean_log, fill = Microbes),
+    stat = "identity",
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_errorbar(
+    data = Table_Cell_summary_3OMG_C6,
+    aes(x = Microbes, ymin = mean_log - se_log, ymax = mean_log + se_log),
+    width = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_jitter(
+    data = Table_Cell_3OMG_C6,
+    aes(x = Microbes, y = log(Peak_Area_f + 1)),
+    size = 2,
+    position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+    shape = 21,
+    color = "black", fill = "white"
+  ) +
+  geom_text(
+    data = n_labels_3OMG_C6,
+    aes(x = Microbes, y = 0, label = paste0("n=", n)),
+    vjust = 1.5,      # pushes text just below the bar
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Environment + Compound, scales = "fixed", labeller = labeller(Compound = compound_labels_custom)) +
+ scale_fill_manual(values = treat_colors, labels = labels) +  # relabel legend
+  scale_x_discrete(labels = labels) +  # relabel x-axis
+  labs(x = "Microbes", y = "Log Peak Area") +
+  base_theme +
+  theme(
+    axis.text.x = element_markdown(),   # for italics and line breaks on x-axis
+    legend.text = element_markdown()    # for italics in legend
+  ) +
+  ylim(-1,17.2)+
+  theme(legend.position = "none")
+
+Plot_Cell_bar_3OMG
+
+# Create barplot
+Plot_Cell_bar_3OMG6P <- ggplot() +
+  geom_bar(
+    data = Table_Cell_summary_3OMG6P_C6,
+    aes(x = Microbes, y = mean_log, fill = Microbes),
+    stat = "identity",
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_errorbar(
+    data = Table_Cell_summary_3OMG6P_C6,
+    aes(x = Microbes, ymin = mean_log - se_log, ymax = mean_log + se_log),
+    width = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_jitter(
+    data = Table_Cell_3OMG6P_C6,
+    aes(x = Microbes, y = log(Peak_Area_f + 1)),
+    size = 2,
+    position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+    shape = 21,
+    color = "black", fill = "white"
+  ) +
+  geom_text(
+    data = n_labels_3OMG6P_C6,
+    aes(x = Microbes, y = 0, label = paste0("n=", n)),
+    vjust = 1.5,      # pushes text just below the bar
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Environment + Compound, scales = "fixed", labeller = labeller(Compound = compound_labels_custom)) +
+ scale_fill_manual(values = treat_colors, labels = labels) +  # relabel legend
+  scale_x_discrete(labels = labels) +  # relabel x-axis
+  labs(x = "Microbes", y = "Log Peak Area") +
+  base_theme +
+  theme(
+    axis.text.x = element_markdown(),   # for italics and line breaks on x-axis
+    legend.text = element_markdown()    # for italics in legend
+  ) +
+  ylim(-1,17.2)+
+  theme(legend.position = "none")
+
+Plot_Cell_bar_3OMG6P
+```
+
+# D] Final Plot
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Plot Supernatant 3OMG
+Plot_Sup1 <- plot_grid(Plot_supernatant_bar_3OMG_top, Plot_supernatant_bar_3OMG_bottom, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2, ncol = 1, align="v",  axis = "tb")
+Plot_Sup1
+
+Plot_Sup2 <- plot_grid(Plot_supernatant_bar_3OMG_full, Plot_supernatant_bar_3OMG_top, Plot_Cell_bar_3OMG, Plot_Cell_bar_3OMG6P, rel_heights = c(1,1,1,1), rel_widths = c(1,1,1,1), nrow=1, ncol = 4, align="hv",  axis = "tb")
+Plot_Sup2
+
+Plot_supernatant_bar_3OMG6P
+
+#Export final
+Plot_Comb_Final <- plot_grid(Plot_supernatant_bar_3OMG_full, Plot_supernatant_bar_3OMG6P, Plot_Cell_bar_3OMG, Plot_Cell_bar_3OMG6P, rel_heights = c(1,1), rel_widths = c(1,1), nrow=1, ncol = 4, align="hv",  axis = "tb")
+
+Plot_Comb_Final
+```
+
+---
+END
+---

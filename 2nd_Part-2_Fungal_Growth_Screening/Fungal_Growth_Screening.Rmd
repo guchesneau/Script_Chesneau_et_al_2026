@@ -1,0 +1,1533 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.0.0 (and Rstudio 1.2.5019)
+
+```{r R version}
+R.version
+```
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load libraries
+library(markdown)
+library(ggthemes)
+library(ggpubr) 
+library(rstatix)
+library(dunn.test)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(cowplot)
+library(ggtree)
+library(ape)
+library(ggplot2)
+library(ggnewscale)
+library(dplyr)
+library(tidytree)
+library(readxl)
+library(phytools)
+library(tidyverse)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B", "Glucose" = "#817E9F", "lightgray" = "lightgray")
+
+```
+
+
+# A] Bacteria screening
+
+## 1)  Pre-processing
+
+```{r}
+#Load dataframe
+df <- read.csv(file = "df.csv",header = TRUE, row.names = c("X"), sep=",")
+df
+
+#Check water controls sterility
+water_df <- df %>% 
+  filter(Strain == "Water")
+
+water_check <- water_df %>%
+  select(Plate, Well, Media,Time, OD600) %>%
+  distinct() %>%   # ensure no duplicates
+  pivot_wider(
+    names_from = Time,
+    values_from = OD600
+  ) %>%
+  mutate(delta_OD = T120 - T0)
+
+#Keep only T120 or T1W
+df120_1 <- subset(df, Time %in% c("T0", "T120"))
+df1W_1 <- subset(df, Time %in% c("T0", "T1W"))
+
+#Normalize OD by inoc D0
+df120_1 <- df120_1 %>%
+  group_by(Plate, Well) %>%
+  mutate(norm_OD = OD600[Time == "T120"] - OD600[Time == "T0"]) %>%
+  ungroup()
+
+df1W_1 <- df1W_1 %>%
+  group_by(Plate, Well) %>%
+  mutate(norm_OD = OD600[Time == "T1W"] - OD600[Time == "T0"]) %>%
+  ungroup()
+```
+
+## 2)  Phylogenetic tree
+
+### a- Prepare tree
+
+```{r}
+#Open tree
+tree <- read.newick("treeNJ.16S.newick")
+
+#Write tree as nexus
+write.nexus(tree, file = "treeNJ.16S.nexus")
+
+# Read the tree (NEXUS may contain multiple trees)
+tree_file <- "treeNJ.16S.nexus"
+stopifnot(file.exists(tree_file))
+
+# Read the tree (NEXUS may contain multiple trees)
+phy <- ape::read.nexus(tree_file)
+if (inherits(phy, "multiPhylo")) {
+  message("NEXUS contained ", length(phy), " trees; using the first.")
+  phy <- phy[[1]]
+}
+
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+#Get tips order
+tip_order <- phy$tip.label
+tip_order
+
+#Add manually R78 and R61
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+
+### b- Trimmed tree
+
+```{r}
+#Keep only strain I've screend
+to_keep <- unique(df$Strain2)
+
+# Trim the tree to keep only the tips in 'to_keep'
+phy_trimmed <- drop.tip(phy, setdiff(phy$tip.label, to_keep))
+
+#Root tree midpoint
+#phy_trimmed <- midpoint.root(phy_trimmed)
+phy_trimmed <- root(phy_trimmed, outgroup = "Root420", resolve.root = TRUE)
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy_trimmed, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+# Your tree
+phylo_tree <- phy_trimmed
+
+# Your metadata
+metadata <- df
+  # Keep only the first row for each unique label
+metadata_unique <- metadata %>%
+  distinct(Strain2, .keep_all = TRUE)
+
+#Remove Water 
+metadata_unique <- subset(metadata_unique, !Strain %in% c( "Water"))
+
+# Make sure metadata has a 'label' column that matches tip labels
+metadata_unique <- metadata_unique %>%
+  rename(label = Strain2)  # or whatever column matches tip labels in your tree
+
+metadata_unique <- data.frame(metadata_unique, row.names = 7)
+metadata_unique$label <- row.names(metadata_unique)
+# Check that all tip labels are in the metadata_unique
+all(phylo_tree$tip.label %in% row.names(metadata_unique))
+# If FALSE, some labels are missing → must fix names
+
+#Merge tree
+x <- full_join(as_tibble(phylo_tree), metadata_unique, by = "label") 
+tree2 <- as.treedata(x)
+
+# Define phyla colors
+col_phyla <- c(
+  "Actinobacteria" = "#cc505a",
+  "Alphaproteobacteria" = "#84ba66",
+  "Bacteroidetes" = "#5d7db9",
+  "Betaproteobacteria" = "#adca5c",
+  "Firmicutes" = "#e19944",
+  "Gammaproteobacteria" = "#5f9353",
+  "#N/A" = "gray"
+)
+
+
+# rectangular tree
+tree <- ggtree(tree2, layout = "rectangular", branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01) +
+  geom_tippoint(aes(color = Phylum_alternative)) +
+  scale_color_manual(values = col_phyla)+
+  theme(legend.position = "left")  # move legend to the left
+tree
+
+tree_V <- ggtree(tree2, layout = "rectangular", branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01, angle = 90, hjust = 1) +
+  geom_tippoint(aes(color = Phylum_alternative)) +
+  scale_color_manual(values = col_phyla) +
+  theme(legend.position = "bottom") +
+  coord_flip()+
+  scale_x_reverse()
+tree_V
+
+#Extract tps order
+# Get the tree data
+tree_data <- tree$data
+
+# Filter only tips
+tip_order <- tree_data %>%
+  filter(isTip) %>%
+  arrange(y) %>%        # 'y' is the vertical position in rectangular layout
+  pull(label)
+
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+
+## 3)  BarPlot T120
+
+```{r}
+
+#Keep just TimePoint T120
+df_T120 <- subset(df120_1, Time %in% c("T120"))
+
+#Make a summary
+df_summary <- df_T120 %>%
+  group_by(Strain2, Media) %>%
+  summarise(
+    median_OD = median(norm_OD, na.rm = TRUE),
+    sd_OD = sd(norm_OD, na.rm = TRUE),       # standard deviation for error bar
+    .groups = "drop"
+  )
+
+# Run Wilcoxon test for each Media
+results <- df_T120 %>%
+  group_by(Media, Strain2) %>%
+  summarise(values = list(norm_OD), .groups = "drop") %>%
+  group_by(Media) %>%
+  filter(Strain2 != "Water") %>%
+  mutate(
+    p_value_vs_Water = sapply(values, function(x) {
+      control <- df_T120 %>% filter(Media == first(Media), Strain2 == "Water") %>% pull(norm_OD)
+      wilcox.test(x, control)$p.value
+    }),
+    p_adj_vs_Water = p.adjust(p_value_vs_Water, method = "BH")  # Benjamini-Hochberg adjustment
+  ) %>%
+  select(Media, Strain2, p_value_vs_Water, p_adj_vs_Water)
+
+print(results)
+
+#Calculate water median
+median_water <- df_T120 %>%
+  filter(Strain2 == "Water") %>%          # keep only Water
+  group_by(Media) %>%                 # compute per strain
+  summarise(median_norm_OD = median(norm_OD, na.rm = TRUE))
+median_water
+
+# Add a fill column based on whether each value is below Water median
+df_summary$fill_color <- mapply(function(value, media) {
+  water_med <- median_water$median_norm_OD[median_water$Media == media]
+  if (value <= water_med) {
+    "lightgray"             # below Water median → white
+  } else {
+    media               # otherwise use Media
+  }
+}, df_summary$median_OD, df_summary$Media)
+
+#Add column based on significance also 
+df_summary <- df_summary %>%
+  left_join(results %>% select(Media, Strain2, p_adj_vs_Water), 
+            by = c("Media", "Strain2"))
+
+# Add fill_color column
+df_summary$fill_color <- mapply(function(value, media, p_val) {
+  water_med <- median_water$median_norm_OD[median_water$Media == media]
+  if (!is.na(p_val) && p_val > 0.05) {
+    "lightgray"               # Not significant → gray
+  } else if (value <= water_med) {
+    "lightgray"               # Below Water median → gray
+  } else {
+    media                     # Otherwise use Media color
+  }
+}, df_summary$median_OD, df_summary$Media, df_summary$p_adj_vs_Water)
+
+
+# Keep only significant strains (not lightgray) and relevant Media
+
+test <- subset(df_summary, !fill_color %in% c("lightgray"))
+
+sig_medians <- df_summary %>%
+  filter(fill_color != "lightgray", Media %in% c("3OMG", "Glucose")) %>%
+  group_by(Media) %>%
+  summarise(sig_median = median(median_OD, na.rm = TRUE)) %>%
+  ungroup()
+
+
+#Order
+df_summary$Strain2 <- factor(df_summary$Strain2, levels = c (tip_order))
+
+#Plot
+Bar_plot <- ggplot(df_summary, aes(y = Strain2, x = log(median_OD + 1), fill = fill_color)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbarh(aes(xmin = log(median_OD - sd_OD + 1),
+                      xmax = log(median_OD + sd_OD + 1)),
+                 position = position_dodge(width = 0.8),
+                 height = 0.2) +
+  geom_vline(data = median_water,
+             aes(xintercept = log(median_norm_OD + 1)),
+             color = "black",
+             linetype = "dashed",
+             linewidth = 0.2) +
+  facet_grid(~ Media, scales = "fixed") +
+  scale_fill_manual(values = color_palette) +
+  base_theme +
+  theme(axis.text.y = element_text(),
+        plot.title = element_text(hjust = 0.5)) +
+  labs(title = "",
+       x = "Bacteria growth (log(Median OD600 + 1))",
+       y = "Strain")
+Bar_plot
+
+# Vertical bar plot
+Bar_plot_V <- ggplot(df_summary, aes(
+  x = Strain2,
+  y = log(median_OD + 1),
+  fill = fill_color)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = log(median_OD - sd_OD + 1),
+        ymax = log(median_OD + sd_OD + 1)),
+    position = position_dodge(width = 0.8),
+    width = 0.2) +
+  geom_hline(
+    data = median_water,
+    aes(yintercept = log(median_norm_OD + 1)),
+    color = "black",
+    linetype = "dashed",
+    linewidth = 0.2) +
+   geom_hline(
+  data = sig_medians,
+  aes(yintercept = log(sig_median + 1), color = Media),
+  linetype = "dotted",
+  linewidth = 0.7,
+  inherit.aes = FALSE
+) +
+   # Add text for median values just above the line (since y-axis is reversed)
+  geom_text(data = sig_medians,
+    aes(x = 18,  # place at left of panel; adjust if needed
+      y = log(sig_median + 1),
+      label = paste0("median = ", round(sig_median, 3))
+    ),
+    inherit.aes = FALSE,
+    hjust = 0,  # left-align
+    color = "black",
+    size = 3
+  ) +
+  facet_grid(Media ~ ., scales = "fixed") +
+  scale_fill_manual(values = color_palette) +
+  scale_color_manual(values = color_palette) +
+   base_theme +
+  scale_x_discrete(position = "top") +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust = 0),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  ) +
+  labs(
+    title = "",
+    y = "Bacteria growth (log(Median OD600 + 1))",
+    x = ""
+  ) +
+  scale_y_reverse() 
+
+Bar_plot_V
+```
+
+## 3)  BarPlot T1W
+
+```{r}
+
+#Keep just TimePoint T120
+df_T1W <- subset(df1W_1, Time %in% c("T1W"))
+
+#Make a summary
+df_summary <- df_T1W %>%
+  group_by(Strain2, Media) %>%
+  summarise(
+    median_OD = median(norm_OD, na.rm = TRUE),
+    sd_OD = sd(norm_OD, na.rm = TRUE),       # standard deviation for error bar
+    .groups = "drop"
+  )
+
+# Run Wilcoxon test for each Media
+results <- df_T1W %>%
+  group_by(Media, Strain2) %>%
+  summarise(values = list(norm_OD), .groups = "drop") %>%
+  group_by(Media) %>%
+  filter(Strain2 != "Water") %>%
+  mutate(
+    p_value_vs_Water = sapply(values, function(x) {
+      control <- df_T1W %>% filter(Media == first(Media), Strain2 == "Water") %>% pull(norm_OD)
+      wilcox.test(x, control)$p.value
+    }),
+    p_adj_vs_Water = p.adjust(p_value_vs_Water, method = "BH")  # Benjamini-Hochberg adjustment
+  ) %>%
+  select(Media, Strain2, p_value_vs_Water, p_adj_vs_Water)
+
+print(results)
+
+#Calculate water median
+median_water <- df_T1W %>%
+  filter(Strain2 == "Water") %>%          # keep only Water
+  group_by(Media) %>%                 # compute per strain
+  summarise(median_norm_OD = median(norm_OD, na.rm = TRUE))
+median_water
+
+# Add a fill column based on whether each value is below Water median
+df_summary$fill_color <- mapply(function(value, media) {
+  water_med <- median_water$median_norm_OD[median_water$Media == media]
+  if (value <= water_med) {
+    "lightgray"             # below Water median → white
+  } else {
+    media               # otherwise use Media
+  }
+}, df_summary$median_OD, df_summary$Media)
+
+#Add column based on significance also 
+df_summary <- df_summary %>%
+  left_join(results %>% select(Media, Strain2, p_adj_vs_Water), 
+            by = c("Media", "Strain2"))
+
+# Add fill_color column
+df_summary$fill_color <- mapply(function(value, media, p_val) {
+  water_med <- median_water$median_norm_OD[median_water$Media == media]
+  if (!is.na(p_val) && p_val > 0.05) {
+    "lightgray"               # Not significant → gray
+  } else if (value <= water_med) {
+    "lightgray"               # Below Water median → gray
+  } else {
+    media                     # Otherwise use Media color
+  }
+}, df_summary$median_OD, df_summary$Media, df_summary$p_adj_vs_Water)
+
+
+# Keep only significant strains (not lightgray) and relevant Media
+
+test <- subset(df_summary, !fill_color %in% c("lightgray"))
+
+sig_medians <- df_summary %>%
+  filter(fill_color != "lightgray", Media %in% c("3OMG", "Glucose")) %>%
+  group_by(Media) %>%
+  summarise(sig_median = median(median_OD, na.rm = TRUE)) %>%
+  ungroup()
+
+
+#Order
+df_summary$Strain2 <- factor(df_summary$Strain2, levels = c (tip_order))
+
+#Plot
+Bar_plot_1W <- ggplot(df_summary, aes(y = Strain2, x = log(median_OD + 1), fill = fill_color)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbarh(aes(xmin = log(median_OD - sd_OD + 1),
+                      xmax = log(median_OD + sd_OD + 1)),
+                 position = position_dodge(width = 0.8),
+                 height = 0.2) +
+  geom_vline(data = median_water,
+             aes(xintercept = log(median_norm_OD + 1)),
+             color = "black",
+             linetype = "dashed",
+             linewidth = 0.2) +
+  facet_grid(~ Media, scales = "fixed") +
+  scale_fill_manual(values = color_palette) +
+  base_theme +
+  theme(axis.text.y = element_text(),
+        plot.title = element_text(hjust = 0.5)) +
+  labs(title = "",
+       x = "Bacteria growth (log(Median OD600 + 1))",
+       y = "Strain")
+Bar_plot_1W
+
+# Vertical bar plot
+Bar_plot_1W_V <- ggplot(df_summary, aes(
+  x = Strain2,
+  y = log(median_OD + 1),
+  fill = fill_color)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = log(median_OD - sd_OD + 1),
+        ymax = log(median_OD + sd_OD + 1)),
+    position = position_dodge(width = 0.8),
+    width = 0.2) +
+  geom_hline(
+    data = median_water,
+    aes(yintercept = log(median_norm_OD + 1)),
+    color = "black",
+    linetype = "dashed",
+    linewidth = 0.2) +
+   geom_hline(
+  data = sig_medians,
+  aes(yintercept = log(sig_median + 1), color = Media),
+  linetype = "dotted",
+  linewidth = 0.7,
+  inherit.aes = FALSE
+) +
+   # Add text for median values just above the line (since y-axis is reversed)
+  geom_text(data = sig_medians,
+    aes(x = 18,  # place at left of panel; adjust if needed
+      y = log(sig_median + 1),
+      label = paste0("median = ", round(sig_median, 3))
+    ),
+    inherit.aes = FALSE,
+    hjust = 0,  # left-align
+    color = "black",
+    size = 3
+  ) +
+  facet_grid(Media ~ ., scales = "fixed") +
+  scale_fill_manual(values = color_palette) +
+  scale_color_manual(values = color_palette) +
+   base_theme +
+  scale_x_discrete(position = "top") +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust = 0),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  ) +
+  labs(
+    title = "",
+    y = "Bacteria growth (log(Median OD600 + 1))",
+    x = ""
+  ) +
+  ylim(-0.01,0.205) #I lose one outlier bottom, but better display
+
+Bar_plot_1W_V
+```
+
+## 5)   Heat Map plot
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+glucose_palette <- c(
+  "#c9c7d9",
+  "#9a96b6",
+  "#817E9F",
+  "#4a4866"
+)
+
+omg_palette <- c(
+  "#cfe8dc",
+  "#a6d3be",
+  "#7FC29B",
+  "#3f7f61"
+)
+
+df_summary$fill_value <- mapply(function(value, media, p_val) {
+  water_med <- median_water$median_norm_OD[median_water$Media == media]
+
+  if (!is.na(p_val) && p_val > 0.05) {
+    NA
+  } else if (value <= water_med) {
+    NA
+  } else {
+    log(value + 1)
+  }
+}, df_summary$median_OD, df_summary$Media, df_summary$p_adj_vs_Water)
+
+
+
+#Order
+df_summary$Strain2 <- factor(df_summary$Strain2, levels = c (tip_order))
+
+plot <- ggplot() +
+
+  geom_tile(
+    data = df_summary[df_summary$Media == "Glucose", ],
+    aes(x = Strain2, y = 1, fill = fill_value),
+    color = "white",
+    linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = glucose_palette,
+    na.value = "white",
+    name = "Glucose\nlog(Median OD600 + 1)",
+    limits = range(df_summary$fill_value[df_summary$Media == "Glucose"], na.rm = TRUE)
+  ) +
+
+  ggnewscale::new_scale_fill() +
+
+  geom_tile(
+    data = df_summary[df_summary$Media == "3OMG", ],
+    aes(x = Strain2, y = 1, fill = fill_value),
+    color = "white",
+    linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = omg_palette,
+    na.value = "white",
+    name = "3-OMG\nlog(Median OD600 + 1)",
+    limits = range(df_summary$fill_value[df_summary$Media == "3OMG"], na.rm = TRUE)
+  ) +
+
+  facet_grid(Media ~ .) +
+  scale_x_discrete(position = "top") +
+  base_theme +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust = 0),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "bottom"
+  ) +
+  labs(x = "", y = "")
+plot
+```
+
+
+## 4)   All plots Plant
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Plot_Comb1 <- plot_grid(tree_V, Bar_plot_V, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="hv",  axis = "tb")
+Plot_Comb1
+
+Plot_Comb2 <- plot_grid(tree_V, Bar_plot_1W_V, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="hv",  axis = "tb")
+Plot_Comb2
+```
+
+
+
+
+# B] Fungal screening
+
+## 1)  Pre-processing
+
+```{r}
+#Load dataframe
+df <- read.csv(file = "all_data_3OMG.csv",header = TRUE, row.names = c("X"), sep=",")
+df
+
+#Normalize OD by water control
+df2 <- df %>%
+  group_by(Strain2) %>%
+  mutate(
+    max_water = mean(OD600[Media == "Water"], na.rm = TRUE),
+    OD600_corrected = OD600 - max_water
+  )
+```
+
+## 2)  Plot
+
+```{r}
+#Summarize for bars
+df_summary <- df2 %>%
+  group_by(Strain2, Media, Host) %>%
+  summarise(
+    median_OD = median(OD600_corrected, na.rm = TRUE),
+    sd_OD = sd(OD600_corrected, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Vérifier la normalité par Time × Media
+normality_results <- df %>%
+  group_by(Strain2) %>%
+  shapiro_test(OD600) 
+normality_results # Not normal for more than half --> non-parametric
+
+#Stats
+wilcox_results <- df %>%
+  filter(Media %in% c("Water", "3OMG", "Glucose")) %>%
+  group_by(Strain2) %>%
+  summarise(
+    # Extract vectors
+    water_vals   = list(OD600[Media == "Water"]),
+    omg_vals     = list(OD600[Media == "3OMG"]),
+    glucose_vals = list(OD600[Media == "Glucose"]),
+    
+    # Do tests only if both groups exist
+    p_Water_vs_3OMG = if(length(unlist(water_vals)) > 0 && length(unlist(omg_vals)) > 0)
+                        wilcox.test(unlist(water_vals), unlist(omg_vals))$p.value else NA,
+
+    p_Water_vs_Glucose = if(length(unlist(water_vals)) > 0 && length(unlist(glucose_vals)) > 0)
+                           wilcox.test(unlist(water_vals), unlist(glucose_vals))$p.value else NA
+  ) %>%
+  ungroup() %>%
+  mutate(
+    p_adj_Water_vs_3OMG    = p.adjust(p_Water_vs_3OMG, method = "BH"),
+    p_adj_Water_vs_Glucose = p.adjust(p_Water_vs_Glucose, method = "BH")
+  )
+
+
+# Assign strain-level color based on significance
+wilcox_expanded <- wilcox_results %>%
+  tidyr::pivot_longer(
+    cols = c(p_Water_vs_3OMG, p_Water_vs_Glucose),
+    names_to = "Media",
+    values_to = "p_value"
+  ) %>%
+  mutate(
+    Media = dplyr::recode(Media,
+                          "p_Water_vs_3OMG"    = "3OMG",
+                          "p_Water_vs_Glucose" = "Glucose")
+  ) %>%
+  mutate(
+    color_by_sig = case_when(
+      !is.na(p_value) & p_value <= 0.05 & Media == "3OMG"    ~ "3OMG",
+      !is.na(p_value) & p_value <= 0.05 & Media == "Glucose" ~ "Glucose",
+      TRUE ~ "lightgray"
+    )
+  )
+
+#Join colors to orignial table
+df_summary <- df_summary %>%
+  left_join(wilcox_expanded %>% dplyr::select(Strain2, Media, color_by_sig),
+            by = c("Strain2", "Media")) %>%
+  mutate(
+    color_by_sig = case_when(
+      median_OD < 0 ~ "lightgray",  # NEW RULE
+      TRUE ~ color_by_sig           # fall back to original color
+    )
+  )
+
+#Calculate overall median value
+global_water_median <- df_summary%>%
+  filter(Media == "Water") %>%
+  summarise(global_med = median(median_OD, na.rm = TRUE)) %>%
+  pull(global_med)
+
+global_water_median
+
+#Remove water
+df_summary_f <- subset(df_summary, !Media %in% c("Water"))
+
+#BarPLot
+Bar_plot <- ggplot(df_summary_f, aes(y = Strain2, x = log(median_OD + 1), fill = color_by_sig)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbarh(
+    aes(xmin = log(median_OD - sd_OD + 1),
+        xmax = log(median_OD + sd_OD + 1)),
+    height = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_vline(
+  xintercept = log(0 + 1),
+  linetype = "dashed",
+  color = "black",
+  linewidth = 0.4
+) +
+  facet_grid(Host ~ Media, scales = "free_y") +
+  scale_fill_manual(values = color_palette) +
+  theme_bw() +
+  theme(
+    axis.text.y = element_text(),
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  labs(
+    title = "Median Corrected OD600 by Strain × Media",
+    x = " Fungal growth (log(Median Corrected-OD600 + 1)",
+    y = "Strain"
+  ) +
+    scale_fill_manual(values = color_palette) +
+   base_theme
+
+Bar_plot
+```
+
+## 3)  Compare growth capacity between isolates Glucose / 3OMG
+
+```{r}
+#Subset dataset 
+df_Growth <- subset(df_summary_f, !color_by_sig %in% c("lightgray"))
+
+#Calcualte median per Treatment and Host
+median_summary <- df_Growth %>%
+  group_by(Host, Media) %>%
+  summarise(
+    median_median_OD = median(median_OD),
+    n = n(),
+    .groups = "drop"
+  )
+
+median_summary
+
+#Stats Glucose VS 3OMG per Treatment
+wilcox_results <- df_Growth %>%
+  group_by(Host) %>%
+  filter(n_distinct(Media) == 2) %>%   # only Hosts with both media
+  group_modify(~{
+    test <- wilcox.test(median_OD ~ Media, data = .x, exact = TRUE)
+    broom::tidy(test)
+  }) %>%
+  ungroup()
+
+print(wilcox_results)
+```
+
+## 4)  Plot Arabidopsis thaliana
+
+```{r}
+#Load raw data
+df <- read.csv(file = "all_data_3OMG.csv",header = TRUE, row.names = c("X"), sep=",")
+df
+
+#Keep only Arabdiopsis
+df <- subset(df, Host %in% c("A_thaliana"))
+df_summary_f_At <- subset(df_summary_f, Host %in% c("A_thaliana"))
+```
+
+
+### a- Phylogenetic tree
+
+#### i- Prepare tree
+
+```{r}
+#Open tree
+tree_ITS <- read.newick("tree41_goodnames.nwk")
+
+#Write tree as nexus
+write.nexus(tree_ITS, file = "tree41_goodnames.nwk.nexus")
+
+# Read the tree (NEXUS may contain multiple trees)
+tree_file_ITS <- "tree41_goodnames.nwk.nexus"
+stopifnot(file.exists(tree_file_ITS))
+
+# Read the tree (NEXUS may contain multiple trees)
+phy <- ape::read.nexus(tree_file_ITS)
+if (inherits(phy, "multiPhylo")) {
+  message("NEXUS contained ", length(phy), " trees; using the first.")
+  phy <- phy[[1]]
+}
+
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+#Get tips order
+tip_order <- phy$tip.label
+tip_order
+
+#Add manually R78 and R61
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+
+
+#### ii-  Trimmed tree At
+
+```{r}
+#Keep only strain I've screend
+to_keep <- unique(df_summary_f_At$Strain2)
+
+# Trim the tree to keep only the tips in 'to_keep'
+phy_trimmed <- drop.tip(phy, setdiff(phy$tip.label, to_keep))
+
+#Root tree midpoint
+#phy_trimmed <- midpoint.root(phy_trimmed)
+phy_trimmed <- root(phy_trimmed, outgroup = "Mortierella_elongata_MPI-CAGE-AA-0104", resolve.root = TRUE)
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy_trimmed, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+# Your tree
+phylo_tree <- phy_trimmed
+
+# Your metadata
+metadata <- df
+  # Keep only the first row for each unique label
+metadata_unique <- metadata %>%
+  distinct(Strain2, .keep_all = TRUE)
+
+
+# Make sure metadata has a 'label' column that matches tip labels
+metadata_unique <- metadata_unique %>%
+  rename(label = Strain2)  # or whatever column matches tip labels in your tree
+
+metadata_unique <- data.frame(metadata_unique, row.names = 2)
+metadata_unique$label <- row.names(metadata_unique)
+# Check that all tip labels are in the metadata_unique
+all(phylo_tree$tip.label %in% row.names(metadata_unique))
+# If FALSE, some labels are missing → must fix names
+
+#Merge tree
+x <- full_join(as_tibble(phylo_tree), metadata_unique, by = "label") 
+tree2 <- as.treedata(x)
+
+# Define phyla colors
+col_class <- c(
+  "Mortierellomycetes" = "#2166AC",
+  "Sordariomycetes" = "#EF8A62",
+  "Dothideomycetes" = "#FDDBC7",
+  "Leotiomycetes" = "#67A9CF",
+  "#N/A" = "gray"
+)
+
+# rectangular tree
+tree <- ggtree(tree2, layout = "rectangular", branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01) +
+  geom_tippoint(aes(color = Class)) +
+  scale_color_manual(values = col_class)+
+  theme(legend.position = "left")  # move legend to the left
+tree
+
+tree_V <- ggtree(tree2, layout = "rectangular",branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01, angle = 90, hjust = 1) +
+  geom_tippoint(aes(color = Class)) +
+  scale_color_manual(values = col_class) +
+  theme(legend.position = "right") +
+  coord_flip()+
+  scale_x_reverse()+
+    theme(legend.position = "right") 
+tree_V
+
+
+#Extract tps order
+# Get the tree data
+tree_data <- tree$data
+
+# Filter only tips
+tip_order <- tree_data %>%
+  filter(isTip) %>%
+  arrange(y) %>%        # 'y' is the vertical position in rectangular layout
+  pull(label)
+
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+
+### b- BarPlot
+
+```{r}
+# Keep only significant strains (not lightgray) and relevant Media
+sig_medians <- df_summary_f_At %>%
+  filter(color_by_sig != "lightgray", Media %in% c("3OMG", "Glucose")) %>%
+  group_by(Media) %>%
+  summarise(sig_median = median(median_OD, na.rm = TRUE)) %>%
+  ungroup()
+
+# Add a small offset to place text just below the line
+offset <- 0.1  # adjust as needed
+
+#Order
+df_summary_f_At$Strain2 <- factor(df_summary_f_At$Strain2, levels = c (tip_order))
+
+#BarPLot
+# Vertical bar plot 
+Bar_plot_At <- ggplot(df_summary_f_At, aes(
+  x = Strain2,
+  y = log(median_OD + 1),
+  fill = color_by_sig
+)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbar(
+    aes(ymin = log(median_OD - sd_OD + 1),
+        ymax = log(median_OD + sd_OD + 1)),
+    width = 0.2,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_hline(
+    yintercept = log(0 + 1),
+    linetype = "dashed",
+    color = "black",
+    linewidth = 0.4
+  ) +
+   geom_hline(
+    data = sig_medians,
+    aes(yintercept = log(sig_median + 1), color = Media),
+    linetype = "dotted",
+    linewidth = 0.7
+  ) +
+   # Add text for median values just above the line (since y-axis is reversed)
+  geom_text(
+    data = sig_medians,
+    aes(x = 18,  # place at left of panel; adjust if needed
+      y = log(sig_median + 1) + offset,
+      label = paste0("median = ", round(sig_median, 2))
+    ),
+    inherit.aes = FALSE,
+    hjust = 0,  # left-align
+    color = "black",
+    size = 3
+  ) +
+  facet_grid(Media  ~ ., scales = "free_x") +
+  scale_fill_manual(values = color_palette) +
+  scale_color_manual(values = color_palette) +
+  base_theme +
+  scale_x_discrete(position = "top") +
+  theme(
+    axis.text.x = element_blank(),
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  labs(
+    title = "",
+    y = "Fungal growth (log(Median OD600 + 1))",
+    x = ""
+  ) +
+  scale_y_reverse() +
+    theme(legend.position = "bottom") 
+
+Bar_plot_At
+```
+
+### c- HeatMap
+
+```{r}
+# Define palettes
+glucose_palette <- c("#c9c7d9", "#9a96b6", "#817E9F", "#4a4866")
+omg_palette <- c("#cfe8dc", "#a6d3be", "#7FC29B", "#3f7f61")
+  
+# Compute fill_value: log + 1, NA if non-significant
+df_summary_f_At$fill_value <- mapply(function(value, media, sig) {
+  if (sig == "lightgray") {
+    NA
+  } else {
+    log(value + 1)
+  }
+}, df_summary_f_At$median_OD, df_summary_f_At$Media, df_summary_f_At$color_by_sig)
+
+#add better names for strains
+df_summary_f_At <- df_summary_f_At %>%
+  mutate(
+    Strain2_F = paste0("F", str_extract(Strain2, "\\d{3}$"))
+  )
+
+# Order strains
+#add better names for strains
+tip_order_F <- paste0("F", str_extract(tip_order, "\\d{3}$"))
+df_summary_f_At$Strain2_F <- factor(df_summary_f_At$Strain2_F, levels = tip_order_F)
+
+
+# Compute fill_value for heatmap
+df_summary_f_At$fill_value <- mapply(function(value, sig) {
+  if (sig == "lightgray") NA else log(value + 1)
+}, df_summary_f_At$median_OD, df_summary_f_At$color_by_sig)
+
+# Define fixed scale limits for both media (optional, makes them comparable)
+common_limits <- range(df_summary_f_At$fill_value, na.rm = TRUE)
+
+# Heatmap plot
+heatmap_plot <- ggplot() +
+
+  # Glucose tiles
+  geom_tile(
+    data = df_summary_f_At %>% filter(Media == "Glucose"),
+    aes(x = Strain2_F, y = 1, fill = fill_value),
+    color = "white", linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = glucose_palette,
+    na.value = "white",
+    name = "Glucose\nlog(Median OD600 + 1)",
+    limits = common_limits
+  ) +
+
+  ggnewscale::new_scale_fill() +
+
+  # 3OMG tiles
+  geom_tile(
+    data = df_summary_f_At %>% filter(Media == "3OMG"),
+    aes(x = Strain2_F, y = 1, fill = fill_value),
+    color = "white", linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = omg_palette,
+    na.value = "white",
+    name = "3-OMG\nlog(Median OD600 + 1)",
+    limits = common_limits
+  ) +
+
+  facet_grid(Media ~ .) +
+  scale_x_discrete(position = "top") +
+  base_theme +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust = 0),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "bottom"
+  ) +
+  labs(x = "", y = "")
+heatmap_plot
+```
+
+## 5)  Plot Brassica Napus
+
+OD is normalized by T0 --> (OD600.T120) - (OD600 at.T0).    
+OD is also normalized by water --> OD600.Fungi - OD600 at.water
+
+```{r}
+#Load raw data
+df <- read.csv(file = "all_data_3OMG.csv",header = TRUE, row.names = c("X"), sep=",")
+df
+
+#Keep only Arabdiopsis
+df <- subset(df, Host %in% c("B_napus"))
+df_summary_f_Bn <- subset(df_summary_f, Host %in% c("B_napus"))
+```
+
+### a- Phylogenetic tree
+
+#### i- Prepare tree
+
+```{r}
+#Open tree
+tree_ITS <- read.newick("treeNJ.ITS.BN.newick")
+
+#Write tree as nexus
+write.nexus(tree_ITS, file = "treeNJ.ITS.BN.newick.nexus")
+
+# Read the tree (NEXUS may contain multiple trees)
+tree_file_ITS <- "treeNJ.ITS.BN.newick.nexus"
+stopifnot(file.exists(tree_file_ITS))
+
+# Read the tree (NEXUS may contain multiple trees)
+phy <- ape::read.nexus(tree_file_ITS)
+if (inherits(phy, "multiPhylo")) {
+  message("NEXUS contained ", length(phy), " trees; using the first.")
+  phy <- phy[[1]]
+}
+
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+#Get tips order
+tip_order <- phy$tip.label
+tip_order
+
+#Add manually R78 and R61
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+
+#### ii-  Trimmed tree At
+
+```{r}
+#Keep only strain I've screend
+to_keep <- unique(df_summary_f_Bn$Strain2)
+
+# Trim the tree to keep only the tips in 'to_keep'
+phy_trimmed <- drop.tip(phy, setdiff(phy$tip.label, to_keep))
+
+#Root tree midpoint
+phy_trimmed <- midpoint.root(phy_trimmed)
+#phy_trimmed <- root(phy_trimmed, outgroup = "Mortierella_elongata_MPI-CAGE-AA-0104", resolve.root = TRUE)
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy_trimmed, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+# Your tree
+phylo_tree <- phy_trimmed
+
+# Your metadata
+metadata <- df
+  # Keep only the first row for each unique label
+metadata_unique <- metadata %>%
+  distinct(Strain2, .keep_all = TRUE)
+
+# Make sure metadata has a 'label' column that matches tip labels
+#metadata_unique <- metadata_unique %>%
+#  rename(label = Strain2)  # or whatever column matches tip labels in your tree
+
+metadata_unique <- data.frame(metadata_unique, row.names = 2)
+metadata_unique$label <- row.names(metadata_unique)
+# Check that all tip labels are in the metadata_unique
+all(phylo_tree$tip.label %in% row.names(metadata_unique))
+# If FALSE, some labels are missing → must fix names
+
+#Merge tree
+x <- full_join(as_tibble(phylo_tree), metadata_unique, by = "label") 
+tree2 <- as.treedata(x)
+
+# Define phyla colors
+col_class <- c(
+  "Mortierellomycetes" = "#2166AC",
+  "Sordariomycetes" = "#EF8A62",
+  "Dothideomycetes" = "#FDDBC7",
+  "Leotiomycetes" = "#67A9CF",
+  "Mucoromycetes" = "#1B9E77",
+  "Agaricomycetes" = "#A6761D",
+  "Eurotiomycetes" = "#FFD92F",
+  "#N/A" = "gray"
+)
+
+
+# rectangular tree
+tree <- ggtree(tree2, layout = "rectangular", branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01) +
+  geom_tippoint(aes(color = Class)) +
+  scale_color_manual(values = col_class)+
+  theme(legend.position = "left")  # move legend to the left
+tree
+
+tree_V <- ggtree(tree2, layout = "rectangular",branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01, angle = 90, hjust = 1) +
+  geom_tippoint(aes(color = Class)) +
+  scale_color_manual(values = col_class) +
+  theme(legend.position = "right") +
+  coord_flip()+
+  scale_x_reverse()+
+    theme(legend.position = "right") 
+tree_V
+
+
+#Extract tps order
+# Get the tree data
+tree_data <- tree$data
+
+# Filter only tips
+tip_order <- tree_data %>%
+  filter(isTip) %>%
+  arrange(y) %>%        # 'y' is the vertical position in rectangular layout
+  pull(label)
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+### b- HeatMap
+
+```{r}
+# Define palettes
+glucose_palette <- c("#c9c7d9", "#9a96b6", "#817E9F", "#4a4866")
+omg_palette <- c("#cfe8dc", "#a6d3be", "#7FC29B", "#3f7f61")
+  
+# Compute fill_value: log + 1, NA if non-significant
+df_summary_f_Bn$fill_value <- mapply(function(value, media, sig) {
+  if (sig == "lightgray") {
+    NA
+  } else {
+    log(value + 1)
+  }
+}, df_summary_f_Bn$median_OD, df_summary_f_Bn$Media, df_summary_f_Bn$color_by_sig)
+
+# Order strains
+df_unique <- df[!duplicated(df$Strain2), ]
+df_summary_f_Bn <- merge(df_summary_f_Bn, df_unique[, c("Strain2", "Class")], 
+                   by = "Strain2", 
+                   all.x = TRUE)  # keep all rows from df1
+
+df_summary_f_Bn$Class <- factor(df_summary_f_Bn$Class, levels = c("Mortierellomycetes","Dothideomycetes", "Leotiomycetes", "Sordariomycetes", "Mucoromycetes", "Eurotiomycetes", "Agaricomycetes", "Pezizomycotina",  "NA"))
+
+# Compute fill_value for heatmap
+df_summary_f_Bn$fill_value <- mapply(function(value, sig) {
+  if (sig == "lightgray") NA else log(value + 1)
+}, df_summary_f_Bn$median_OD, df_summary_f_Bn$color_by_sig)
+
+# Define fixed scale limits for both media (optional, makes them comparable)
+common_limits <- range(df_summary_f_Bn$fill_value, na.rm = TRUE)
+
+#Calculate media growth per Carbon
+df_summary_f_Bn_sig <- subset(df_summary_f_Bn, !color_by_sig %in% c("lightgray"))
+df_Median <- df_summary_f_Bn_sig %>%
+  group_by(Media) %>%
+  summarise(median_OD = mean(median_OD, na.rm = TRUE))
+
+
+# Heatmap plot
+heatmap_plot_Bn <- ggplot() +
+
+  # Glucose tiles
+  geom_tile(
+    data = df_summary_f_Bn %>% filter(Media == "Glucose"),
+    aes(x = Strain2, y = 1, fill = fill_value),
+    color = "white", linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = glucose_palette,
+    na.value = "white",
+    name = "Glucose\nlog(Median OD600 + 1)",
+    limits = common_limits
+  ) +
+  ggnewscale::new_scale_fill() +
+  # 3OMG tiles
+  geom_tile(
+    data = df_summary_f_Bn %>% filter(Media == "3OMG"),
+    aes(x = Strain2, y = 1, fill = fill_value),
+    color = "white", linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = omg_palette,
+    na.value = "white",
+    name = "3-OMG\nlog(Median OD600 + 1)",
+    limits = common_limits
+  ) +
+
+ggh4x::facet_grid2(Media ~ Class , space = "free", scales = "free") +
+  scale_x_discrete(position = "top") +
+  base_theme +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust = 0),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "bottom"
+  ) +
+  labs(x = "", y = "")
+heatmap_plot_Bn
+```
+
+## 6)  Plot Triticum aestivum
+
+OD is normalized by T0 --> (OD600.T120) - (OD600 at.T0).    
+OD is also normalized by water --> OD600.Fungi - OD600 at.water
+
+```{r}
+#Load raw data
+df <- read.csv(file = "all_data_3OMG.csv",header = TRUE, row.names = c("X"), sep=",")
+df
+
+#Keep only Arabdiopsis
+df <- subset(df, Host %in% c("T_aestivum"))
+df_summary_f_Ta <- subset(df_summary_f, Host %in% c("T_aestivum"))
+```
+
+### a- Phylogenetic tree
+
+#### i- Prepare tree
+
+```{r}
+#Open tree
+tree_ITS <- read.newick("treeNJ.ITS.TA.newick")
+
+#Write tree as nexus
+write.nexus(tree_ITS, file = "treeNJ.ITS.TA.newick.nexus")
+
+# Read the tree (NEXUS may contain multiple trees)
+tree_file_ITS <- "treeNJ.ITS.TA.newick.nexus"
+stopifnot(file.exists(tree_file_ITS))
+
+# Read the tree (NEXUS may contain multiple trees)
+phy <- ape::read.nexus(tree_file_ITS)
+if (inherits(phy, "multiPhylo")) {
+  message("NEXUS contained ", length(phy), " trees; using the first.")
+  phy <- phy[[1]]
+}
+
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+#Get tips order
+tip_order <- phy$tip.label
+tip_order
+
+#Add manually R78 and R61
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+#### ii-  Trimmed tree Ta
+
+```{r}
+#Keep only strain I've screend
+to_keep <- unique(df_summary_f_Ta$Strain2)
+
+# Trim the tree to keep only the tips in 'to_keep'
+phy_trimmed <- drop.tip(phy, setdiff(phy$tip.label, to_keep))
+
+#Root tree midpoint
+phy_trimmed <- midpoint.root(phy_trimmed)
+#phy_trimmed <- root(phy_trimmed, outgroup = "Mortierella_elongata_MPI-CAGE-AA-0104", resolve.root = TRUE)
+
+#most basic tree visualization 
+tree_plot <- ggplot(phy_trimmed, aes(x, y)) + geom_tree() + theme_tree()
+tree_plot
+
+# Your tree
+phylo_tree <- phy_trimmed
+
+# Your metadata
+metadata <- df
+  # Keep only the first row for each unique label
+metadata_unique <- metadata %>%
+  distinct(Strain2, .keep_all = TRUE)
+
+
+# Make sure metadata has a 'label' column that matches tip labels
+#metadata_unique <- metadata_unique %>%
+#  rename(label = Strain2)  # or whatever column matches tip labels in your tree
+
+metadata_unique <- data.frame(metadata_unique, row.names = 2)
+metadata_unique$label <- row.names(metadata_unique)
+# Check that all tip labels are in the metadata_unique
+all(phylo_tree$tip.label %in% row.names(metadata_unique))
+# If FALSE, some labels are missing → must fix names
+
+#Merge tree
+x <- full_join(as_tibble(phylo_tree), metadata_unique, by = "label") 
+tree2 <- as.treedata(x)
+
+# Define phyla colors
+col_class <- c(
+  "Mortierellomycetes" = "#2166AC",
+  "Sordariomycetes" = "#EF8A62",
+  "Dothideomycetes" = "#FDDBC7",
+  "Leotiomycetes" = "#67A9CF",
+  "Mucoromycetes" = "#1B9E77",
+  "Agaricomycetes" = "#A6761D",
+  "Eurotiomycetes" = "#FFD92F",
+  "#N/A" = "gray"
+)
+
+# rectangular tree
+tree <- ggtree(tree2, layout = "rectangular", branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01) +
+  geom_tippoint(aes(color = Class)) +
+  scale_color_manual(values = col_class)+
+  theme(legend.position = "left")  # move legend to the left
+tree
+
+tree_V <- ggtree(tree2, layout = "rectangular",branch.length = "none", size = 0.15) +
+  geom_tiplab(aes(label = label), size = 3, offset = 0.01, angle = 90, hjust = 1) +
+  geom_tippoint(aes(color = Class)) +
+  scale_color_manual(values = col_class) +
+  theme(legend.position = "right") +
+  coord_flip()+
+  scale_x_reverse()+
+    theme(legend.position = "right") 
+tree_V
+
+#Extract tps order
+# Get the tree data
+tree_data <- tree$data
+
+# Filter only tips
+tip_order <- tree_data %>%
+  filter(isTip) %>%
+  arrange(y) %>%        # 'y' is the vertical position in rectangular layout
+  pull(label)
+
+tip_order
+
+#Add water 
+tip_order <- c(tip_order, "Water")
+```
+
+### b- HeatMap
+
+```{r}
+# Define palettes
+glucose_palette <- c("#c9c7d9", "#9a96b6", "#817E9F", "#4a4866")
+omg_palette <- c("#cfe8dc", "#a6d3be", "#7FC29B", "#3f7f61")
+  
+# Compute fill_value: log + 1, NA if non-significant
+df_summary_f_Ta$fill_value <- mapply(function(value, media, sig) {
+  if (sig == "lightgray") {
+    NA
+  } else {
+    log(value + 1)
+  }
+}, df_summary_f_Ta$median_OD, df_summary_f_Ta$Media, df_summary_f_Ta$color_by_sig)
+
+# Order strains
+df_unique <- df[!duplicated(df$Strain2), ]
+df_summary_f_Ta <- merge(df_summary_f_Ta, df_unique[, c("Strain2", "Class")], 
+                   by = "Strain2", 
+                   all.x = TRUE)  # keep all rows from df1
+
+df_summary_f_Ta$Class <- factor(df_summary_f_Ta$Class, levels = c("Mortierellomycetes","Dothideomycetes", "Leotiomycetes", "Sordariomycetes", "Mucoromycetes", "Eurotiomycetes", "Agaricomycetes", "Pezizomycotina",  "NA"))
+
+
+# Compute fill_value for heatmap
+df_summary_f_Ta$fill_value <- mapply(function(value, sig) {
+  if (sig == "lightgray") NA else log(value + 1)
+}, df_summary_f_Ta$median_OD, df_summary_f_Ta$color_by_sig)
+
+# Define fixed scale limits for both media (optional, makes them comparable)
+common_limits <- range(df_summary_f_Ta$fill_value, na.rm = TRUE)
+
+#Calculate media growth per Carbon
+df_summary_f_Ta_sig <- subset(df_summary_f_Ta, !color_by_sig %in% c("lightgray"))
+df_Median <- df_summary_f_Ta_sig %>%
+  group_by(Media) %>%
+  summarise(median_OD = mean(median_OD, na.rm = TRUE))
+
+# Heatmap plot
+heatmap_plot_Ta <- ggplot() +
+  # Glucose tiles
+  geom_tile(
+    data = df_summary_f_Ta %>% filter(Media == "Glucose"),
+    aes(x = Strain2, y = 1, fill = fill_value),
+    color = "white", linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = glucose_palette,
+    na.value = "white",
+    name = "Glucose\nlog(Median OD600 + 1)",
+    limits = common_limits
+  ) +
+  ggnewscale::new_scale_fill() +
+  # 3OMG tiles
+  geom_tile(
+    data = df_summary_f_Ta %>% filter(Media == "3OMG"),
+    aes(x = Strain2, y = 1, fill = fill_value),
+    color = "white", linewidth = 0.2
+  ) +
+  scale_fill_gradientn(
+    colors = omg_palette,
+    na.value = "white",
+    name = "3-OMG\nlog(Median OD600 + 1)",
+    limits = common_limits
+  ) +
+ggh4x::facet_grid2(Media ~ Class , space = "free", scales = "free") +
+  scale_x_discrete(position = "top") +
+  base_theme +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust = 0),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "bottom"
+  ) +
+  labs(x = "", y = "") 
+heatmap_plot_Ta
+```
+
+# C] All plots Plant
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Plot_Comb1 <- plot_grid(tree_V, heatmap_plot, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="hv",  axis = "tb")
+Plot_Comb1
+```
+
+
+---
+END
+---

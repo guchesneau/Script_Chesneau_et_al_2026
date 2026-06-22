@@ -1,0 +1,19 @@
+,Plant,Microbes,Treatment,Kingdom,median_PPI_FP,Median_LogDeltaCT_FP,Median_PPI,Median_LogDeltaCT,Data_type
+1,Arabidopsis_thaliana,F100,Water,Fungi,6.178571429,0.454011403,4.546,2.845369176,Plant colonization
+2,Arabidopsis_thaliana,F100,3OMG,Fungi,1.814285714,-6.376954061,6.1935,-2.945875517,Plant colonization
+3,Arabidopsis_thaliana,F117,Water,Fungi,4.442857143,1.696477724,1.4275,7.222593621,Plant colonization
+4,Arabidopsis_thaliana,F117,3OMG,Fungi,6.582142857,-1.900956143,7.908,-0.103972077,Plant colonization
+5,Arabidopsis_thaliana,F147,Water,Fungi,0,5.919476922,1.7,3.860829796,Plant colonization
+6,Arabidopsis_thaliana,F147,3OMG,Fungi,5.746428571,0.36390227,8.785,-0.752064691,Plant colonization
+7,Arabidopsis_thaliana,F16,Water,Fungi,4.807142857,2.07251007,1.382,5.323370347,Plant colonization
+8,Arabidopsis_thaliana,F16,3OMG,Fungi,6.032142857,0.15249238,4.285,0.464408611,Plant colonization
+9,Arabidopsis_thaliana,F212,Water,Fungi,7.675,-0.810982201,3.5045,3.78111787,Plant colonization
+10,Arabidopsis_thaliana,F212,3OMG,Fungi,6.403571429,-1.308315303,7.5415,0.176752531,Plant colonization
+11,Arabidopsis_thaliana,F243,Water,Fungi,6.439285714,-0.455744271,6.688,0.793653522,Plant colonization
+12,Arabidopsis_thaliana,F243,3OMG,Fungi,5.489285714,-3.398154053,10.538,-2.679013853,Plant colonization
+13,Arabidopsis_thaliana,F44,Water,Fungi,5.085714286,1.384561493,2.626,4.467333579,Plant colonization
+14,Arabidopsis_thaliana,F44,3OMG,Fungi,5.403571429,-0.906289939,5.252,-0.755530427,Plant colonization
+15,Arabidopsis_thaliana,F64,Water,Fungi,6.457142857,-0.304984759,2.063,5.385753593,Plant colonization
+16,Arabidopsis_thaliana,F64,3OMG,Fungi,4.946428571,-4.510655277,3.301,2.772588722,Plant colonization
+17,Arabidopsis_thaliana,F96,Water,Fungi,0.214285714,-1.273657944,2.0755,5.101563249,Plant colonization
+18,Arabidopsis_thaliana,F96,3OMG,Fungi,4.692857143,-1.812579877,2.855,3.410284128,Plant colonization

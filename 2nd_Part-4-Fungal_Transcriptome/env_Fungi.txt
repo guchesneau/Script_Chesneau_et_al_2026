@@ -1,0 +1,16 @@
+Sample_ID	Conditions	Microbes	Molecule	Fungi	Rep
+Control_3OMG_F16_1	3OMG_Control	Control	3OMG	F16	1
+Control_3OMG_F16_2	3OMG_Control	Control	3OMG	F16	2
+Control_3OMG_F16_3	3OMG_Control	Control	3OMG	F16	3
+Control_3OMG_F16_4	3OMG_Control	Control	3OMG	F16	4
+Control_Water_F16_1	Water_Control	Control	Water	F16	1
+Control_Water_F16_2	Water_Control	Control	Water	F16	2
+Control_Water_F16_3	Water_Control	Control	Water	F16	3
+Plant_3OMG_F16_1	3OMG_Plant	Plant	3OMG	F16	1
+Plant_3OMG_F16_2	3OMG_Plant	Plant	3OMG	F16	2
+Plant_3OMG_F16_3	3OMG_Plant	Plant	3OMG	F16	3
+Plant_3OMG_F16_4	3OMG_Plant	Plant	3OMG	F16	4
+Plant_Water_F16_1	Water_Plant	Plant	Water	F16	1
+Plant_Water_F16_2	Water_Plant	Plant	Water	F16	2
+Plant_Water_F16_3	Water_Plant	Plant	Water	F16	3
+Plant_Water_F16_4	Water_Plant	Plant	Water	F16	4

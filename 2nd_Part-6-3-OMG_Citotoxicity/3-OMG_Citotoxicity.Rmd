@@ -1,0 +1,581 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.0.0 (and Rstudio 1.2.5019)
+
+```{r R version}
+R.version
+```
+
+```{r}
+#Load libraries
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(growthcurver)
+library(ggplot2)
+library(dplyr)
+library(ggnewscale) 
+library(cowplot)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B",  "Glucose" = "#817E9F", "Glucose+3OMG" = "#80A09D")
+color_palette_Fungi <- c("MF" = "#949494", "F16" = "black", "Fungi" = "black")
+theme_set(theme_bw())
+# Define colors for each Carbon type
+colors_3OMG <- c("0mM" = "darkgray", "0.75mM" = "#c7e5d3", "7.5mM" = "#7FC29B", "75mM" = "#3b7d5a")
+colors_DGlucose <- c("0mM" = "darkgray", "0.75mM" = "#d9d8e9", "7.5mM" = "#817E9F", "75mM" = "#4b4780")
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'BFSC'="Bacterial and Fungal<br>SynCom",
+  'BSC'="Bacterial<br>SynCom",
+  'FSC' = "Fungal<br>SynCom",
+  'F16' = "*Plectosphaerella*<br>*cucumerina*",
+  'F147' = "*Dactylonectria*<br>*macrodidyma*",
+  'F212' = "*Fusarium*<br>*oxysporum*",
+  'F243' = "*Dendryphion*<br>*nanum*",
+  'D03' = "D03",
+  'D07' = "D07",
+  'D14' = "D14",
+  "Col0" = "Col0",
+  "1/2MS"  = "1/2MS + Mock",
+  "1/2MS+Pectin" = "1/2MS + Pectin",
+  "1/2MS+Xylan"= "1/2MS + Xylan",       
+ "1/2MS+?-cellulose"  = "1/2MS + a-Cellulose",
+ "1/2MS+Carboxymethylcellulose" = "1/2MS + Carboxycellulose",
+ "1/2MS+Starch"   = "1/2MS + Starch",   
+ "1/2MS+Arabinose"  = "1/2MS + Arabinose",
+ "1/2MS+Galactose" = "1/2MS + Galactose",
+ "1/2MS+Glucose" = "1/2MS + Glucose",    
+"1/2MS+Mannose" = "1/2MS + Mannose",
+"1/2MS+Xylose"= "1/2MS + Xylose"
+)
+```
+
+# A] Preliminary data
+
+## 1) Prepare data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+data <- read.table(file="Data_Final_All.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+data
+
+#Remove this concentration since not available for Glucose
+data <- subset(data, !Concentration2 %in% c("1.46 mM"))
+
+#Mean data for same wells (4 measurement per well)
+# Group by all columns except "Value" and calculate mean
+data <- data %>%
+  group_by(across(-Value)) %>%
+  summarise(Value = mean(Value, na.rm = TRUE), .groups = "drop")
+```
+
+## 2) Plots 4 fungi
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Order
+data$Concentration2 <- factor(data$Concentration2, levels = c ("0 mM", "5.8 mM", "93.75 mM", "375 mM"))
+
+data_Peat <- subset(data, Carbon2 %in% c("Peat wash Broth","Peat wash Broth + D.Glucose", "Peat wash Broth + 3OMG"))
+
+data_PGB <- subset(data, !Carbon2 %in% c("Peat wash Broth","Peat wash Broth + D.Glucose", "Peat wash Broth + 3OMG"))
+
+#Order
+data_Peat$Carbon <- factor(data_Peat$Carbon, levels = c ("Peat wash", "Glucose", "3OMG"))
+data_PGB$Carbon <- factor(data_PGB$Carbon, levels = c ("PGB", "Glucose", "3OMG"))
+
+# Example of a curve plot with facets and smoothed lines
+Plot_curve_Peat <- ggplot(data_Peat, aes(x = Time3, y = log(Value)+1, color = Carbon)) +
+  geom_smooth(method = "loess", se = FALSE) + # Fit a smoothed line (LOESS) without confidence interval
+  geom_jitter(size = 0.1, alpha = 0.05) +
+ facet_grid(Strains2~Media) + # Facet by Strains2
+  labs(
+    title = "Peat Wash (Poor Media)",
+    x = "Time (s)",
+    y = "OD600",
+    color = "Concentration"
+  ) +
+ base_theme +
+    scale_color_manual(values = c("black", "#817E9F", "#7FC29B"))
+
+# Example of a curve plot with facets and smoothed lines
+Plot_curve_PGB <- ggplot(data_PGB, aes(x = Time3, y = Value, color = Carbon)) +
+  geom_smooth(method = "loess", se = FALSE) + # Fit a smoothed line (LOESS) without confidence interval
+    geom_jitter(size = 0.1, alpha = 0.05) +
+ facet_grid(Strains2~Media) + # Facet by Strains2
+  labs(
+    title = "PGB (Rich Media)",
+    x = "Time (s)",
+    y = "OD600",
+    color = "Concentration"
+  ) +
+  base_theme +
+    scale_color_manual(values = c("black", "#817E9F", "#7FC29B"))
+
+
+#Full plots
+Final_plot_Curves <- plot_grid(Plot_curve_Peat, Plot_curve_PGB, rel_heights = c(2,2), rel_widths = c(1,1), ncol=2, nrow=1, align = 'hv')
+Final_plot_Curves
+```
+
+## 3) Plots P. cuc Concentration
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+data_F16 <- subset(data, Strains %in% c("F16"))
+
+#Order
+data_F16$Concentration2 <- factor(data_F16$Concentration2, levels = c ("0 uM", "5.8 uM", "93.75 uM", "375 uM"))
+
+data_F16_PGB <- subset(data_F16, !Carbon2 %in% c("Peat wash Broth","Peat wash Broth + D.Glucose", "Peat wash Broth + 3OMG"))
+
+#Order
+data_F16_PGB$Carbon <- factor(data_F16_PGB$Carbon, levels = c ("PGB", "Glucose", "3OMG"))
+
+
+# Example of a curve plot with facets and smoothed lines
+Plot_curve_PGB <- ggplot(data_F16_PGB, aes(x = Time3, y = Value, color = Carbon)) +
+  geom_smooth(method = "loess", se = FALSE) + # Fit a smoothed line (LOESS) without confidence interval
+    geom_jitter(size = 0.1, alpha = 0.05) +
+ facet_grid(~Concentration + Media) + # Facet by Strains2
+  labs(
+    title = "PGB (Rich Media)",
+    x = "Time (s)",
+    y = "OD600",
+    color = "Concentration"
+  ) +
+  base_theme +
+    scale_color_manual(values = c("black", "#817E9F", "#7FC29B"))
+Plot_curve_PGB
+```
+
+# B] New data
+
+## 1) Growth PGB
+
+### a) Growth curves
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df <- read.table(file="df_Rich_media.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+# Calculate median OD600 for MF per Media
+mf_medians <- df %>%
+  filter(Microbe == "MF") %>%
+  group_by(Media2) %>%
+  summarise(MF_median = median(OD600, na.rm = TRUE), .groups = "drop")
+
+# Subtract MF median from all OD600 values in the corresponding Media
+df <- df %>%
+  left_join(mf_medians, by = "Media2") %>%
+  mutate(OD600 = OD600 - MF_median) %>%
+  # Optionally remove MF rows if you don't need them anymore
+  filter(Microbe != "MF") %>%
+  select(-MF_median)  # remove temporary column if desired
+
+#Order
+df$Carbon.Concentration <- factor(df$Carbon.Concentration, levels = c ("0mM", "0.75mM", "7.5mM", "75mM"))
+df$Media2 <- factor(df$Media2, levels = c ("PGB100%", "PGB10%", "PGB1%", "PGB0.1%"))
+df$Carbon <- factor(df$Carbon, levels = c ("Water", "D.Glucose", "3OMG"))
+
+#Remove MF
+df_2 <- subset(df, Microbe %in% c("F16"))
+
+
+# Example of a curve plot with facets and smoothed lines
+Plot_curve_Peat <- ggplot(df_2, aes(x = Time, y = OD600, color = Carbon)) +
+  geom_smooth(method = "loess", se = FALSE) + # Fit a smoothed line (LOESS) without confidence interval
+  geom_jitter(size = 0.1, alpha = 0.2) +
+   base_theme +
+ facet_grid(Media2~Carbon.Concentration) + # Facet by Strains2
+  labs(
+    title = "Potatoes Glucose Broth",
+    x = "Time (hours)",
+    y = "OD600",
+    color = "Media"
+  ) +
+    scale_color_manual(values = c("black", "#817E9F", "#7FC29B"))
+Plot_curve_Peat
+```
+
+### a) Growth curves (3OMG)
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+#Order
+df$Carbon.Concentration <- factor(df$Carbon.Concentration, levels = c ("0mM", "0.75mM", "7.5mM", "75mM"))
+df$Media2 <- factor(df$Media2, levels = c ("PGB100%", "PGB10%", "PGB1%", "PGB0.1%"))
+df$Carbon <- factor(df$Carbon, levels = c ("Water", "D.Glucose", "3OMG"))
+
+#Remove MF
+df_2 <- subset(df, Microbe %in% c("F16"))
+
+# Curve plot with facets and smoothed lines
+Plot_curve_3OMG_DilPGB <- ggplot(df_2, aes(x = Time, y = OD600, color = Carbon.Concentration)) +
+  # LOESS-smoothed lines
+  geom_smooth(method = "loess", se = FALSE, size = 1) +
+  # Jittered points
+  geom_jitter(size = 0.1, alpha = 0.2) +
+  # Facets
+  facet_grid(Media2 ~ ., scales = "free_y") +
+  # Theme and styling
+   base_theme +
+  # Labels
+  labs(
+    title = "Potatoes Glucose Broth",
+    x = "Time (hours)",
+    y = "OD600",
+    color = "Carbon"
+  ) +
+  # Custom colors
+  scale_fill_manual(values = colors_3OMG) +
+  scale_color_manual(values = colors_3OMG) 
+Plot_curve_3OMG_DilPGB
+```
+
+### b) AUC
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Reshape to wide format: time as rows, wells as columns, OD600 as values
+# Create an informative ID column combining relevant info
+df_2 <- df_2 %>%
+  mutate(Well_ID = paste(Wells, Microbe, Carbon, Media2, Carbon.Concentration, sep = "_"))
+
+# Pivot to wide format using the new ID
+df_wide <- df_2 %>%
+  select(Time, Well_ID, OD600) %>%
+  pivot_wider(
+    names_from = Well_ID,
+    values_from = OD600
+  ) %>%
+  arrange(Time)
+
+#Run GrowthCurver
+gc_out <- SummarizeGrowthByPlate(df_wide)
+
+# Separate columns
+df_separated <- gc_out %>%
+  rename(sample = 1) %>%  # rename first column to 'sample' if not already
+  separate(sample, into = c("Wells", "Microbe", "Carbon", "Media2", "Carbon.Concentration"), sep = "_")
+
+#Order Plot
+# Reorder the columns based on the desired order
+df_separated$Carbon <- factor(df_separated$Carbon, levels = c("Water", "D.Glucose","3OMG"))
+
+# Reorder the columns based on the desired order
+df_separated$Carbon.Concentration <- factor(df_separated$Carbon.Concentration, levels = c("0mM","0.75mM", "7.5mM", "75mM"))
+  
+
+# Compute the median for each group
+df_separated <- df_separated %>%
+  group_by(Carbon.Concentration, Carbon, Media2) %>%
+  mutate(median_auc = median(auc_l))
+
+# Calculate the median for 'water' condition
+water_medians <- df_separated %>%
+  filter(Carbon == "Water") %>%
+  group_by(Media2) %>%
+  summarise(median_water = median(auc_l))
+
+# Merge median values back into the original data
+df_separated <- df_separated %>%
+  left_join(water_medians, by = "Media2")
+
+#Add column media
+df_separated$Media3 <- c("PGB")
+
+#Order
+df_separated$Media3 <- factor(df_separated$Media3, 
+                               labels = c("Potatoes Glucose Broth"))
+
+# Make sure rep_counts includes all relevant grouping variables
+rep_counts <- df_separated %>%
+  group_by(Carbon.Concentration, Carbon, Media2, Media3) %>%
+  summarise(n_reps = n(), .groups = "drop")
+
+# Plot
+Plot_AUC <- ggplot(df_separated, aes(x = Carbon.Concentration, y = log(auc_l + 1), fill = Carbon)) +
+    # Large dots for medians
+  geom_point(aes(y = log(median_auc + 1)), size = 3, shape = 21) +
+  # Small dots for replicates
+  geom_jitter(width = 0.2, size = 1, shape = 21) +
+  # Dashed line for "water" median
+  geom_hline(aes(yintercept = log(median_water + 1)), linetype = "dashed", color = "black") +
+# Add replicate count labels side by side below each group
+geom_text(
+  data = rep_counts,
+  aes(
+    x = Carbon.Concentration,
+    y = -0.3,  # same vertical level for all labels
+    label = paste0("n=", n_reps),
+    color = Carbon
+  ),
+  position = position_dodge(width = 0.8),  # side-by-side horizontally
+  vjust = 1,
+  size = 3
+) +
+  labs(
+    x = "Carbon Source",
+    y = "log Area Under the Curves (OD600)",
+    title = ""
+  ) +
+   base_theme +
+  facet_grid(Media3 ~ Media2, scales = "free_x") +
+  scale_fill_manual(values = c("darkgray", "#817E9F", "#7FC29B")) +
+  scale_color_manual(values = c("darkgray", "#817E9F", "#7FC29B")) +
+  expand_limits(y = -0.5) +
+  base_theme
+
+Plot_AUC
+```
+
+## 2) 3OMG / D.Glucose RATIO 
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df_r <- read.table(file="df_Media_Ratio.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+df_r
+```
+
+### a) Growth curves
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Order
+df_r$Carbon.Concentration <- factor(df_r$Carbon.Concentration, levels = c ("0mM", "0.75mM", "7.5mM", "75mM"))
+df_r$Carbon <- factor(df_r$Carbon, levels = c ("Water", "D.Glucose", "3OMG", "3OMG_D.Glucose"))
+
+#Remove MF
+df_r2 <- subset(df_r, Microbe %in% c("F16"))
+
+# Example of a curve plot with facets and smoothed lines
+Plot_curve_Peat2 <- ggplot(df_r2, aes(x = Time, y = OD600, color = Carbon)) + 
+  geom_smooth(method = "loess", se = FALSE) + # Fit a smoothed line (LOESS) without confidence interval
+  geom_jitter(size = 1, alpha = 0.2) + 
+   base_theme +
+  facet_grid(Media~ Carbon.Concentration, scales = "free_y") + # Facet only by Carbon.Concentration
+  labs(
+    title = "Test Combinaisons",
+    x = "Time (hours)",
+    y = "OD600",
+    color = "Media",
+    linetype = "Media"
+  ) + 
+  scale_color_manual(values = c("black", "#817E9F", "#7FC29B", "#80A09D"))
+
+Plot_curve_Peat2
+```
+
+### b) AUC
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#All the water control are 0mM, there are associated to a concentration just because they were in the same rows as other but they stay 0mM
+df_r2 <- df_r2 %>%
+  mutate(Carbon.Concentration = if_else(Carbon == "Water", "0mM", Carbon.Concentration))
+
+#Same as above these are just control media at the end.
+df_r2 <- df_r2 %>%
+  filter(!(Carbon.Concentration == "0mM" & Carbon != "Water"))
+
+# Reshape to wide format: time as rows, wells as columns, OD600 as values
+# Create an informative ID column combining relevant info
+df_r2 <- df_r2 %>%
+  mutate(Well_ID = paste(Wells, Microbe, Carbon, Media, Carbon.Concentration, sep = "__"))
+
+# Pivot to wide format using the new ID
+df_wide2 <- df_r2 %>%
+  select(Time, Well_ID, OD600) %>%
+  pivot_wider(
+    names_from = Well_ID,
+    values_from = OD600
+  ) %>%
+  arrange(Time)
+
+#Run GrowthCurver
+gc_out2 <- SummarizeGrowthByPlate(df_wide2)
+
+# Separate columns
+df_separated2 <- gc_out2 %>%
+  rename(sample = 1) %>%  # rename first column to 'sample' if not already
+  separate(sample, into = c("Wells", "Microbe", "Carbon", "Media", "Carbon.Concentration"), sep = "__")
+
+#Order Plot
+# Reorder the columns based on the desired order
+df_separated2$Carbon <- factor(df_separated2$Carbon, levels = c("Water", "D.Glucose","3OMG", "3OMG_D.Glucose"))
+
+# Reorder the columns based on the desired order
+df_separated2$Carbon.Concentration <- factor(df_separated2$Carbon.Concentration, levels = c("0mM","0.75mM", "7.5mM", "75mM"))
+
+# Compute the median for each group
+df_separated2 <- df_separated2 %>%
+  group_by(Carbon.Concentration, Carbon, Media) %>%
+  mutate(median_auc = median(auc_l))
+
+# Calculate the median for 'water' condition
+water_medians2 <- df_separated2 %>%
+  filter(Carbon == "Water") %>%
+  group_by(Media) %>%
+  summarise(median_water = median(auc_l))
+
+# Merge median values back into the original data
+df_separated2 <- df_separated2 %>%
+  left_join(water_medians2, by = "Media")
+
+# Count replicates per group (make sure to include facet variable)
+rep_counts2 <- df_separated2 %>%
+  group_by(Carbon.Concentration, Carbon, Media) %>%
+  summarise(n_reps = n(), .groups = "drop")
+
+# Plot
+Plot_AUC_Media <- ggplot(df_separated2, aes(x = Carbon.Concentration, y = log(auc_l+1), fill = Carbon)) + 
+    # Add big dots for the median
+  geom_point(aes(y = log(median_auc+1)), size = 3, shape = 21) + 
+  # Add small dots for individual replicates
+  geom_jitter(width = 0.2, size = 1, shape = 21) + 
+  # Add horizontal line at median value of "water" for each facet
+  geom_hline(aes(yintercept = log(median_water+1)), linetype = "dashed", color = "black") + 
+  labs(x = "Carbon Source", y = "Log AUC (OD600)", title = "log Area Under the Curves (OD600)") + 
+   base_theme +
+  facet_grid(~Media, scales = "free_x") + 
+  scale_fill_manual(values = c("darkgray", "#817E9F", "#7FC29B", "#80A09D"))+
+  scale_color_manual(values = c("darkgray", "#817E9F", "#7FC29B", "#80A09D")) +
+ geom_text(
+  data = rep_counts2,
+  aes(
+    x = Carbon.Concentration,
+    y = -0.3,  # all labels at the same vertical level
+    label = paste0("n=", n_reps),
+    color = Carbon
+  ),
+  position = position_dodge(width = 0.5),  # side-by-side horizontally
+  vjust = 1,
+  size = 3
+) +
+  ylim(-0.5,5) +
+  base_theme
+
+Plot_AUC_Media
+```
+
+## 3) Plot merged
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Prepare tables
+df2 <- read.table(file="df_citoto_merged.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Normalize MF
+# Calculate median OD600 for MF per Media
+mf_medians <- df2 %>%
+  filter(Microbe == "MF") %>%
+  group_by(Media) %>%
+  summarise(MF_median = median(OD600, na.rm = TRUE), .groups = "drop")
+
+# Subtract MF median from all OD600 values in the corresponding Media
+df2_f_norm <- df2 %>%
+  left_join(mf_medians, by = "Media") %>%
+  mutate(OD600 = OD600 - MF_median) %>%
+  # Optionally remove MF rows if you don't need them anymore
+  filter(Microbe != "MF") %>%
+  select(-MF_median)  # remove temporary column if desired
+
+#Subset keep only 1/2MS, M9 and 100% PGB
+#df2_f <- subset(df2, Carbon.Concentration %in% c("0mM","7.5mM"))
+df2_f <- subset(df2_f_norm, !Carbon %in% c("Water"))
+df2_f <- subset(df2_f, !Media_Concentration %in% c(0.1,1,10))
+df2_f <- subset(df2_f, !Microbe %in% c("MF"))
+#df2_f <- subset(df2_f, !Media %in% c("M9"))
+```
+
+### a) Growth curves various media
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Custom colors
+treat_colors <- c("Water" = "darkgray", "D.Glucose" = "#817E9F", "3OMG" = "#7FC29B", "3OMG_D.Glucose" = "#80A09D")
+
+#Order
+df2_f$Carbon.Concentration <- factor(df2_f$Carbon.Concentration, levels = c ("0mM", "0.75mM", "7.5mM", "75mM"))
+df2_f$Media <- factor(df2_f$Media, levels = c ("PGB", "1/2MS", "M9"))
+df2_f$Carbon <- factor(df2_f$Carbon, levels = c ("3OMG", "D.Glucose"))
+
+#Remove Glucose
+df2_f2 <- subset(df2_f, !Carbon %in% c("D.Glucose"))
+
+#Plot
+Plot_curve_Peat2 <- ggplot() +
+  # 3OMG
+  geom_smooth(
+    data = df2_f2 %>% filter(Carbon == "3OMG"),
+    aes(x = Time, y = OD600, color = as.factor(Carbon.Concentration)),
+    method = "loess", se = FALSE
+  ) +
+  geom_jitter(
+    data = df2_f2 %>% filter(Carbon == "3OMG"),
+    aes(x = Time, y = OD600, color = as.factor(Carbon.Concentration)),
+    size = 1, alpha = 0.2
+  ) +
+  scale_color_manual(values = colors_3OMG) +
+  ggnewscale::new_scale_color() +  # allow a new color scale
+  # D.Glucose
+  geom_smooth(
+    data = df2_f2 %>% filter(Carbon == "D.Glucose"),
+    aes(x = Time, y = OD600, color = as.factor(Carbon.Concentration)),
+    method = "loess", se = FALSE
+  ) +
+  geom_jitter(
+    data = df2_f2 %>% filter(Carbon == "D.Glucose"),
+    aes(x = Time, y = OD600, color = as.factor(Carbon.Concentration)),
+    size = 1, alpha = 0.2
+  ) +
+  scale_color_manual(values = colors_3OMG) +
+  facet_grid(Media ~ Carbon, scales = "free_y") +
+   base_theme +
+  labs(
+    title = "",
+    x = "Time (hours)",
+    y = "OD600",
+    color = "Carbon Concentration"
+  ) 
+
+Plot_curve_Peat2
+```
+
+# C] Final Plots 
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Curves
+Final_plot_Curves <- plot_grid(Plot_curve_Peat2, Plot_curve_3OMG_DilPGB, rel_heights = c(2,2), rel_widths = c(1,1), ncol=2, nrow=1, align = 'hv')
+Final_plot_Curves
+
+#AUC
+Final_plot_AUC <- plot_grid(Plot_AUC, Plot_AUC_Media, rel_heights = c(2,2), rel_widths = c(1,1), ncol=2, nrow=1, align = 'hv', axis = 'lr')
+Final_plot_AUC
+```
+
+---
+END
+---

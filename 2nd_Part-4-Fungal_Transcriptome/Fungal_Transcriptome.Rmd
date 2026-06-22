@@ -1,0 +1,801 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+*Condition*.  
+
+Biological parameters:    
+- Plants grown in Agar-based system.     
+- Harvested after ??
+- Inoculated after ??
+- Add informations....       
+-....    
+
+Pre-processing in Galaxy.     
+- Quality checked with FastQC, Flatten, MultiFastQG.   
+- Mapping using STAR.   
+- Strandness checked with Infer Experiment (Reverse stranded library).     
+- Feature counts (exons, fragments are counted).   
+- DeSeq : All comparions made with Water-MF conditions:     
+  - Water-MF_3OMG-MF.  
+  - Water-MF_3OMG-F16.  
+  - Water-MF_Water-F16.      
+  
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+
+# Before you start
+
+This script has been made on R version 4.2.2 (2022-10-31)
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load Packages
+library(ggplot2)
+library(cowplot)
+library(forcats)
+library(ggpubr)
+library(ggrepel)
+library(tidyr)
+library(DESeq2)
+library(stringr)
+library(vegan)
+library(dplyr)
+library(ggsignif)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+```
+
+# A] Root length
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Check quality
+    #Open file
+    df_length <- read.table(file="Transcripto_length.txt",sep="\t",dec=".",header=TRUE, row.names = 1)
+
+#Order
+df_length$Time <- factor(df_length$Time, levels = c ("72h", "168h"))
+df_length$Supplementation <- factor(df_length$Supplementation, levels = c ("Water", "3OMG"))
+df_length$Microbe <- factor(df_length$Microbe, levels = c ("M.free", "F16"))
+
+# Assuming your dataframe is named df
+Plot_length <- ggplot(df_length, aes(x = Microbe, y = Root_Length, fill = Supplementation)) +
+     geom_jitter(alpha = 0.2, size = 0.5) +
+  geom_boxplot(alpha=1,outlier.shape = NA) +
+   facet_grid(~Time, space="free", scales="free")+
+  labs(x = "", y = "Root Length (mm)", title = "Root Length by Microbe and Time Condition") +
+        scale_fill_manual(values =c("#949494","#7FC29B")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # To make x labels readable
+  base_theme
+Plot_length
+
+# Perform Wilcoxon tests for each Time and Microbe combination
+p_values <- df_length %>%
+  group_by(Time, Microbe) %>%
+  summarise(
+    p_value = wilcox.test(Root_Length ~ Supplementation)$p.value,
+    .groups = "drop"
+  )
+
+# Define significance stars based on p-values
+p_values <- data.frame(p_values %>%
+  mutate(
+    significance = case_when(
+      p_value < 0.001 ~ "***",
+      p_value < 0.01 ~ "**",
+      p_value < 0.05 ~ "*",
+      TRUE ~ "ns"  # "ns" for no significance
+    )
+  ))
+
+#Arragne talbe to match
+p_values$Supplementation <- c("Water")
+
+# Create the plot with significance stars
+Plot_length <- ggplot(df_length, aes(x = Microbe, y = Root_Length, fill = Supplementation)) + 
+geom_jitter(alpha = 0.2, size = 0.5, position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2)) + 
+  geom_boxplot(alpha = 1, outlier.shape = NA) + 
+  facet_grid(~Time, space = "free", scales = "free") + 
+  labs(x = "", y = "Root Length (mm)", title = "") + 
+  scale_fill_manual(values = c("darkgray", "#7FC29B")) + 
+  base_theme +
+  # Add significance letters
+    geom_text( data= p_values, mapping = aes(x = factor(Microbe), y = max(df_length$Root_Length), label = significance), size = 4)
+
+
+# Print the plot
+Plot_length
+```
+
+# B]  In Fungal Transcriptome
+
+## 1) Normalize prepare data
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+    
+#Open file
+table_counts <- data.frame(read.table(file="Re Raw data transcriptome/count_table_P16.txt",sep="\t",dec=".",header=TRUE, row.names = 1))
+
+#Remove Plant MF samples only
+# Create a vector of column names to remove
+cols_to_remove <- c("water_microbeFree_1",	"water_microbeFree_2",	"water_microbeFree_3",	"water_microbeFree_4","m3OMG_microbeFree_1",	"m3OMG_microbeFree_2",	"m3OMG_microbeFree_3",	"m3OMG_microbeFree_4")
+
+# Remove these columns from your dataframe
+table_counts2 <- table_counts[, !(names(table_counts) %in% cols_to_remove)]
+
+#Normalization (rlog)
+matrix_counts_Fungi <- as.matrix(table_counts2)
+# Apply the vst transformation
+#matrix_counts_Plant_rlog <- rlog(matrix_counts_Plant)
+```
+
+
+
+## 2) PcoA Bray-Curtis
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+#Open files
+df_transformed <- data.frame(matrix_counts_Fungi)
+
+#Turn Table
+df_transformed <- data.frame(t(df_transformed))
+
+#Environements
+env <- read.table(file="env_Fungi.txt",sep="\t",dec=".",header=TRUE, row.names = 1) #put env2 if filtered and env if not
+
+data.div <- adonis2(df_transformed ~ Microbes/Molecule, data = env, permutations = 999, method="canberra") #Not significant between molecules will are looking therefore at slight differences
+data.div
+
+
+# Assuming your count matrix is 'count_data' and sample information 'sample_info'
+dds <- DESeqDataSetFromMatrix(countData = matrix_counts_Fungi, colData = env, design = ~ Conditions)
+
+# Variance-stabilizing transformation (VST)
+#vsd <- vst(dds, blind = FALSE)
+
+# Alternatively, you can use rlog transformation (rld)
+rld <- rlog(dds, blind = FALSE)
+
+# Perform PCA on the normalized data
+pca_res <- prcomp(t(assay(rld)))
+
+# Calculate the percentage of variance explained
+percentVar <- round(100 * (pca_res$sdev^2 / sum(pca_res$sdev^2)), 2)
+
+# Create a dataframe for the PCA plot
+pca_df <- data.frame(PC1 = pca_res$x[, 1],
+                     PC2 = pca_res$x[, 2],
+                     Condition = env$Conditions)
+
+# Extract molecule and microbes information from rownames (assuming you have this encoded in your sample names)
+pca_df <- pca_df %>%
+  mutate(Environment = str_split_fixed(row.names(pca_df), '_', 3)[, 1],
+         Media = str_split_fixed(row.names(pca_df), '_', 3)[, 2],
+         Environment_Media = paste(Environment, Media, sep = " - "))
+pca_df
+
+
+# Calculate the mean PCA coordinates for each Media/Microbe combination
+mean_pca <- pca_df %>%
+  group_by(Environment_Media) %>%
+  summarise(PC1 = mean(PC1), PC2 = mean(PC2)) %>%
+  separate(Environment_Media, into = c("Environment", "Media"))
+
+# Prepare the segment data to link each replicate to the mean point
+segments_pca <- pca_df %>%
+  group_by(Environment, Media) %>%
+  mutate(meanX = mean(PC1), meanY = mean(PC2))
+
+#Add facet
+pca_df$Habitat <- c("Fungal Transcriptome 72h")
+
+
+# Plot the PCA results with mean points and segments
+PcoA_Fung <- ggplot() +
+  # Add jittered points for the individual replicates
+  geom_point(data = pca_df, aes(x = PC1, y = PC2, color = Media, shape = Environment), size = 2, alpha = 1) +
+  
+  # Add mean points for each Microbe/Media combination
+  geom_point(data = mean_pca, aes(x = PC1, y = PC2, color = Media, shape = Environment), size = 5) +
+  
+  # Add segments linking replicates to their corresponding mean points
+  geom_segment(data = segments_pca, aes(x = meanX, y = meanY, xend = PC1, yend = PC2, color = Media), size = 0.7, alpha = 0.6) +
+   facet_grid(~Habitat, space="free", scales="free")+
+  # Customize colors and shapes as before
+   scale_color_manual('Media',  values = c("#7FC29B", "#949494")) +
+   scale_shape_manual('Environment', labels = c("Membrane", "Plant"), values = c(16, 17)) +
+  # Add titles and labels with the explained variance
+  xlab(paste("PC1 (", percentVar[1], "%)", sep = "")) +
+  ylab(paste("PC2 (", percentVar[2], "%)", sep = "")) +
+   base_theme
+PcoA_Fung
+```
+## 3) Differential expressed gene analysis 
+
+## a) Vulcano Plot
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Assuming `counts` is your count matrix and `colData` is your sample information
+dds <- DESeqDataSetFromMatrix(countData = matrix_counts_Fungi, colData = env, design = ~ Conditions)
+
+
+#Pre-filtering
+smallestGroupSize <- 3
+keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
+dds <- dds[keep,]
+
+#Run DeSeq2
+dds <- DESeq(dds)
+
+dds$Conditions
+# Get results for m3OMG_F16 vs water_F16
+results_Control <- results(dds, contrast = c("Conditions", "3OMG_Control", "Water_Control"))
+results_Control <- as.data.frame(results_Control)
+
+# Get results for m3OMG_MF vs water_MF
+results_Plant <- results(dds, contrast = c("Conditions", "3OMG_Plant", "Water_Plant"))
+results_Plant <- as.data.frame(results_Plant)
+
+#Preapre plot
+# Calculate -log10(p-value)
+results_Control <- results_Control %>%
+  mutate(logP = -log10(padj))
+results_Plant <- results_Plant %>%
+  mutate(logP = -log10(padj))
+
+# Create a new column for color based on conditions
+results_Control$Color <- ifelse(results_Control$log2FoldChange > 0.5 & results_Control$padj
+ < 0.05, "#7FC29B",
+                   ifelse(results_Control$log2FoldChange < -0.5 & results_Control$padj
+ < 0.05, "#949494", "lightgray"))
+
+results_Plant$Color <- ifelse(results_Plant$log2FoldChange > 0.5 & results_Plant$padj
+ < 0.05, "#7FC29B",
+                   ifelse(results_Plant$log2FoldChange < -0.5 & results_Plant$padj
+ < 0.05, "#949494", "lightgray"))
+
+
+#Add geom_text
+#gene_annot_short <- read.table(file="Re Raw data transcriptome/Plecto_annot_Caz.txt",sep="\t",header=TRUE)
+#gene_annot_short_des <- read.table(file="Re Raw data transcriptome/Plecto_annot_des.txt",sep="\t",header=TRUE)
+gene_annot_short_full <- read.table(file="Re Raw data transcriptome/Plecto_annot_Caz_des.txt",sep="\t",header=TRUE)
+
+results_Control$locus_name <- row.names(results_Control)
+results_Controlf <- merge(results_Control, gene_annot_short_full, by = "locus_name", all.x = FALSE)
+# Create the new column 'symbol_2'
+#results_Controlf$symbol_2 <- ifelse(results_Controlf$Color != "lightgray", results_Controlf$symbol, NA)
+# Remove duplicates from the "gene" column
+#results_Controlf <- results_Controlf %>% distinct(locus_name, .keep_all = TRUE)
+
+#Add geom_text
+results_Plant$locus_name <- row.names(results_Plant)
+results_Plantf <- merge(results_Plant, gene_annot_short_full, by = "locus_name")
+# Create the new column 'symbol_2'
+#results_Plantf$symbol_2 <- ifelse(results_Plantf$Color != "lightgray", results_MFf$symbol, NA)
+# Remove duplicates from the "gene" column
+#results_Plantf <- results_Plantf %>% distinct(locus_name, .keep_all = TRUE)
+
+#Control
+# Get the top 20 most significant positive Log2FC
+    top_pos_control <- results_Controlf %>%
+      filter(log2FoldChange > 0.5) %>%  # Positive Log2FC
+      arrange(desc(logP)) %>%
+      head(15)
+
+    # Get the top 20 most significant negative Log2FC
+    top_neg_control <- results_Controlf %>%
+      filter(log2FoldChange < -0.5) %>%  # Negative Log2FC
+      arrange(desc(logP)) %>%
+      head(15)
+
+    # Combine the top positive and negative loci
+    top_loci_Control <- bind_rows(top_pos_control, top_neg_control)
+    
+#Plant
+    # Replace the CMB20 to show it, p-value abve limit
+results_Plantf$logP[is.infinite(results_Plantf$logP)] <- max((results_Plantf$logP+1)[!is.infinite(results_Plantf$logP)])
+
+# Get the top 20 most significant positive Log2FC
+    top_pos_plant <- results_Plantf %>%
+      filter(log2FoldChange > 0.5) %>%  # Positive Log2FC
+      arrange(desc(logP)) %>%
+      head(50)
+
+    # Get the top 20 most significant negative Log2FC
+    top_neg_plant <- results_Plantf %>%
+      filter(log2FoldChange < -0.5) %>%  # Negative Log2FC
+      arrange(desc(logP)) %>%
+      head(50)
+
+    # Combine the top positive and negative loci
+    top_loci_Plant <- bind_rows(top_pos_plant, top_neg_plant)
+    
+# Create the volcano plot
+
+# Remove rows where log2FC is greater than -5
+#results_F16f <- results_F16f[results_F16f$log2FoldChange >= -5, ]
+
+# Add Facet
+results_Controlf$Habitat <- c("3OMG Membrane vs  Water Membrane")
+    
+Vulc_Control <- ggplot(results_Controlf, aes(x = log2FoldChange, y = logP)) +
+   geom_point(aes(color = Color), size = 2)+  # Color points based on p-value
+#geom_text(vjust = 1.5, hjust = 0.5, size = 3) +     # Add gene labels
+    scale_color_identity() +
+  labs(title = "",
+       x = "Log2 Fold Change",
+       y = "-Log10(p-value)") +
+#ylim(0,250) +
+        facet_grid(~Habitat, space="free", scales="free")+
+geom_text_repel(
+        data = top_loci_Control,  # Only label the top 15 positive and negative Log2FC loci
+        aes(label = CAZYName),
+        size = 3,
+        max.overlaps = 50,  # Control text overlap
+        box.padding = 0.5,  # Increase this to add more space between labels and points
+        point.padding = 0.5,  # Increase space between points and labels
+        segment.size = 0.2,  # Adjust the line size connecting points to labels
+        segment.color = "grey50"  # Change color of connecting lines
+      ) +
+  base_theme +
+   geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "darkgray", size = 0.5) +
+      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "darkgray", size = 0.5) +
+      scale_color_identity() 
+
+Vulc_Control
+
+
+
+# Remove rows where log2FoldChange is greater than 10
+#results_MFf <- results_MFf[results_MFf$log2FoldChange <= 10, ]
+
+# Add Facet
+results_Plantf$Habitat <- c("3OMG Plant vs  Water Plant")
+    
+
+Vulc_Plant <- ggplot(results_Plantf, aes(x = log2FoldChange, y = logP)) +
+   geom_point(aes(color = Color), size = 2)+  # Color points based on p-value
+#geom_text(vjust = 1.5, hjust = 0.5, size = 3) +     # Add gene labels
+    scale_color_identity() +
+  labs(title = "",
+       x = "Log2 Fold Change",
+       y = "-Log10(p-value)") +
+  # ylim(0,250) +
+       facet_grid(~Habitat, space="free", scales="free")+
+geom_text_repel(
+        data = top_loci_Plant,  # Only label the top 15 positive and negative Log2FC loci
+        aes(label = CAZYName),
+        size = 3,
+        max.overlaps = 50,  # Control text overlap
+        box.padding = 0.5,  # Increase this to add more space between labels and points
+        point.padding = 0.5,  # Increase space between points and labels
+        segment.size = 0.2,  # Adjust the line size connecting points to labels
+        segment.color = "grey50"  # Change color of connecting lines
+      ) +
+  base_theme +
+   geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "darkgray", size = 0.5) +
+      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "darkgray", size = 0.5) +
+      scale_color_identity() 
+
+Vulc_Plant
+  
+
+
+#final Plot
+Plot_Comb1 <- plot_grid(Vulc_Control, Vulc_Plant, rel_heights = c(1,1), rel_widths = c(1.1,1), nrow=1,   align="hv",  axis = "tb")
+Plot_Comb1
+
+
+
+#extract tables
+#write.csv(results_Controlf, file = "results_Fungi_Control.csv", row.names = TRUE)
+#write.csv(results_Plantf, file = "results_Fungi_Plant.csv", row.names = TRUE)
+```
+## b) Count CAZymes
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+# Count NA and non-NA entries for each 'Color'
+table_Cazymes_Control <- results_Controlf %>%
+  group_by(Color) %>%
+  summarise(
+    NA_count = sum(is.na(CAZYName)),
+    Non_NA_count = sum(!is.na(CAZYName)),
+    Mean_Log2FC = mean((log2FoldChange), na.rm = TRUE)  # Calculate the mean of Log2FC, excluding NAs
+  )
+table_Cazymes_Control$Condition <- c("Control")
+
+table_Cazymes_Plant <- results_Plantf %>%
+  group_by(Color) %>%
+  summarise(
+    NA_count = sum(is.na(CAZYName)),
+    Non_NA_count = sum(!is.na(CAZYName)),
+    Mean_Log2FC = mean((log2FoldChange), na.rm = TRUE)  # Calculate the mean of Log2FC, excluding NAs
+  )
+table_Cazymes_Plant$Condition <- c("Plant")
+
+#Merge tables
+table_Cazymes <- rbind(table_Cazymes_Control, table_Cazymes_Plant)
+
+#Check CAzynmaes Log2FC
+# Keep only rows where CAZYName is not NA
+results_Controlf_f <- results_Controlf %>%
+  filter(!is.na(CAZYName))
+results_Controlf_f$Condition <- c("Control")
+
+results_Plantf_f <- results_Plantf %>%
+  filter(!is.na(CAZYName))
+results_Plantf_f$Condition <- c("Plant")
+
+#Merge tables
+table_Cazymes_Tot <- rbind(results_Controlf_f, results_Plantf_f)
+
+#remove non signifciant
+table_Cazymes_Tot_sig <- subset(table_Cazymes_Tot, !Color %in% c("lightgray"))
+
+# Create a new column based on log2FoldChange values and the corresponding condition
+table_Cazymes_Tot_sig <- table_Cazymes_Tot_sig %>%
+ mutate(Group = case_when(
+     log2FoldChange >= 0 ~ "OV-3OMG",  # Above 0, label as OV-3OMG
+    log2FoldChange < 0 ~ "OC-Water",  # Below 0, label as OC-Water
+    TRUE ~ NA_character_  # Assign NA for all other cases
+  ))
+
+#put absolut Log2FC
+table_Cazymes_Tot_sig$log2FoldChange <- abs(table_Cazymes_Tot_sig$log2FoldChange)
+
+
+# Create a boxplot
+# Calculate the number of replicates for each group and condition
+count_data <- table_Cazymes_Tot_sig %>%
+  group_by(Group, Condition) %>%
+  summarize(Count = n(), .groups = 'drop')  # Count the number of rows for each group and condition
+count_data$log2FoldChange <- c(0)
+
+# Check normality per Group x Condition
+shapiro <- table_Cazymes_Tot_sig %>%
+  group_by(Condition, Group) %>%
+  summarise(shapiro_p = shapiro.test(log2FoldChange)$p.value) #Not normal Wilcoxon
+shapiro
+
+# Prepare comparisons for bracket plotting
+comparisons <- list(c("OC-Water", "OV-3OMG"))
+
+# Define comparisons
+comparisons <- list(c("OC-Water", "OV-3OMG"))
+
+# Ensure Group is a factor with correct order
+table_Cazymes_Tot_sig$Group <- factor(table_Cazymes_Tot_sig$Group, levels = c("OC-Water", "OV-3OMG"))
+
+# Compute Wilcoxon test per Condition
+stat_test <- table_Cazymes_Tot_sig %>%
+  group_by(Condition) %>%
+  wilcox_test(log2FoldChange ~ Group) %>%
+  adjust_pvalue(method = "BH") %>%       # adjust p-values if needed
+  add_significance("p.adj") %>%          # optional significance annotation
+  mutate(
+    y.position = 7.5,
+    label_text = ifelse(p.adj <= 0.05, paste0("P = ", signif(p.adj, 2)), NA)  # only show significant
+  )
+
+# Create a column with "P = ..." formatting
+stat_test <- stat_test %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+#Add column for plottig
+stat_test$Group <- c("OV-3OMG")
+
+# Summarize number of samples per Group × Condition
+n_labels <- table_Cazymes_Tot_sig %>%
+  group_by(Group, Condition) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  # Position slightly below the minimum of y-axis
+  mutate(y = min(abs(table_Cazymes_Tot_sig$log2FoldChange)) - 1)
+
+# Main plot
+Plot_FC_CAZ <- ggplot(table_Cazymes_Tot_sig, aes(x = Group, y = abs(log2FoldChange), fill = Group)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  geom_jitter(width = 0.2, size = 1, alpha = 0.7) +
+  facet_grid(~ Condition, labeller = labeller(Condition = c("Control" = "Polyester Membrane", "Plant" = "In Planta"))) +
+  labs(
+    x = "",
+    y = "Cumulative Log2 Fold Change CAZymes (|Log2FC|)",
+    title = ""
+  ) +
+ scale_fill_manual(
+  name = "Condition",    # Legend title
+  values = c("#949494", "#7FC29B"),
+  labels = c("OC-Water" = "Water",
+             "OV-3OMG" = "3OMG")
+) +
+  theme_bw(base_size = 13) +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white"),
+    strip.text.x = element_text(size = 12),
+    axis.text.x = element_blank()
+  ) +
+  # Add p-values with brackets
+  stat_pvalue_manual(
+    stat_test,
+    label = "label_text",
+    tip.length = 0.02,
+    size = 4
+  ) +
+  # Add sample size labels
+  geom_text(
+    data = n_labels,
+    aes(x = Group, y = y, label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    size = 4,
+    vjust = 1
+  ) +
+  ylim(-1,8) +
+  base_theme
+
+Plot_FC_CAZ
+```
+
+## c) Caz families COunt Families
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Open file
+Caz_Sub <- read.table(file="CaZ_Subtrate.txt",sep="\t",dec=".",header=TRUE, row.names = 1)
+
+unique(Caz_Sub$Substrates2)
+
+#Vector dependning of categories of Cazymes
+Plant_colonization <- c("cellulose", "pectin", "xylan", "beta-mannan", "arabinan", "xyloglucan", 
+  "arabinogalactan protein", "lignin", "beta-glucan", "cutin", "polyphenol")
+
+Component_plant <- c("cellulose", "pectin", "xylan", "beta-mannan", "arabinan", "xyloglucan", 
+  "arabinogalactan protein", "lignin", "cutin", "starch", "sucrose", 
+  "beta-glucan", "raffinose", "beta-galactan")
+
+Not_relevant <- c("alpha-galactan", "alpha-glucan", "glycogen", "trehalose", "host glycan", 
+  "chitin", "chitosan", "exo-polysaccharide", "human milk polysaccharide", 
+  "fructan", "glucosylglycerate", "glucosylglycerol", "chitooligosaccharide", 
+  "sialic acid", "uric acid", "ulvan", "alpha-rhamnoside", "beta-fucosides", 
+  "alkaloid", "beta-glucuronan")
+
+
+        
+Caz_Sub_cleaned <- Caz_Sub %>%
+  filter(Substrates2 %in% Component_plant)
+
+
+#Merge tables
+Caz_tot_Sub <- merge(table_Cazymes_Tot_sig, Caz_Sub_cleaned, by= c("CAZYName"))
+Caz_tot_Sub
+
+
+# Assuming you have a dataframe called df with 'Substrates', 'Condition', and 'Group'
+
+# 1. Count the number of occurrences of each substrate by group and condition
+count_data <- Caz_tot_Sub %>%
+  group_by(Group, Condition, Substrates2) %>%
+  tally() %>%
+  ungroup()
+
+# 2. Normalize to percentages (0-100)
+total_count <- count_data %>%
+  group_by(Group, Condition) %>%
+  summarize(total = sum(n)) %>%
+  ungroup()
+
+count_data <- count_data %>%
+  left_join(total_count, by = c("Group", "Condition")) %>%
+  mutate(percentage = (n / total) * 100)
+
+# Create a color gradient with 18 colors
+gradient_colors <- colorRampPalette(c("#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8A2BE2", "#FF00FF", "#FF1493", "#FF6347", "#FFD700", "#B0E0E6", "#90EE90", "#ADFF2F", "#8B0000", "#C71585", "#000080", "#32CD32", "pink"))(19)
+
+
+# 3. Create the stacked bar plot
+Plot_Subsrates <- ggplot(count_data, aes(x = Group, y = percentage, fill = Substrates2)) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_grid(~ Condition, labeller = labeller(Condition = c("Control" = "Membrane"))) +  #
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  labs(y = "Percentage (%)", x = "Condition", fill = "Substrates") +
+  scale_fill_manual(values =c(gradient_colors)) +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) 
+Plot_Subsrates
+```
+
+
+
+
+## d) Caz families COunt Families
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Open file
+table_Cazymes_Tot_sig
+
+#Merge tables
+Caz_tot_Sub <- merge(table_Cazymes_Tot_sig, Caz_Sub_cleaned, by= c("CAZYName")) #Caz_Sub_cleaned
+Caz_tot_Sub
+Caz_tot_Sub$concat <- paste(Caz_tot_Sub$Substrates2, "_", Caz_tot_Sub$Group, "_", Caz_tot_Sub$Condition)
+
+# Assuming your data is in a dataframe called 'df'
+# Summarize and calculate cumulative log2FC by Substrate, Group, and Condition
+df_cumulative <- Caz_tot_Sub %>%
+  group_by(Substrates2, Group, Condition) %>%
+  summarise(
+    CumulativeLog2FC = sum(log2FoldChange),       # Summing log2FoldChange
+    meanpvalue = sum(logP, na.rm = TRUE),        # Calculating the mean p-value
+    .groups = "drop"
+  )
+
+
+
+# Modify the CumulativeLog2FC values for the "OC-Water" group to be negative
+df_cumulative <- df_cumulative %>%
+  mutate(CumulativeLog2FC = ifelse(Group == "OC-Water", -abs(CumulativeLog2FC), CumulativeLog2FC))
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Try to merge with count data
+count_data <- data.frame(count_data)
+count_data$merge <- paste0(count_data$Group, "_", count_data$Condition, "_", count_data$Substrates2)
+
+# Remove the individual columns used to create 'merge'
+count_data <- count_data[, !(names(count_data) %in% c("Group", "Condition", "Substrates2"))]
+df_cumulative$merge <- paste0(df_cumulative$Group, "_", df_cumulative$Condition, "_", df_cumulative$Substrates2)
+
+
+Final_table <- merge(df_cumulative, count_data, by = c("merge"))
+
+
+# Reorder Substrates2 based on n
+Final_table <- Final_table %>%
+  mutate(Substrates2 = fct_reorder(Substrates2, n, .desc = FALSE))
+
+#Order manually
+unique(Final_table$Substrates2 )
+Final_table$Substrates2 <- factor(Final_table$Substrates2, levels = c ("raffinose", "cutin", "starch", "beta-mannan", "xyloglucan", "arabinan", "lignin", "arabinogalactan protein", "beta-galactan", "beta-glucan", "xylan", "cellulose", "pectin"))
+
+Plot_Cum_log2FCf <- ggplot(Final_table, aes(x = CumulativeLog2FC, y = Substrates2, color = Group, group = Group)) + 
+  geom_segment(aes(xend = 0, yend = Substrates2), size = 0.5) +  # Draw vertical lines from each point to the x-axis
+  geom_point(aes(size = n)) +  # Add points for each substrate
+  facet_grid(~ Condition, labeller = labeller(Condition = c("Control" = "Membrane"))) +  
+  labs(
+    x = "Cumulative Log2FoldChange CAZymes", 
+    y = "Predicted Substrates CAZymes") + 
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  scale_color_manual('Media', values = c("#949494", "#7FC29B"), labels = c("Water", "3OMG")) +
+  scale_size_continuous(name = "Counts CAZymes") +
+  geom_text(aes(
+    label = n,
+    vjust = ifelse(Group == "OC-Water", 0.5, 0.5),
+    hjust = ifelse(Group == "OC-Water", 2.2, -1.5)
+  ), size = 4) +
+  xlim(-30, 20) +
+    scale_size_continuous(name = "Counts CAZymes", range = c(0.01, 6)) +
+   geom_vline(xintercept = 0, color = "black", size = 0.5)
+
+Plot_Cum_log2FCf
+
+#Plot for counts
+
+Final_table$n2 <- ifelse(Final_table$Group == "OC-Water", -Final_table$n, Final_table$n)
+
+Plot_Cum_log2FCf2_Dot <- ggplot(Final_table, aes(x = n2, y = Substrates2, color = Group, group = Group)) + 
+  geom_segment(aes(xend = 0, yend = Substrates2), size = 0.5) +  # Draw vertical lines from each point to the x-axis
+  geom_point(aes(size = abs(CumulativeLog2FC)))+  # Add points for each substrate
+  facet_grid(~ Condition, labeller = labeller(Condition = c("Control" = "Membrane"))) +  
+  labs(
+    x = "Counts CAZymes", 
+    y = "Predicted Substrates CAZymes"
+  ) + 
+  base_theme +
+  scale_color_manual('Media', values = c("#949494", "#7FC29B"), labels = c("Water", "3OMG")) +
+  geom_text(aes(
+    label = n,
+    vjust = ifelse(Group == "OC-Water", 0.5, 0.5),
+    hjust = ifelse(Group == "OC-Water", 2.2, -1.5)
+  ), size = 3) + 
+  xlim(-20, 20) +
+   scale_size_continuous(name = "Mean Log2FC", range = c(0.01, 6))   # Increase the size range here
+
+Plot_Cum_log2FCf2_Dot
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Ensure all combinations of Substrates2, Group, and Condition are present
+Final_table_complete <- Final_table %>%
+  complete(Substrates2, Group, Condition, fill = list(n = 0))  # Fill missing combinations with n = 0
+
+Plot_Cum_log2FCf <- ggplot(Final_table_complete, aes(x =Substrates2 , y = n , fill = Group)) +
+  geom_col(position = position_dodge()) +  # Create bar plot
+  facet_grid(~ Condition, labeller = labeller(Condition = c("Control" = "Membrane"))) +
+  labs(
+    y = "Counts CAZymes", 
+    x = "Predicted Substrates CAZymes"
+  ) +
+  base_theme +
+  scale_fill_manual('Media', values = c("#949494", "#7FC29B"), labels = c("Water", "3OMG")) +
+  geom_text(aes(
+    label = n,
+    vjust = ifelse(Group == "OC-Water", -0.5, -0.5)
+  ), size = 3, position = position_dodge(width = 0.9)) +
+  ylim(0,16)
+
+Plot_Cum_log2FCf
+
+Plot_Cum_log2FCf2 <- ggplot(Final_table_complete, aes(x =Substrates2 , y = CumulativeLog2FC , fill = Group)) +
+  geom_col(position = position_dodge()) +  # Create bar plot
+  facet_grid(~ Condition, labeller = labeller(Condition = c("Control" = "Membrane"))) +
+  labs(
+    y = "Counts CAZymes", 
+    x = "Predicted Substrates CAZymes"
+  ) +
+  base_theme +
+  scale_fill_manual('Media', values = c("#949494", "#7FC29B"), labels = c("Water", "3OMG")) +
+  geom_text(aes(
+    label = round(CumulativeLog2FC,2),
+  vjust = ifelse(Group == "OC-Water", -0.5, -0.5)
+  ), size = 3, position = position_dodge(width = 0.9)) +
+  ylim(-6,6)
+
+Plot_Cum_log2FCf2
+
+```
+
+# C] All plots fungi
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+PcoA_Fung
+
+Vulc_Control
+Vulc_Plant
+
+Plot_FC_CAZ
+Plot_Cum_log2FCf2_Dot
+
+# Empty placeholder plot
+empty_plot <- ggplot() + 
+  theme_void()  # completely blank
+
+Plot_Comb1 <- plot_grid(empty_plot, Vulc_Control, Vulc_Plant,empty_plot,  frel_heights = c(1,1), rel_widths = c(0.3,1,1, 0.3), nrow=1, ncol=4)
+Plot_Comb1
+
+#Export 8X9 Landscape
+Plot_Comb2 <- plot_grid(
+  Plot_Comb1, Plot_Cum_log2FCf2_Dot,
+  ncol = 1,               # stack vertically
+  rel_heights = c(1, 0.7) # top plot bigger than bottom
+)
+Plot_Comb2
+```
+
+---
+END
+---

@@ -1,0 +1,753 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.0.0 (and Rstudio 1.2.5019)
+
+```{r R version}
+R.version
+```
+
+```{r}
+#Load libraries
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(multcompView)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF", "F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free"
+)
+```
+
+# Calculate medians
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load data
+raw_data <- read.csv("Ratio_Plant.csv", header = TRUE, sep = ",")
+
+# Keep only 0 for median
+median_0 <- raw_data %>%
+  dplyr::filter(Conc_3OMG == 0, Conc_Glucose == 0)
+
+# Keep the control 0 GLucose 0 3OMG MF plant
+median_0_Plant <- subset(median_0,  !Root_Length%in% c(NA) & Microbe %in% c("MF"))
+median_per_time_Plant <- median_0_Plant %>%
+  group_by(Time) %>%
+  summarise(Median_Area_Plant = median(Root_Length, na.rm = TRUE))
+
+# Keep the control 0 GLucose 0 3OMG Fungi
+median_0 <- subset(raw_data, Conc_3OMG %in% c(0) & Conc_Glucose %in% c(0))
+median_0_fung <- subset(median_0,  !Area_Fungi%in% c(NA))
+median_per_time_fung <- median_0_fung %>%
+  group_by(Time) %>%
+  summarise(Median_Area_Fungi = median(Area_Fungi, na.rm = TRUE))
+
+median_0_Plant_F16 <- subset(median_0,  !Root_Length%in% c(NA) & Microbe %in% c("F16"))
+median_per_time_Plant_F16 <- median_0_Plant_F16 %>%
+  group_by(Time) %>%
+  summarise(Median_Area_Plant = median(Root_Length, na.rm = TRUE))
+```
+
+
+# A] Plot Fungal infected plants 
+
+## 1) D07
+### a) 3OMG
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load data
+raw_data <- read.csv("Ratio_Plant.csv", header = TRUE, sep = ",")
+
+#Remove 0.001 for plotting
+raw_data <- subset(raw_data, !Conc_3OMG %in% c(0.001) & !Conc_Glucose %in% c(0.001))
+
+
+# Filter data: 3OMG, Microbe F16, Time D07
+plot_data_raw <- raw_data %>%
+  filter(Plotting_3OMG == "YES", Microbe == "F16", Time == "D07")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_Glucose) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+# Summarize Fungal Area
+fungi_summary <- plot_data_raw %>%
+  group_by(Conc_Glucose) %>%
+  summarise(
+    mean_fungi = mean(Area_Fungi, na.rm = TRUE),
+    se_fungi   = sd(Area_Fungi, na.rm = TRUE) / sqrt(sum(!is.na(Area_Fungi))),
+    n_fungi    = sum(!is.na(Area_Fungi))
+  )
+
+#Check normality
+# Vérifier la normalité
+normality_results <- plot_data_raw %>%
+  group_by(Time, Microbe, Condition, Conc_Glucose) %>%
+  shapiro_test(Root_Length) 
+normality_results # Normal 
+
+# Test for heteroscedasticity (Levene's test)
+variance_results <- plot_data_raw %>%
+  levene_test(Root_Length ~ Condition) # OK but still go for non-parametric for consistency with Area_Fungi, where I cannot do parametric test because I only have 3 samples per condition
+
+# Kruskal-Wallis test
+kruskal_res <- plot_data_raw %>%
+  kruskal_test(Root_Length ~ Conc_Glucose) #OK
+
+# Compute Dunn test letters for Root Length
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_Glucose, p.adjust.method = "BH")
+
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_Glucose, function(g) letters_root[as.character(g)])
+
+# Kruskal-Wallis test
+kruskal_res <- plot_data_raw %>%
+  kruskal_test(Area_Fungi ~ Conc_Glucose) #OK
+
+# Compute Dunn test letters for Fungal Area
+fungi_dunn <- plot_data_raw %>%
+  dunn_test(Area_Fungi ~ Conc_Glucose, p.adjust.method = "BH")
+
+pvals_fungi <- fungi_dunn$p.adj
+names(pvals_fungi) <- paste(fungi_dunn$group1, fungi_dunn$group2, sep = "-")
+letters_fungi <- multcompLetters(pvals_fungi)$Letters
+fungi_summary$letter_fungi <- sapply(fungi_summary$Conc_Glucose, function(g) letters_fungi[as.character(g)])
+
+# X-axis breaks
+breaks_values <- c(0, 0.9375, 1.875, 3.75, 7.5)
+
+#Add column for plotting
+root_summary$Treatment <- c("3OMG (7.5mM)")
+fungi_summary$Treatment <- c("3OMG (7.5mM)")
+
+#Add column for plotting
+root_summary$Expe <- c("Root Length")
+
+# Root Length plot
+Plot_Root_F16_3OMG <- ggplot(root_summary, aes(x = Conc_Glucose, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 1.5, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 1.2, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("Glucose Gradient") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90))+
+  facet_wrap(~ Expe) + ylim(1,17.5) + 
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) + 
+  geom_hline(
+    data = median_per_time_Plant_F16 %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  )
+
+#Add column for plotting
+fungi_summary$Expe <- c("Fungal Expansion")
+
+# Fungal Area plot
+Plot_Fungi_F16_3OMG <- ggplot(fungi_summary, aes(x = Conc_Glucose, y = mean_fungi)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_fungi - se_fungi, ymax = mean_fungi + se_fungi), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_fungi + se_fungi + 100, label = letter_fungi), size = 4, color = "black") +
+  geom_text(aes(y = 1100, label = paste0("n=", n_fungi)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab(expression("Fungal Area (cm"^2*")")) +
+  xlab("Glucose Gradient") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(~ Expe) + ylim (1050, 2300) +
+  geom_hline(
+    data = median_per_time_fung %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Fungi), 
+    linetype = "dashed", 
+    color = "black"
+  )
+
+# Display plots
+Plot_Root_F16_3OMG
+Plot_Fungi_F16_3OMG
+
+#Keep for comparion
+fungi_summary_Comp <- fungi_summary
+```
+
+
+### b) Glucose
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load data
+raw_data <- read.csv("Ratio_Plant.csv", header = TRUE, sep = ",")
+
+#Remove 0.001 for plotting
+raw_data <- subset(raw_data, !Conc_3OMG %in% c(0.001) & !Conc_Glucose %in% c(0.001))
+
+# Filter data: Glucose, Microbe F16, Time D07
+plot_data_raw <- raw_data %>%
+  filter(Plotting_Glucose == "YES", Microbe == "F16", Time == "D07")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_3OMG) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+# Summarize Fungal Area
+fungi_summary <- plot_data_raw %>%
+  group_by(Conc_3OMG) %>%
+  summarise(
+    mean_fungi = mean(Area_Fungi, na.rm = TRUE),
+    se_fungi   = sd(Area_Fungi, na.rm = TRUE) / sqrt(sum(!is.na(Area_Fungi))),
+    n_fungi    = sum(!is.na(Area_Fungi))
+  )
+
+#Check normality
+# Vérifier la normalité
+normality_results <- plot_data_raw %>%
+  group_by(Time, Microbe, Condition, Conc_Glucose) %>%
+  shapiro_test(Root_Length) 
+normality_results # Not Normal --> Non-parametric tests
+
+# Compute Dunn test letters for Root Length
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_3OMG, p.adjust.method = "BH")
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_3OMG, function(g) letters_root[as.character(g)])
+
+# Compute Dunn test letters for Fungal Area
+fungi_dunn <- plot_data_raw %>%
+  dunn_test(Area_Fungi ~ Conc_3OMG, p.adjust.method = "BH")
+pvals_fungi <- fungi_dunn$p.adj
+names(pvals_fungi) <- paste(fungi_dunn$group1, fungi_dunn$group2, sep = "-")
+letters_fungi <- multcompLetters(pvals_fungi)$Letters
+fungi_summary$letter_fungi <- sapply(fungi_summary$Conc_3OMG, function(g) letters_fungi[as.character(g)])
+
+# X-axis breaks
+breaks_values <- c(0, 0.9375, 1.875, 3.75, 7.5)
+
+# Add column for facetting
+root_summary$Treatment <- "Glucose (7.5mM)"
+fungi_summary$Treatment <- "Glucose (7.5mM)"
+
+#Add column for plotting
+root_summary$Expe <- c("Root Length")
+
+# Root Length plot
+Plot_Root_F16_Glucose <- ggplot(root_summary, aes(x = Conc_3OMG, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 1.5, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 1.2, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("3OMG Gradient") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(~ Expe)+ ylim(1,17.5)  + 
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) + 
+  geom_hline(
+    data = median_per_time_Plant_F16 %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  )
+
+#Add column for plotting
+fungi_summary$Expe <- c("Fungal Expansion")
+
+# Fungal Area plot
+Plot_Fungi_F16_Glucose <- ggplot(fungi_summary, aes(x = Conc_3OMG, y = mean_fungi)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_fungi - se_fungi, ymax = mean_fungi + se_fungi), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_fungi + se_fungi + 100, label = letter_fungi), size = 4, color = "black") +
+  geom_text(aes(y = 1100, label = paste0("n=", n_fungi)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab(expression("Fungal Area (cm"^2*")")) +
+  xlab("3OMG Gradient") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(~ Expe) + ylim (1050, 2300)  +
+  geom_hline(
+    data = median_per_time_fung %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Fungi), 
+    linetype = "dashed", 
+    color = "black"
+  )
+
+# Display plots
+Plot_Root_F16_Glucose
+Plot_Fungi_F16_Glucose
+
+#Keep for comparion
+fungi_summary_Comp_Gluc <- fungi_summary
+```
+
+## 2) D14
+### a) 3OMG
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load data
+raw_data <- read.csv("Ratio_Plant.csv", header = TRUE, sep = ",")
+
+#Remove 0.001 for plotting
+raw_data <- subset(raw_data, !Conc_3OMG %in% c(0.001) & !Conc_Glucose %in% c(0.001))
+
+# Filter data: 3OMG, Microbe F16, Time D07
+plot_data_raw <- raw_data %>%
+  filter(Plotting_3OMG == "YES", Microbe == "F16", Time == "D14")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_Glucose) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+
+# Compute Dunn test letters for Root Length
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_Glucose, p.adjust.method = "BH")
+
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_Glucose, function(g) letters_root[as.character(g)])
+
+
+# X-axis breaks
+breaks_values <- c(0, 0.9375, 1.875, 3.75, 7.5)
+
+#Add column for plotting
+root_summary$Treatment <- c("3OMG (7.5mM)")
+
+# Root Length plot
+Plot_Root_F16_3OMG_D14 <- ggplot(root_summary, aes(x = Conc_Glucose, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 1.5, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 1.2, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("Glucose Concentration") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90))+
+  facet_wrap(~ Treatment) +
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D14"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) + 
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D14"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) + 
+  geom_hline(
+    data = median_per_time_Plant_F16 %>% filter(Time == "D14"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  )
+
+#+ ylim(1,14)
+
+# Display plots
+Plot_Root_F16_3OMG_D14
+```
+
+
+
+### b) Glucose
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load data
+raw_data <- read.csv("Ratio_Plant.csv", header = TRUE, sep = ",")
+
+#Remove 0.001 for plotting
+raw_data <- subset(raw_data, !Conc_3OMG %in% c(0.001) & !Conc_Glucose %in% c(0.001))
+
+# Filter data: Glucose, Microbe F16, Time D07
+plot_data_raw <- raw_data %>%
+  filter(Plotting_Glucose == "YES", Microbe == "F16", Time == "D14")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_3OMG) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+# Compute Dunn test letters for Root Length
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_3OMG, p.adjust.method = "BH")
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_3OMG, function(g) letters_root[as.character(g)])
+
+
+# X-axis breaks
+breaks_values <- c(0, 0.9375, 1.875, 3.75, 7.5)
+
+# Add column for facetting
+root_summary$Treatment <- "Glucose (7.5mM)"
+
+# Root Length plot
+Plot_Root_F16_Glucose_D14 <- ggplot(root_summary, aes(x = Conc_3OMG, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 1.5, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 1.2, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("3OMG Concentration") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(~ Treatment) +
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D14"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) +
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D14"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) + 
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D14"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) + 
+  geom_hline(
+    data = median_per_time_Plant_F16 %>% filter(Time == "D14"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  )
+#+ ylim(1,14)
+
+
+# Display plots
+Plot_Root_F16_Glucose_D14
+```
+
+# B] Plot MF  plants 
+
+## 1) D07
+### a) 3OMG
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# 1) 3OMG, Microbe-Free, Time D07
+plot_data_raw <- raw_data %>%
+  filter(Plotting_3OMG == "YES", Microbe == "MF", Time == "D07")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_Glucose) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+# Dunn test letters
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_Glucose, p.adjust.method = "BH")
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_Glucose, function(g) letters_root[as.character(g)])
+
+# Add facet column
+root_summary$Treatment <- "3OMG (7.5mM)"
+
+# X-axis breaks
+breaks_values <- c(0,  0.9375, 1.875, 3.75, 7.5)
+
+#Add column for plotting
+root_summary$Expe <- c("Root Length")
+
+# Plot
+Plot_3OMG_MF_D07 <- ggplot(root_summary, aes(x = Conc_Glucose, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 1, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 16, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("Glucose Gradient") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.title = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  facet_wrap(~ Expe)+
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) +
+  ylim(16, 22)
+
+# Display
+Plot_3OMG_MF_D07
+
+#Keep for comparion
+root_summary_Comp <- root_summary
+```
+
+### b) Glucose
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# 2) Glucose, Microbe-Free, Time D14
+# ------------------------------
+plot_data_raw <- raw_data %>%
+  filter(Plotting_Glucose == "YES", Microbe == "MF", Time == "D07")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_3OMG) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+# Dunn test letters
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_3OMG, p.adjust.method = "BH")
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_3OMG, function(g) letters_root[as.character(g)])
+
+# Add facet column
+root_summary$Treatment <- "Glucose (7.5mM)"
+
+#Add column for plotting
+root_summary$Expe <- c("Root Length")
+
+# Plot
+Plot_Glucose_MF_D07 <- ggplot(root_summary, aes(x = Conc_3OMG, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 1, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 16, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("3OMG Gradient") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.title = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  facet_wrap(~ Expe) +
+  geom_hline(
+    data = median_per_time_Plant %>% filter(Time == "D07"),
+    aes(yintercept = Median_Area_Plant), 
+    linetype = "dashed", 
+    color = "black"
+  ) +
+  ylim(16,22)
+
+# Display
+Plot_Glucose_MF_D07
+
+
+#Keep for comparion
+root_summary_Comp_Gluc <- root_summary
+```
+## 1) D14
+### a) 3OMG
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# 1) 3OMG, Microbe-Free, Time D07
+plot_data_raw <- raw_data %>%
+  filter(Plotting_3OMG == "YES", Microbe == "MF", Time == "D07")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_Glucose) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+# Dunn test letters
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_Glucose, p.adjust.method = "BH")
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_Glucose, function(g) letters_root[as.character(g)])
+
+# Add facet column
+root_summary$Treatment <- "3OMG (7.5mM)"
+
+# X-axis breaks
+breaks_values <- c(0, 0.9375, 1.875, 3.75, 7.5)
+
+# Plot
+Plot_3OMG_MF <- ggplot(root_summary, aes(x = Conc_Glucose, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 2, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 35, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("Glucose Concentration") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.title = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  facet_wrap(~ Treatment)+ ylim(35,65)
+
+# Display
+Plot_3OMG_MF
+```
+
+
+### b) Glucose
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# 2) Glucose, Microbe-Free, Time D14
+# ------------------------------
+plot_data_raw <- raw_data %>%
+  filter(Plotting_Glucose == "YES", Microbe == "MF", Time == "D14")
+
+# Summarize Root Length
+root_summary <- plot_data_raw %>%
+  group_by(Conc_3OMG) %>%
+  summarise(
+    mean_root = mean(Root_Length, na.rm = TRUE),
+    se_root   = sd(Root_Length, na.rm = TRUE) / sqrt(sum(!is.na(Root_Length))),
+    n_root    = sum(!is.na(Root_Length))
+  )
+
+# Dunn test letters
+root_dunn <- plot_data_raw %>%
+  dunn_test(Root_Length ~ Conc_3OMG, p.adjust.method = "BH")
+pvals_root <- root_dunn$p.adj
+names(pvals_root) <- paste(root_dunn$group1, root_dunn$group2, sep = "-")
+letters_root <- multcompLetters(pvals_root)$Letters
+root_summary$letter_root <- sapply(root_summary$Conc_3OMG, function(g) letters_root[as.character(g)])
+
+# Add facet column
+root_summary$Treatment <- "Glucose (7.5mM)"
+
+# Plot
+Plot_Glucose_MF <- ggplot(root_summary, aes(x = Conc_3OMG, y = mean_root)) +
+  geom_line(color = "black") +
+  geom_point(color = "black") +
+  geom_errorbar(aes(ymin = mean_root - se_root, ymax = mean_root + se_root), width = 0.2, color = "black") +
+  geom_text(aes(y = mean_root + se_root + 2, label = letter_root), size = 4, color = "black") +
+  geom_text(aes(y = 35, label = paste0("n=", n_root)), size = 3, color = "black") +
+  scale_x_sqrt(breaks = breaks_values, labels = breaks_values) +
+  ylab("Root Length (mm)") +
+  xlab("3OMG Concentration") +
+  base_theme +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.title = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  facet_wrap(~ Treatment) + ylim(35,65)
+
+# Display
+Plot_Glucose_MF
+
+```
+
+# D] All plots
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Plot_Root_F16_3OMG
+Plot_Fungi_F16_3OMG
+
+Plot_Root_F16_Glucose
+Plot_Fungi_F16_Glucose
+
+Plot_3OMG_MF
+Plot_Glucose_MF
+
+#Plot
+Plot_MF <- plot_grid(Plot_3OMG_MF_D07, Plot_Glucose_MF_D07, frel_heights = c(1,1), rel_widths = c(1,1), nrow=1, ncol=2, align = "hv", axis = "tb")
+Plot_MF
+
+Plot_F16 <- plot_grid(Plot_Fungi_F16_3OMG, Plot_Fungi_F16_Glucose, Plot_Root_F16_3OMG, Plot_Root_F16_Glucose, frel_heights = c(1,1,1,1), rel_widths = c(1,1,1,1), nrow=1, ncol=4, align = "hv", axis = "tb")
+Plot_F16
+```
+
+---
+END
+---
+

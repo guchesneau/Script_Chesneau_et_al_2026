@@ -1,0 +1,349 @@
+ID,Organism,Treatment,Carbon_source,Bio_Rep,Tech_Rep,Microbial_growth,Time_Points
+F16_Water_NC_1,F16,Water,1/2MS,1,1,2.619,D03
+F16_Water_NC_2,F16,Water,1/2MS,1,2,2.791,D03
+F16_Water_NC_3,F16,Water,1/2MS,1,3,2.584,D03
+F16_Water_NC_4,F16,Water,1/2MS,1,4,2.096,D03
+F16_3OMG_NC_1,F16,3OMG,1/2MS,1,1,1.888,D03
+F16_3OMG_NC_2,F16,3OMG,1/2MS,1,2,2.281,D03
+F16_3OMG_NC_3,F16,3OMG,1/2MS,1,3,2.368,D03
+F16_3OMG_NC_4,F16,3OMG,1/2MS,1,4,2.5,D03
+F16_Water_Carboxymethylcellulose_1,F16,Water,1/2MS+Carboxymethylcellulose,1,1,2.491,D03
+F16_Water_Carboxymethylcellulose_2,F16,Water,1/2MS+Carboxymethylcellulose,1,2,2.525,D03
+F16_Water_Carboxymethylcellulose_3,F16,Water,1/2MS+Carboxymethylcellulose,1,3,2.938,D03
+F16_Water_Carboxymethylcellulose_4,F16,Water,1/2MS+Carboxymethylcellulose,1,4,2.77,D03
+F16_3OMG_Carboxymethylcellulose_1,F16,3OMG,1/2MS+Carboxymethylcellulose,1,1,2.21,D03
+F16_3OMG_Carboxymethylcellulose_2,F16,3OMG,1/2MS+Carboxymethylcellulose,1,2,2.13,D03
+F16_3OMG_Carboxymethylcellulose_3,F16,3OMG,1/2MS+Carboxymethylcellulose,1,3,2.24,D03
+F16_3OMG_Carboxymethylcellulose_4,F16,3OMG,1/2MS+Carboxymethylcellulose,1,4,2.149,D03
+F16_Water_?-cellulose_1,F16,Water,1/2MS+cellulose,1,1,2.377,D03
+F16_Water_?-cellulose_2,F16,Water,1/2MS+cellulose,1,2,2.857,D03
+F16_Water_?-cellulose_3,F16,Water,1/2MS+cellulose,1,3,2.69,D03
+F16_Water_?-cellulose_4,F16,Water,1/2MS+cellulose,1,4,2.522,D03
+F16_3OMG_?-cellulose_1,F16,3OMG,1/2MS+cellulose,1,1,2.248,D03
+F16_3OMG_?-cellulose_2,F16,3OMG,1/2MS+cellulose,1,2,2.173,D03
+F16_3OMG_?-cellulose_3,F16,3OMG,1/2MS+cellulose,1,3,1.948,D03
+F16_3OMG_?-cellulose_4,F16,3OMG,1/2MS+cellulose,1,4,2.394,D03
+F16_Water_Pectin_1,F16,Water,1/2MS+Pectin,1,1,2.647,D03
+F16_Water_Pectin_2,F16,Water,1/2MS+Pectin,1,2,2.529,D03
+F16_Water_Pectin_3,F16,Water,1/2MS+Pectin,1,3,2.813,D03
+F16_Water_Pectin_4,F16,Water,1/2MS+Pectin,1,4,2.731,D03
+F16_3OMG_Pectin_1,F16,3OMG,1/2MS+Pectin,1,1,2.348,D03
+F16_3OMG_Pectin_2,F16,3OMG,1/2MS+Pectin,1,2,2.096,D03
+F16_3OMG_Pectin_3,F16,3OMG,1/2MS+Pectin,1,3,2.078,D03
+F16_3OMG_Pectin_4,F16,3OMG,1/2MS+Pectin,1,4,2.161,D03
+F16_Water_Starch_1,F16,Water,1/2MS+Starch,1,1,2.885,D03
+F16_Water_Starch_2,F16,Water,1/2MS+Starch,1,2,2.731,D03
+F16_Water_Starch_3,F16,Water,1/2MS+Starch,1,3,2.524,D03
+F16_Water_Starch_4,F16,Water,1/2MS+Starch,1,4,2.548,D03
+F16_3OMG_Starch_1,F16,3OMG,1/2MS+Starch,1,1,2.292,D03
+F16_3OMG_Starch_2,F16,3OMG,1/2MS+Starch,1,2,2.106,D03
+F16_3OMG_Starch_3,F16,3OMG,1/2MS+Starch,1,3,2.085,D03
+F16_3OMG_Starch_4,F16,3OMG,1/2MS+Starch,1,4,2.211,D03
+F16_Water_Xylan_1,F16,Water,1/2MS+Xylan,1,1,2.777,D03
+F16_Water_Xylan_2,F16,Water,1/2MS+Xylan,1,2,2.735,D03
+F16_Water_Xylan_3,F16,Water,1/2MS+Xylan,1,3,2.748,D03
+F16_Water_Xylan_4,F16,Water,1/2MS+Xylan,1,4,2.501,D03
+F16_3OMG_Xylan_1,F16,3OMG,1/2MS+Xylan,1,1,2.534,D03
+F16_3OMG_Xylan_2,F16,3OMG,1/2MS+Xylan,1,2,2.415,D03
+F16_3OMG_Xylan_3,F16,3OMG,1/2MS+Xylan,1,3,2.571,D03
+F16_3OMG_Xylan_4,F16,3OMG,1/2MS+Xylan,1,4,2.667,D03
+F16_Water_1/2 MS_2_1_D01,F16,Water,1/2MS,2,1,0.482,D00
+F16_Water_1/2 MS_2_2_D01,F16,Water,1/2MS,2,2,0.451,D00
+F16_Water_1/2 MS_2_3_D01,F16,Water,1/2MS,2,3,0.45,D00
+F16_3OMG_1/2 MS_2_1_D01,F16,3OMG,1/2MS,2,1,0.486,D00
+F16_3OMG_1/2 MS_2_2_D01,F16,3OMG,1/2MS,2,2,0.508,D00
+F16_3OMG_1/2 MS_2_3_D01,F16,3OMG,1/2MS,2,3,0.427,D00
+F16_Water_1/2 MS_2_1_D03,F16,Water,1/2MS,2,1,3.331,D03
+F16_Water_1/2 MS_2_2_D03,F16,Water,1/2MS,2,2,3.215,D03
+F16_Water_1/2 MS_2_3_D03,F16,Water,1/2MS,2,3,3.062,D03
+F16_3OMG_1/2 MS_2_1_D03,F16,3OMG,1/2MS,2,1,2.729,D03
+F16_3OMG_1/2 MS_2_2_D03,F16,3OMG,1/2MS,2,2,2.424,D03
+F16_3OMG_1/2 MS_2_3_D03,F16,3OMG,1/2MS,2,3,2.389,D03
+F16_Water_1/2 MS_2_1_D07,F16,Water,1/2MS,2,1,16.081,D07
+F16_Water_1/2 MS_2_2_D07,F16,Water,1/2MS,2,2,16.476,D07
+F16_Water_1/2 MS_2_3_D07,F16,Water,1/2MS,2,3,15.799,D07
+F16_3OMG_1/2 MS_2_1_D07,F16,3OMG,1/2MS,2,1,12.5,D07
+F16_3OMG_1/2 MS_2_2_D07,F16,3OMG,1/2MS,2,2,11.597,D07
+F16_3OMG_1/2 MS_2_3_D07,F16,3OMG,1/2MS,2,3,11.994,D07
+F16_Water_1/2 MS + Arabinose_2_1_D01,F16,Water,1/2MS+Arabinose,2,1,0.502,D00
+F16_Water_1/2 MS + Arabinose_2_2_D01,F16,Water,1/2MS+Arabinose,2,2,0.446,D00
+F16_Water_1/2 MS + Arabinose_2_3_D01,F16,Water,1/2MS+Arabinose,2,3,0.443,D00
+F16_3OMG_1/2 MS + Arabinose_2_1_D01,F16,3OMG,1/2MS+Arabinose,2,1,0.48,D00
+F16_3OMG_1/2 MS + Arabinose_2_2_D01,F16,3OMG,1/2MS+Arabinose,2,2,0.649,D00
+F16_3OMG_1/2 MS + Arabinose_2_3_D01,F16,3OMG,1/2MS+Arabinose,2,3,0.469,D00
+F16_Water_1/2 MS + Arabinose_2_1_D03,F16,Water,1/2MS+Arabinose,2,1,3.277,D03
+F16_Water_1/2 MS + Arabinose_2_2_D03,F16,Water,1/2MS+Arabinose,2,2,3.54,D03
+F16_Water_1/2 MS + Arabinose_2_3_D03,F16,Water,1/2MS+Arabinose,2,3,3.392,D03
+F16_3OMG_1/2 MS + Arabinose_2_1_D03,F16,3OMG,1/2MS+Arabinose,2,1,2.577,D03
+F16_3OMG_1/2 MS + Arabinose_2_2_D03,F16,3OMG,1/2MS+Arabinose,2,2,2.762,D03
+F16_3OMG_1/2 MS + Arabinose_2_3_D03,F16,3OMG,1/2MS+Arabinose,2,3,2.453,D03
+F16_Water_1/2 MS + Arabinose_2_1_D07,F16,Water,1/2MS+Arabinose,2,1,10.319,D07
+F16_Water_1/2 MS + Arabinose_2_2_D07,F16,Water,1/2MS+Arabinose,2,2,10.057,D07
+F16_Water_1/2 MS + Arabinose_2_3_D07,F16,Water,1/2MS+Arabinose,2,3,10.131,D07
+F16_3OMG_1/2 MS + Arabinose_2_1_D07,F16,3OMG,1/2MS+Arabinose,2,1,10.204,D07
+F16_3OMG_1/2 MS + Arabinose_2_2_D07,F16,3OMG,1/2MS+Arabinose,2,2,10.616,D07
+F16_3OMG_1/2 MS + Arabinose_2_3_D07,F16,3OMG,1/2MS+Arabinose,2,3,8.69,D07
+F16_Water_1/2 MS + Carboxymethylcellulose_2_1_D01,F16,Water,1/2MS+Carboxymethylcellulose,2,1,0.604,D00
+F16_Water_1/2 MS + Carboxymethylcellulose_2_2_D01,F16,Water,1/2MS+Carboxymethylcellulose,2,2,0.527,D00
+F16_Water_1/2 MS + Carboxymethylcellulose_2_3_D01,F16,Water,1/2MS+Carboxymethylcellulose,2,3,0.564,D00
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_1_D01,F16,3OMG,1/2MS+Carboxymethylcellulose,2,1,0.609,D00
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_2_D01,F16,3OMG,1/2MS+Carboxymethylcellulose,2,2,0.537,D00
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_3_D01,F16,3OMG,1/2MS+Carboxymethylcellulose,2,3,0.461,D00
+F16_Water_1/2 MS + Carboxymethylcellulose_2_1_D03,F16,Water,1/2MS+Carboxymethylcellulose,2,1,3.373,D03
+F16_Water_1/2 MS + Carboxymethylcellulose_2_2_D03,F16,Water,1/2MS+Carboxymethylcellulose,2,2,3.094,D03
+F16_Water_1/2 MS + Carboxymethylcellulose_2_3_D03,F16,Water,1/2MS+Carboxymethylcellulose,2,3,3.189,D03
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_1_D03,F16,3OMG,1/2MS+Carboxymethylcellulose,2,1,2.535,D03
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_2_D03,F16,3OMG,1/2MS+Carboxymethylcellulose,2,2,2.62,D03
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_3_D03,F16,3OMG,1/2MS+Carboxymethylcellulose,2,3,2.478,D03
+F16_Water_1/2 MS + Carboxymethylcellulose_2_1_D07,F16,Water,1/2MS+Carboxymethylcellulose,2,1,16.842,D07
+F16_Water_1/2 MS + Carboxymethylcellulose_2_2_D07,F16,Water,1/2MS+Carboxymethylcellulose,2,2,16.27,D07
+F16_Water_1/2 MS + Carboxymethylcellulose_2_3_D07,F16,Water,1/2MS+Carboxymethylcellulose,2,3,16.271,D07
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_1_D07,F16,3OMG,1/2MS+Carboxymethylcellulose,2,1,13.292,D07
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_2_D07,F16,3OMG,1/2MS+Carboxymethylcellulose,2,2,13.413,D07
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_3_D07,F16,3OMG,1/2MS+Carboxymethylcellulose,2,3,13.366,D07
+F16_Water_1/2 MS + Galactose_2_1_D01,F16,Water,1/2MS+Galactose,2,1,0.686,D00
+F16_Water_1/2 MS + Galactose_2_2_D01,F16,Water,1/2MS+Galactose,2,2,0.965,D00
+F16_Water_1/2 MS + Galactose_2_3_D01,F16,Water,1/2MS+Galactose,2,3,0.606,D00
+F16_3OMG_1/2 MS + Galactose_2_1_D01,F16,3OMG,1/2MS+Galactose,2,1,0.427,D00
+F16_3OMG_1/2 MS + Galactose_2_2_D01,F16,3OMG,1/2MS+Galactose,2,2,0.629,D00
+F16_3OMG_1/2 MS + Galactose_2_3_D01,F16,3OMG,1/2MS+Galactose,2,3,0.645,D00
+F16_Water_1/2 MS + Galactose_2_1_D03,F16,Water,1/2MS+Galactose,2,1,2.478,D03
+F16_Water_1/2 MS + Galactose_2_2_D03,F16,Water,1/2MS+Galactose,2,2,3.113,D03
+F16_Water_1/2 MS + Galactose_2_3_D03,F16,Water,1/2MS+Galactose,2,3,2.522,D03
+F16_3OMG_1/2 MS + Galactose_2_1_D03,F16,3OMG,1/2MS+Galactose,2,1,2.531,D03
+F16_3OMG_1/2 MS + Galactose_2_2_D03,F16,3OMG,1/2MS+Galactose,2,2,2.618,D03
+F16_3OMG_1/2 MS + Galactose_2_3_D03,F16,3OMG,1/2MS+Galactose,2,3,3.081,D03
+F16_Water_1/2 MS + Galactose_2_1_D07,F16,Water,1/2MS+Galactose,2,1,7.964,D07
+F16_Water_1/2 MS + Galactose_2_2_D07,F16,Water,1/2MS+Galactose,2,2,8.799,D07
+F16_Water_1/2 MS + Galactose_2_3_D07,F16,Water,1/2MS+Galactose,2,3,6.98,D07
+F16_3OMG_1/2 MS + Galactose_2_1_D07,F16,3OMG,1/2MS+Galactose,2,1,8.941,D07
+F16_3OMG_1/2 MS + Galactose_2_2_D07,F16,3OMG,1/2MS+Galactose,2,2,8.365,D07
+F16_3OMG_1/2 MS + Galactose_2_3_D07,F16,3OMG,1/2MS+Galactose,2,3,9.566,D07
+F16_Water_1/2 MS + Glucose_2_1_D01,F16,Water,1/2MS+Glucose,2,1,0.423,D00
+F16_Water_1/2 MS + Glucose_2_2_D01,F16,Water,1/2MS+Glucose,2,2,0.641,D00
+F16_Water_1/2 MS + Glucose_2_3_D01,F16,Water,1/2MS+Glucose,2,3,0.479,D00
+F16_3OMG_1/2 MS + Glucose_2_1_D01,F16,3OMG,1/2MS+Glucose,2,1,0.542,D00
+F16_3OMG_1/2 MS + Glucose_2_2_D01,F16,3OMG,1/2MS+Glucose,2,2,0.52,D00
+F16_3OMG_1/2 MS + Glucose_2_3_D01,F16,3OMG,1/2MS+Glucose,2,3,0.476,D00
+F16_Water_1/2 MS + Glucose_2_1_D03,F16,Water,1/2MS+Glucose,2,1,2.607,D03
+F16_Water_1/2 MS + Glucose_2_2_D03,F16,Water,1/2MS+Glucose,2,2,3.447,D03
+F16_Water_1/2 MS + Glucose_2_3_D03,F16,Water,1/2MS+Glucose,2,3,3.032,D03
+F16_3OMG_1/2 MS + Glucose_2_1_D03,F16,3OMG,1/2MS+Glucose,2,1,3.178,D03
+F16_3OMG_1/2 MS + Glucose_2_2_D03,F16,3OMG,1/2MS+Glucose,2,2,3.346,D03
+F16_3OMG_1/2 MS + Glucose_2_3_D03,F16,3OMG,1/2MS+Glucose,2,3,3.518,D03
+F16_Water_1/2 MS + Glucose_2_1_D07,F16,Water,1/2MS+Glucose,2,1,14.321,D07
+F16_Water_1/2 MS + Glucose_2_2_D07,F16,Water,1/2MS+Glucose,2,2,14.803,D07
+F16_Water_1/2 MS + Glucose_2_3_D07,F16,Water,1/2MS+Glucose,2,3,14.908,D07
+F16_3OMG_1/2 MS + Glucose_2_1_D07,F16,3OMG,1/2MS+Glucose,2,1,14.33,D07
+F16_3OMG_1/2 MS + Glucose_2_2_D07,F16,3OMG,1/2MS+Glucose,2,2,14.616,D07
+F16_3OMG_1/2 MS + Glucose_2_3_D07,F16,3OMG,1/2MS+Glucose,2,3,13.489,D07
+F16_Water_1/2 MS + Mannose_2_1_D01,F16,Water,1/2MS+Mannose,2,1,0.459,D00
+F16_Water_1/2 MS + Mannose_2_2_D01,F16,Water,1/2MS+Mannose,2,2,0.576,D00
+F16_Water_1/2 MS + Mannose_2_3_D01,F16,Water,1/2MS+Mannose,2,3,0.509,D00
+F16_3OMG_1/2 MS + Mannose_2_1_D01,F16,3OMG,1/2MS+Mannose,2,1,0.402,D00
+F16_3OMG_1/2 MS + Mannose_2_2_D01,F16,3OMG,1/2MS+Mannose,2,2,0.366,D00
+F16_3OMG_1/2 MS + Mannose_2_3_D01,F16,3OMG,1/2MS+Mannose,2,3,0.467,D00
+F16_Water_1/2 MS + Mannose_2_1_D03,F16,Water,1/2MS+Mannose,2,1,2.214,D03
+F16_Water_1/2 MS + Mannose_2_2_D03,F16,Water,1/2MS+Mannose,2,2,2.175,D03
+F16_Water_1/2 MS + Mannose_2_3_D03,F16,Water,1/2MS+Mannose,2,3,2,D03
+F16_3OMG_1/2 MS + Mannose_2_1_D03,F16,3OMG,1/2MS+Mannose,2,1,2.323,D03
+F16_3OMG_1/2 MS + Mannose_2_2_D03,F16,3OMG,1/2MS+Mannose,2,2,2.178,D03
+F16_3OMG_1/2 MS + Mannose_2_3_D03,F16,3OMG,1/2MS+Mannose,2,3,2.287,D03
+F16_Water_1/2 MS + Mannose_2_1_D07,F16,Water,1/2MS+Mannose,2,1,10.195,D07
+F16_Water_1/2 MS + Mannose_2_2_D07,F16,Water,1/2MS+Mannose,2,2,10.043,D07
+F16_Water_1/2 MS + Mannose_2_3_D07,F16,Water,1/2MS+Mannose,2,3,9.542,D07
+F16_3OMG_1/2 MS + Mannose_2_1_D07,F16,3OMG,1/2MS+Mannose,2,1,10.263,D07
+F16_3OMG_1/2 MS + Mannose_2_2_D07,F16,3OMG,1/2MS+Mannose,2,2,10.302,D07
+F16_3OMG_1/2 MS + Mannose_2_3_D07,F16,3OMG,1/2MS+Mannose,2,3,10.021,D07
+F16_Water_1/2 MS + Pectin_2_1_D01,F16,Water,1/2MS+Pectin,2,1,1.081,D00
+F16_Water_1/2 MS + Pectin_2_2_D01,F16,Water,1/2MS+Pectin,2,2,1.153,D00
+F16_Water_1/2 MS + Pectin_2_3_D01,F16,Water,1/2MS+Pectin,2,3,0.839,D00
+F16_3OMG_1/2 MS + Pectin_2_1_D01,F16,3OMG,1/2MS+Pectin,2,1,0.851,D00
+F16_3OMG_1/2 MS + Pectin_2_2_D01,F16,3OMG,1/2MS+Pectin,2,2,0.851,D00
+F16_3OMG_1/2 MS + Pectin_2_3_D01,F16,3OMG,1/2MS+Pectin,2,3,2.036,D00
+F16_Water_1/2 MS + Pectin_2_1_D03,F16,Water,1/2MS+Pectin,2,1,3.959,D03
+F16_Water_1/2 MS + Pectin_2_2_D03,F16,Water,1/2MS+Pectin,2,2,4.173,D03
+F16_Water_1/2 MS + Pectin_2_3_D03,F16,Water,1/2MS+Pectin,2,3,2.941,D03
+F16_3OMG_1/2 MS + Pectin_2_1_D03,F16,3OMG,1/2MS+Pectin,2,1,3.475,D03
+F16_3OMG_1/2 MS + Pectin_2_2_D03,F16,3OMG,1/2MS+Pectin,2,2,3.261,D03
+F16_3OMG_1/2 MS + Pectin_2_3_D03,F16,3OMG,1/2MS+Pectin,2,3,4.258,D03
+F16_Water_1/2 MS + Pectin_2_1_D07,F16,Water,1/2MS+Pectin,2,1,15.307,D07
+F16_Water_1/2 MS + Pectin_2_2_D07,F16,Water,1/2MS+Pectin,2,2,15.17,D07
+F16_Water_1/2 MS + Pectin_2_3_D07,F16,Water,1/2MS+Pectin,2,3,14.138,D07
+F16_3OMG_1/2 MS + Pectin_2_1_D07,F16,3OMG,1/2MS+Pectin,2,1,12.292,D07
+F16_3OMG_1/2 MS + Pectin_2_2_D07,F16,3OMG,1/2MS+Pectin,2,2,14.069,D07
+F16_3OMG_1/2 MS + Pectin_2_3_D07,F16,3OMG,1/2MS+Pectin,2,3,12.149,D07
+F16_Water_1/2 MS + Starch_2_1_D01,F16,Water,1/2MS+Starch,2,1,0.442,D00
+F16_Water_1/2 MS + Starch_2_2_D01,F16,Water,1/2MS+Starch,2,2,0.504,D00
+F16_Water_1/2 MS + Starch_2_3_D01,F16,Water,1/2MS+Starch,2,3,0.659,D00
+F16_3OMG_1/2 MS + Starch_2_1_D01,F16,3OMG,1/2MS+Starch,2,1,0.456,D00
+F16_3OMG_1/2 MS + Starch_2_2_D01,F16,3OMG,1/2MS+Starch,2,2,0.538,D00
+F16_3OMG_1/2 MS + Starch_2_3_D01,F16,3OMG,1/2MS+Starch,2,3,0.548,D00
+F16_Water_1/2 MS + Starch_2_1_D03,F16,Water,1/2MS+Starch,2,1,3.347,D03
+F16_Water_1/2 MS + Starch_2_2_D03,F16,Water,1/2MS+Starch,2,2,3.3,D03
+F16_Water_1/2 MS + Starch_2_3_D03,F16,Water,1/2MS+Starch,2,3,3.491,D03
+F16_3OMG_1/2 MS + Starch_2_1_D03,F16,3OMG,1/2MS+Starch,2,1,2.974,D03
+F16_3OMG_1/2 MS + Starch_2_2_D03,F16,3OMG,1/2MS+Starch,2,2,2.912,D03
+F16_3OMG_1/2 MS + Starch_2_3_D03,F16,3OMG,1/2MS+Starch,2,3,3.021,D03
+F16_Water_1/2 MS + Starch_2_1_D07,F16,Water,1/2MS+Starch,2,1,15.021,D07
+F16_Water_1/2 MS + Starch_2_2_D07,F16,Water,1/2MS+Starch,2,2,14.75,D07
+F16_Water_1/2 MS + Starch_2_3_D07,F16,Water,1/2MS+Starch,2,3,15.055,D07
+F16_3OMG_1/2 MS + Starch_2_1_D07,F16,3OMG,1/2MS+Starch,2,1,13.594,D07
+F16_3OMG_1/2 MS + Starch_2_2_D07,F16,3OMG,1/2MS+Starch,2,2,14.061,D07
+F16_3OMG_1/2 MS + Starch_2_3_D07,F16,3OMG,1/2MS+Starch,2,3,13.993,D07
+F16_Water_1/2 MS + Xylan_2_1_D01,F16,Water,1/2MS+Xylan,2,1,0.522,D00
+F16_Water_1/2 MS + Xylan_2_2_D01,F16,Water,1/2MS+Xylan,2,2,0.591,D00
+F16_Water_1/2 MS + Xylan_2_3_D01,F16,Water,1/2MS+Xylan,2,3,0.569,D00
+F16_3OMG_1/2 MS + Xylan_2_1_D01,F16,3OMG,1/2MS+Xylan,2,1,0.501,D00
+F16_3OMG_1/2 MS + Xylan_2_2_D01,F16,3OMG,1/2MS+Xylan,2,2,0.559,D00
+F16_3OMG_1/2 MS + Xylan_2_3_D01,F16,3OMG,1/2MS+Xylan,2,3,0.405,D00
+F16_Water_1/2 MS + Xylan_2_1_D03,F16,Water,1/2MS+Xylan,2,1,3.189,D03
+F16_Water_1/2 MS + Xylan_2_2_D03,F16,Water,1/2MS+Xylan,2,2,3.191,D03
+F16_Water_1/2 MS + Xylan_2_3_D03,F16,Water,1/2MS+Xylan,2,3,3.249,D03
+F16_3OMG_1/2 MS + Xylan_2_1_D03,F16,3OMG,1/2MS+Xylan,2,1,2.996,D03
+F16_3OMG_1/2 MS + Xylan_2_2_D03,F16,3OMG,1/2MS+Xylan,2,2,2.79,D03
+F16_3OMG_1/2 MS + Xylan_2_3_D03,F16,3OMG,1/2MS+Xylan,2,3,2.893,D03
+F16_Water_1/2 MS + Xylan_2_1_D07,F16,Water,1/2MS+Xylan,2,1,14.17,D07
+F16_Water_1/2 MS + Xylan_2_2_D07,F16,Water,1/2MS+Xylan,2,2,13.17,D07
+F16_Water_1/2 MS + Xylan_2_3_D07,F16,Water,1/2MS+Xylan,2,3,13.118,D07
+F16_3OMG_1/2 MS + Xylan_2_1_D07,F16,3OMG,1/2MS+Xylan,2,1,12.63,D07
+F16_3OMG_1/2 MS + Xylan_2_2_D07,F16,3OMG,1/2MS+Xylan,2,2,12.082,D07
+F16_3OMG_1/2 MS + Xylan_2_3_D07,F16,3OMG,1/2MS+Xylan,2,3,12.892,D07
+F16_Water_1/2 MS + Xylose_2_1_D01,F16,Water,1/2MS+Xylose,2,1,0.756,D00
+F16_Water_1/2 MS + Xylose_2_2_D01,F16,Water,1/2MS+Xylose,2,2,0.59,D00
+F16_Water_1/2 MS + Xylose_2_3_D01,F16,Water,1/2MS+Xylose,2,3,0.612,D00
+F16_3OMG_1/2 MS + Xylose_2_1_D01,F16,3OMG,1/2MS+Xylose,2,1,0.564,D00
+F16_3OMG_1/2 MS + Xylose_2_2_D01,F16,3OMG,1/2MS+Xylose,2,2,0.481,D00
+F16_3OMG_1/2 MS + Xylose_2_3_D01,F16,3OMG,1/2MS+Xylose,2,3,0.471,D00
+F16_Water_1/2 MS + Xylose_2_1_D03,F16,Water,1/2MS+Xylose,2,1,3.569,D03
+F16_Water_1/2 MS + Xylose_2_2_D03,F16,Water,1/2MS+Xylose,2,2,2.876,D03
+F16_Water_1/2 MS + Xylose_2_3_D03,F16,Water,1/2MS+Xylose,2,3,2.987,D03
+F16_3OMG_1/2 MS + Xylose_2_1_D03,F16,3OMG,1/2MS+Xylose,2,1,2.84,D03
+F16_3OMG_1/2 MS + Xylose_2_2_D03,F16,3OMG,1/2MS+Xylose,2,2,2.877,D03
+F16_3OMG_1/2 MS + Xylose_2_3_D03,F16,3OMG,1/2MS+Xylose,2,3,2.947,D03
+F16_Water_1/2 MS + Xylose_2_1_D07,F16,Water,1/2MS+Xylose,2,1,13.717,D07
+F16_Water_1/2 MS + Xylose_2_2_D07,F16,Water,1/2MS+Xylose,2,2,11.345,D07
+F16_Water_1/2 MS + Xylose_2_3_D07,F16,Water,1/2MS+Xylose,2,3,11.679,D07
+F16_3OMG_1/2 MS + Xylose_2_1_D07,F16,3OMG,1/2MS+Xylose,2,1,11.1,D07
+F16_3OMG_1/2 MS + Xylose_2_2_D07,F16,3OMG,1/2MS+Xylose,2,2,10.884,D07
+F16_3OMG_1/2 MS + Xylose_2_3_D07,F16,3OMG,1/2MS+Xylose,2,3,10.835,D07
+F16_Water_1/2 MS_2_1_D03,F16,Water,1/2MS,3,1,1.841,D03
+F16_Water_1/2 MS_2_2_D03,F16,Water,1/2MS,3,2,1.715,D03
+F16_Water_1/2 MS_2_3_D03,F16,Water,1/2MS,3,3,2.05,D03
+F16_3OMG_1/2 MS_2_1_D03,F16,3OMG,1/2MS,3,1,1.318,D03
+F16_3OMG_1/2 MS_2_2_D03,F16,3OMG,1/2MS,3,2,1.293,D03
+F16_3OMG_1/2 MS_2_3_D03,F16,3OMG,1/2MS,3,3,1.304,D03
+F16_Water_1/2 MS_2_1_D07,F16,Water,1/2MS,3,1,13.107,D07
+F16_Water_1/2 MS_2_2_D07,F16,Water,1/2MS,3,2,13.349,D07
+F16_Water_1/2 MS_2_3_D07,F16,Water,1/2MS,3,3,13.077,D07
+F16_3OMG_1/2 MS_2_1_D07,F16,3OMG,1/2MS,3,1,8.378,D07
+F16_3OMG_1/2 MS_2_2_D07,F16,3OMG,1/2MS,3,2,8.564,D07
+F16_3OMG_1/2 MS_2_3_D07,F16,3OMG,1/2MS,3,3,8.913,D07
+F16_Water_1/2 MS + Arabinose_2_1_D03,F16,Water,1/2MS+Arabinose,3,1,1.894,D03
+F16_Water_1/2 MS + Arabinose_2_2_D03,F16,Water,1/2MS+Arabinose,3,2,1.95,D03
+F16_Water_1/2 MS + Arabinose_2_3_D03,F16,Water,1/2MS+Arabinose,3,3,1.84,D03
+F16_3OMG_1/2 MS + Arabinose_2_1_D03,F16,3OMG,1/2MS+Arabinose,3,1,1.631,D03
+F16_3OMG_1/2 MS + Arabinose_2_2_D03,F16,3OMG,1/2MS+Arabinose,3,2,2.236,D03
+F16_3OMG_1/2 MS + Arabinose_2_3_D03,F16,3OMG,1/2MS+Arabinose,3,3,1.615,D03
+F16_Water_1/2 MS + Arabinose_2_1_D07,F16,Water,1/2MS+Arabinose,3,1,10.12,D07
+F16_Water_1/2 MS + Arabinose_2_2_D07,F16,Water,1/2MS+Arabinose,3,2,10.908,D07
+F16_Water_1/2 MS + Arabinose_2_3_D07,F16,Water,1/2MS+Arabinose,3,3,10.428,D07
+F16_3OMG_1/2 MS + Arabinose_2_1_D07,F16,3OMG,1/2MS+Arabinose,3,1,8.614,D07
+F16_3OMG_1/2 MS + Arabinose_2_2_D07,F16,3OMG,1/2MS+Arabinose,3,2,7.081,D07
+F16_3OMG_1/2 MS + Arabinose_2_3_D07,F16,3OMG,1/2MS+Arabinose,3,3,7.337,D07
+F16_Water_1/2 MS + Carboxymethylcellulose_2_1_D03,F16,Water,1/2MS+Carboxymethylcellulose,3,1,1.887,D03
+F16_Water_1/2 MS + Carboxymethylcellulose_2_2_D03,F16,Water,1/2MS+Carboxymethylcellulose,3,2,2.092,D03
+F16_Water_1/2 MS + Carboxymethylcellulose_2_3_D03,F16,Water,1/2MS+Carboxymethylcellulose,3,3,2.171,D03
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_1_D03,F16,3OMG,1/2MS+Carboxymethylcellulose,3,1,1.285,D03
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_2_D03,F16,3OMG,1/2MS+Carboxymethylcellulose,3,2,1.567,D03
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_3_D03,F16,3OMG,1/2MS+Carboxymethylcellulose,3,3,1.242,D03
+F16_Water_1/2 MS + Carboxymethylcellulose_2_1_D07,F16,Water,1/2MS+Carboxymethylcellulose,3,1,13.045,D07
+F16_Water_1/2 MS + Carboxymethylcellulose_2_2_D07,F16,Water,1/2MS+Carboxymethylcellulose,3,2,13.833,D07
+F16_Water_1/2 MS + Carboxymethylcellulose_2_3_D07,F16,Water,1/2MS+Carboxymethylcellulose,3,3,13.294,D07
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_1_D07,F16,3OMG,1/2MS+Carboxymethylcellulose,3,1,9.597,D07
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_2_D07,F16,3OMG,1/2MS+Carboxymethylcellulose,3,2,8.62,D07
+F16_3OMG_1/2 MS + Carboxymethylcellulose_2_3_D07,F16,3OMG,1/2MS+Carboxymethylcellulose,3,3,8.359,D07
+F16_Water_1/2 MS + Galactose_2_1_D03,F16,Water,1/2MS+Galactose,3,1,1.686,D03
+F16_Water_1/2 MS + Galactose_2_2_D03,F16,Water,1/2MS+Galactose,3,2,1.58,D03
+F16_Water_1/2 MS + Galactose_2_3_D03,F16,Water,1/2MS+Galactose,3,3,1.753,D03
+F16_3OMG_1/2 MS + Galactose_2_1_D03,F16,3OMG,1/2MS+Galactose,3,1,1.757,D03
+F16_3OMG_1/2 MS + Galactose_2_2_D03,F16,3OMG,1/2MS+Galactose,3,2,1.513,D03
+F16_3OMG_1/2 MS + Galactose_2_3_D03,F16,3OMG,1/2MS+Galactose,3,3,1.676,D03
+F16_Water_1/2 MS + Galactose_2_1_D07,F16,Water,1/2MS+Galactose,3,1,6.366,D07
+F16_Water_1/2 MS + Galactose_2_2_D07,F16,Water,1/2MS+Galactose,3,2,6.002,D07
+F16_Water_1/2 MS + Galactose_2_3_D07,F16,Water,1/2MS+Galactose,3,3,6.405,D07
+F16_3OMG_1/2 MS + Galactose_2_1_D07,F16,3OMG,1/2MS+Galactose,3,1,7.178,D07
+F16_3OMG_1/2 MS + Galactose_2_2_D07,F16,3OMG,1/2MS+Galactose,3,2,6.31,D07
+F16_3OMG_1/2 MS + Galactose_2_3_D07,F16,3OMG,1/2MS+Galactose,3,3,6.758,D07
+F16_Water_1/2 MS + Glucose_2_1_D03,F16,Water,1/2MS+Glucose,3,1,2.164,D03
+F16_Water_1/2 MS + Glucose_2_2_D03,F16,Water,1/2MS+Glucose,3,2,2.138,D03
+F16_Water_1/2 MS + Glucose_2_3_D03,F16,Water,1/2MS+Glucose,3,3,2.154,D03
+F16_3OMG_1/2 MS + Glucose_2_1_D03,F16,3OMG,1/2MS+Glucose,3,1,2.147,D03
+F16_3OMG_1/2 MS + Glucose_2_2_D03,F16,3OMG,1/2MS+Glucose,3,2,2.05,D03
+F16_3OMG_1/2 MS + Glucose_2_3_D03,F16,3OMG,1/2MS+Glucose,3,3,1.954,D03
+F16_Water_1/2 MS + Glucose_2_1_D07,F16,Water,1/2MS+Glucose,3,1,11.652,D07
+F16_Water_1/2 MS + Glucose_2_2_D07,F16,Water,1/2MS+Glucose,3,2,10.825,D07
+F16_Water_1/2 MS + Glucose_2_3_D07,F16,Water,1/2MS+Glucose,3,3,10.881,D07
+F16_3OMG_1/2 MS + Glucose_2_1_D07,F16,3OMG,1/2MS+Glucose,3,1,10.287,D07
+F16_3OMG_1/2 MS + Glucose_2_2_D07,F16,3OMG,1/2MS+Glucose,3,2,11.683,D07
+F16_3OMG_1/2 MS + Glucose_2_3_D07,F16,3OMG,1/2MS+Glucose,3,3,10.842,D07
+F16_Water_1/2 MS + Mannose_2_1_D03,F16,Water,1/2MS+Mannose,3,1,1.974,D03
+F16_Water_1/2 MS + Mannose_2_2_D03,F16,Water,1/2MS+Mannose,3,2,1.738,D03
+F16_Water_1/2 MS + Mannose_2_3_D03,F16,Water,1/2MS+Mannose,3,3,1.684,D03
+F16_3OMG_1/2 MS + Mannose_2_1_D03,F16,3OMG,1/2MS+Mannose,3,1,1.809,D03
+F16_3OMG_1/2 MS + Mannose_2_2_D03,F16,3OMG,1/2MS+Mannose,3,2,1.974,D03
+F16_3OMG_1/2 MS + Mannose_2_3_D03,F16,3OMG,1/2MS+Mannose,3,3,1.705,D03
+F16_Water_1/2 MS + Mannose_2_1_D07,F16,Water,1/2MS+Mannose,3,1,9.567,D07
+F16_Water_1/2 MS + Mannose_2_2_D07,F16,Water,1/2MS+Mannose,3,2,9.162,D07
+F16_Water_1/2 MS + Mannose_2_3_D07,F16,Water,1/2MS+Mannose,3,3,8.802,D07
+F16_3OMG_1/2 MS + Mannose_2_1_D07,F16,3OMG,1/2MS+Mannose,3,1,8.855,D07
+F16_3OMG_1/2 MS + Mannose_2_2_D07,F16,3OMG,1/2MS+Mannose,3,2,9.323,D07
+F16_3OMG_1/2 MS + Mannose_2_3_D07,F16,3OMG,1/2MS+Mannose,3,3,8.729,D07
+F16_Water_1/2 MS + Pectin_2_1_D03,F16,Water,1/2MS+Pectin,3,1,2.423,D03
+F16_Water_1/2 MS + Pectin_2_2_D03,F16,Water,1/2MS+Pectin,3,2,2.084,D03
+F16_Water_1/2 MS + Pectin_2_3_D03,F16,Water,1/2MS+Pectin,3,3,2.547,D03
+F16_3OMG_1/2 MS + Pectin_2_1_D03,F16,3OMG,1/2MS+Pectin,3,1,1.831,D03
+F16_3OMG_1/2 MS + Pectin_2_2_D03,F16,3OMG,1/2MS+Pectin,3,2,1.448,D03
+F16_3OMG_1/2 MS + Pectin_2_3_D03,F16,3OMG,1/2MS+Pectin,3,3,1.942,D03
+F16_Water_1/2 MS + Pectin_2_1_D07,F16,Water,1/2MS+Pectin,3,1,17.711,D07
+F16_Water_1/2 MS + Pectin_2_2_D07,F16,Water,1/2MS+Pectin,3,2,20.037,D07
+F16_Water_1/2 MS + Pectin_2_3_D07,F16,Water,1/2MS+Pectin,3,3,17.379,D07
+F16_3OMG_1/2 MS + Pectin_2_1_D07,F16,3OMG,1/2MS+Pectin,3,1,12.851,D07
+F16_3OMG_1/2 MS + Pectin_2_2_D07,F16,3OMG,1/2MS+Pectin,3,2,12.921,D07
+F16_3OMG_1/2 MS + Pectin_2_3_D07,F16,3OMG,1/2MS+Pectin,3,3,14.859,D07
+F16_Water_1/2 MS + Starch_2_1_D03,F16,Water,1/2MS+Starch,3,1,2.439,D03
+F16_Water_1/2 MS + Starch_2_2_D03,F16,Water,1/2MS+Starch,3,2,2.501,D03
+F16_Water_1/2 MS + Starch_2_3_D03,F16,Water,1/2MS+Starch,3,3,2.337,D03
+F16_3OMG_1/2 MS + Starch_2_1_D03,F16,3OMG,1/2MS+Starch,3,1,1.979,D03
+F16_3OMG_1/2 MS + Starch_2_2_D03,F16,3OMG,1/2MS+Starch,3,2,1.87,D03
+F16_3OMG_1/2 MS + Starch_2_3_D03,F16,3OMG,1/2MS+Starch,3,3,1.997,D03
+F16_Water_1/2 MS + Starch_2_1_D07,F16,Water,1/2MS+Starch,3,1,11.762,D07
+F16_Water_1/2 MS + Starch_2_2_D07,F16,Water,1/2MS+Starch,3,2,12.215,D07
+F16_Water_1/2 MS + Starch_2_3_D07,F16,Water,1/2MS+Starch,3,3,11.625,D07
+F16_3OMG_1/2 MS + Starch_2_1_D07,F16,3OMG,1/2MS+Starch,3,1,10.975,D07
+F16_3OMG_1/2 MS + Starch_2_2_D07,F16,3OMG,1/2MS+Starch,3,2,11.154,D07
+F16_3OMG_1/2 MS + Starch_2_3_D07,F16,3OMG,1/2MS+Starch,3,3,10.902,D07
+F16_Water_1/2 MS + Xylan_2_1_D03,F16,Water,1/2MS+Xylan,3,1,1.901,D03
+F16_Water_1/2 MS + Xylan_2_2_D03,F16,Water,1/2MS+Xylan,3,2,1.807,D03
+F16_Water_1/2 MS + Xylan_2_3_D03,F16,Water,1/2MS+Xylan,3,3,2.046,D03
+F16_3OMG_1/2 MS + Xylan_2_1_D03,F16,3OMG,1/2MS+Xylan,3,1,1.933,D03
+F16_3OMG_1/2 MS + Xylan_2_2_D03,F16,3OMG,1/2MS+Xylan,3,2,1.703,D03
+F16_3OMG_1/2 MS + Xylan_2_3_D03,F16,3OMG,1/2MS+Xylan,3,3,1.881,D03
+F16_Water_1/2 MS + Xylan_2_1_D07,F16,Water,1/2MS+Xylan,3,1,11.311,D07
+F16_Water_1/2 MS + Xylan_2_2_D07,F16,Water,1/2MS+Xylan,3,2,9.184,D07
+F16_Water_1/2 MS + Xylan_2_3_D07,F16,Water,1/2MS+Xylan,3,3,9.313,D07
+F16_3OMG_1/2 MS + Xylan_2_1_D07,F16,3OMG,1/2MS+Xylan,3,1,10.259,D07
+F16_3OMG_1/2 MS + Xylan_2_2_D07,F16,3OMG,1/2MS+Xylan,3,2,10.817,D07
+F16_3OMG_1/2 MS + Xylan_2_3_D07,F16,3OMG,1/2MS+Xylan,3,3,9.18,D07
+F16_Water_1/2 MS + Xylose_2_1_D03,F16,Water,1/2MS+Xylose,3,1,1.914,D03
+F16_Water_1/2 MS + Xylose_2_2_D03,F16,Water,1/2MS+Xylose,3,2,2.061,D03
+F16_Water_1/2 MS + Xylose_2_3_D03,F16,Water,1/2MS+Xylose,3,3,1.842,D03
+F16_3OMG_1/2 MS + Xylose_2_1_D03,F16,3OMG,1/2MS+Xylose,3,1,2.125,D03
+F16_3OMG_1/2 MS + Xylose_2_2_D03,F16,3OMG,1/2MS+Xylose,3,2,2.07,D03
+F16_3OMG_1/2 MS + Xylose_2_3_D03,F16,3OMG,1/2MS+Xylose,3,3,1.753,D03
+F16_Water_1/2 MS + Xylose_2_1_D07,F16,Water,1/2MS+Xylose,3,1,9.78,D07
+F16_Water_1/2 MS + Xylose_2_2_D07,F16,Water,1/2MS+Xylose,3,2,10.225,D07
+F16_Water_1/2 MS + Xylose_2_3_D07,F16,Water,1/2MS+Xylose,3,3,10.871,D07
+F16_3OMG_1/2 MS + Xylose_2_1_D07,F16,3OMG,1/2MS+Xylose,3,1,9.181,D07
+F16_3OMG_1/2 MS + Xylose_2_2_D07,F16,3OMG,1/2MS+Xylose,3,2,11.621,D07
+F16_3OMG_1/2 MS + Xylose_2_3_D07,F16,3OMG,1/2MS+Xylose,3,3,10.615,D07

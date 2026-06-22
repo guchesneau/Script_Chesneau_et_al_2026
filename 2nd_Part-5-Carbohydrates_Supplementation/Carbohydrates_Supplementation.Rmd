@@ -1,0 +1,341 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "/Post_doc/Postdoc/Scripts/2-Biolog/7-Carbohydrates") 
+```
+
+
+# Before you start
+
+This script has been made on R 4.0.0 (and Rstudio 1.2.5019)
+```{r R version}
+R.version
+```
+
+```{r}
+#Load libraries
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggh4x)
+library(dplyr)
+library(FSA)
+library(rcompanion)
+library(ggplot2)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+color_palette_Fungi <- c("MF" = "#949494", "F16" = "black")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF","BFSC","BSC","FSC","F16","F44","F64","F96","F100","F117","F147","F212","F243","Pu","Rs","Vd","Bs","AMF")
+Kingdom_levels <- c("MiniSynCom", "Fungi","Oomycetes","Bacteria")
+
+Kingdom <- tibble(Microbes = Microbes_levels) %>%
+  mutate(Kingdom = dplyr::case_when(
+    Microbes %in% c("BFSC","BSC","FSC") ~ "MiniSynCom",
+    Microbes %in% c("F16","F44","F64","F96","F100","F117","F147","F212","F243","Vd","Bs","AMF") ~ "Fungi",
+    Microbes == "Pu" ~ "Oomycetes",
+    Microbes == "Rs" ~ "Bacteria",
+    TRUE ~ NA_character_
+  ))
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'F16' = "*Plectosphaerella*<br>*cucumerina*",
+  'D03' = "D03",
+  'D07' = "1 week",
+  'D14' = "D14",
+  "Col0" = "Col0",
+  "1/2MS"  = "1/2MS + Mock",
+  "1/2MS+Pectin" = "1/2MS + Pectin",
+  "1/2MS+Xylan"= "1/2MS + Xylan",       
+ "1/2MS+?-cellulose"  = "1/2MS + a-Cellulose",
+ "1/2MS+Carboxymethylcellulose" = "1/2MS + Carboxycellulose",
+ "1/2MS+Starch"   = "1/2MS + Starch",   
+ "1/2MS+Arabinose"  = "1/2MS + Arabinose",
+ "1/2MS+Galactose" = "1/2MS + Galactose",
+ "1/2MS+Glucose" = "1/2MS + Glucose",    
+"1/2MS+Mannose" = "1/2MS + Mannose",
+"1/2MS+Xylose"= "1/2MS + Xylose",
+"Control" = "Control",
+"Monosaccharides" = "Monosaccharides",
+"Polysaccharides" = "Polysaccharides"
+)
+
+#Load data
+raw_data<-read.csv(file = "Carbohydrates_fungal_expansion.csv", header = TRUE, sep=",")
+raw_data
+
+#Remove D0
+raw_data <- subset(raw_data, !Time_Points %in% c("D00"))
+
+#Remove Cellulose, does not properly disolve
+raw_data <- subset(raw_data, !Carbon_source %in% c("1/2MS+cellulose"))
+
+#Remove Xylan and Arabinose for simmplicity
+raw_data <- subset(raw_data, !Carbon_source %in% c("1/2MS+Xylan", "1/2MS+Arabinose"))
+```
+
+# A] Carbodydrates
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+## 1 - Arabidopsis MiniSynCom
+
+# Vérifier la normalité par Time × Media
+normality_results <- raw_data %>%
+  group_by(Time_Points, Carbon_source, Treatment) %>%
+  shapiro_test(Microbial_growth) 
+normality_results # Not normal for 8/40 --> non-parametric
+
+# Compute Wilcoxon test per Time_Points within each Treatment
+stat_test <- raw_data %>%
+  group_by(Time_Points, Carbon_source) %>%
+  wilcox_test(Microbial_growth ~ Treatment) %>%
+  adjust_pvalue(method = "BH") %>%
+    add_significance("p.adj") %>%
+  mutate(
+    y.position = max(raw_data$Microbial_growth, na.rm = TRUE) * 1.05,
+    label_text = paste0("P = ", signif(p.adj, 3))
+  )
+
+#Add for plotting
+stat_test$Treatment <- c("Water")
+
+#Compute median of Water treatment for Microbes = "MF"
+median_line <- raw_data %>%
+  filter(Treatment == "Water") %>%
+  group_by(Carbon_source, Time_Points) %>%
+  summarise(median_root = median(Microbial_growth, na.rm = TRUE))
+
+# Create a column with "P = ..." formatting
+stat_test <- stat_test %>%
+  mutate(label_text = paste0("P = ", signif(p, 3)))
+
+#Order
+raw_data$Treatment <- factor(raw_data$Treatment, levels = c ("Water", "3OMG"))
+raw_data$Carbon_source <- factor(raw_data$Carbon_source, levels = c ("1/2MS", "1/2MS+Glucose", "1/2MS+Mannose", "1/2MS+Galactose", "1/2MS+Xylose", "1/2MS+Carboxymethylcellulose", "1/2MS+Starch", "1/2MS+Pectin"))
+stat_test$Carbon_source <- factor(stat_test$Carbon_source, levels = c ("1/2MS", "1/2MS+Glucose", "1/2MS+Mannose", "1/2MS+Galactose",  "1/2MS+Xylose", "1/2MS+Carboxymethylcellulose", "1/2MS+Starch", "1/2MS+Pectin"))
+median_line$Carbon_source <- factor(median_line$Carbon_source, levels = c ("1/2MS", "1/2MS+Glucose", "1/2MS+Mannose", "1/2MS+Galactose",  "1/2MS+Xylose", "1/2MS+Carboxymethylcellulose", "1/2MS+Starch", "1/2MS+Pectin"))
+
+#Number of samples
+n_counts <- raw_data %>%
+  group_by(Time_Points, Carbon_source, Treatment) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y_pos_n = min(raw_data$Microbial_growth, na.rm = TRUE))
+
+#Only keep 1 week
+raw_data2 <- subset(raw_data, Time_Points %in% c("D07"))
+stat_test2 <- subset(stat_test, Time_Points %in% c("D07"))
+n_counts2 <- subset(n_counts, Time_Points %in% c("D07"))
+median_line2 <- subset(median_line, Time_Points %in% c("D07"))
+
+#Plot with ggplot and add stats
+plot_carbo_tot <- ggplot(raw_data2, aes(x = Treatment, y = Microbial_growth, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_Rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette) +
+  facet_grid(Time_Points ~ Carbon_source , labeller = as_labeller(labels), scales = "free") +
+  labs(y = expression("Fungal expansion (cm"^2*")"), x = "", fill = "Treatment", shape = "Biological Replicate") +
+  base_theme +
+  stat_pvalue_manual(stat_test2, label = "label_text", tip.length = 0.02, hide.ns = TRUE, size = 3) +
+  geom_hline(data = median_line2, aes(yintercept = median_root),
+             linetype = "dashed", color = "black") +
+  geom_text(data = n_counts2, aes(x = Treatment, y = y_pos_n, label = paste0("n=", n)),
+            inherit.aes = FALSE, size = 3) +
+  base_theme +
+  ylim(0,23)
+
+plot_carbo_tot
+```
+# B] Carbodydrates Normalization
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+raw_data_norm <- raw_data %>%
+  group_by(Bio_Rep, Carbon_source, Time_Points) %>%
+  mutate(
+    median_water = median(Microbial_growth[Treatment == "Water"], na.rm = TRUE),
+    Normalized = if_else(Treatment == "3OMG", 
+                         log2(Microbial_growth / median_water), 
+                         Microbial_growth)
+  ) %>%
+  ungroup()
+
+raw_data_norm
+
+#Remove Water
+raw_data_norm2 <- subset(raw_data_norm, !Treatment %in% c("Water"))
+
+# Vérifier la normalité par Time × Media
+normality_results <- raw_data_norm %>%
+  group_by(Time_Points, Carbon_source, Treatment) %>%
+  shapiro_test(Normalized) 
+normality_results # Same as before --> non-parametric
+
+#Stats
+# Function to perform Kruskal-Wallis + Dunn + CLD for one time point
+analyze_time_point <- function(df){
+  # Kruskal-Wallis test
+  wil <- df %>% 
+  wilcox_test(Normalized ~ Carbon_source, alternative = "two.sided")%>% 
+    adjust_pvalue(method = "BH") %>%          
+    add_significance("p.adj") %>%
+    mutate(Time_Points = unique(df$Time_Points))
+  return(list(
+    wilcox = wil
+  ))
+}
+
+
+# Apply function to each Time_Points
+results <- raw_data_norm2 %>%
+  group_by(Time_Points) %>%
+  group_map(~ analyze_time_point(.x), .keep = TRUE)
+
+# Combine all CLDs into a single data frame for plotting
+cld_all <- bind_rows(lapply(results, function(x) x$wilcox))
+
+# Keep only comparions with 1/2MS
+cld_all <- subset(cld_all, group1 %in% c("1/2MS"))
+
+# View combined CLD
+colnames(cld_all)[3] <- c("Carbon_source")
+
+
+# Overall max of the Normalized values
+overall_max <- max(raw_data_norm2$Normalized, na.rm = TRUE) + 0.1
+
+# Add a y-position column to CLD table for plotting
+cld_all <- cld_all %>%
+  mutate(y_pos = overall_max)
+
+#Make groups for Carbons
+raw_data_norm2 <- raw_data_norm2 %>%
+  mutate(
+    Carbon_category = case_when(
+      Carbon_source == "1/2MS" ~ "Control",
+      Carbon_source %in% c("1/2MS+Arabinose", "1/2MS+Galactose", "1/2MS+Glucose", 
+                           "1/2MS+Mannose", "1/2MS+Xylose") ~ "Monosaccharides",
+      Carbon_source %in% c("1/2MS+Pectin", "1/2MS+Xylan", "1/2MS+Carboxymethylcellulose",
+                           "1/2MS+Starch") ~ "Polysaccharides",
+      TRUE ~ "Other"
+    )
+  )
+
+#Make groups for Carbons
+cld_all <- cld_all %>%
+  mutate(
+    Carbon_category = case_when(
+      Carbon_source == "1/2MS" ~ "Control",
+      Carbon_source %in% c("1/2MS+Arabinose", "1/2MS+Galactose", "1/2MS+Glucose", 
+                           "1/2MS+Mannose", "1/2MS+Xylose") ~ "Monosaccharides",
+      Carbon_source %in% c("1/2MS+Pectin", "1/2MS+Xylan", "1/2MS+Carboxymethylcellulose",
+                           "1/2MS+Starch") ~ "Polysaccharides",
+      TRUE ~ "Other"
+    )
+  )
+
+#Number of samples
+n_counts <- raw_data_norm2 %>%
+  group_by(Time_Points, Carbon_category, Carbon_source, Treatment) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y_pos_n = min(raw_data_norm2$Normalized, na.rm = TRUE))
+
+#Order
+raw_data_norm2$Carbon_source <- factor(raw_data_norm2$Carbon_source, levels = c ("1/2MS", "1/2MS+Glucose", "1/2MS+Mannose", "1/2MS+Galactose", "1/2MS+Arabinose", "1/2MS+Xylose", "1/2MS+Starch", "1/2MS+Carboxymethylcellulose", "1/2MS+Pectin", "1/2MS+Xylan"))
+cld_all$Carbon_source <- factor(cld_all$Carbon_source, levels = c ("1/2MS", "1/2MS+Glucose", "1/2MS+Mannose", "1/2MS+Galactose", "1/2MS+Arabinose", "1/2MS+Xylose", "1/2MS+Starch", "1/2MS+Carboxymethylcellulose", "1/2MS+Pectin", "1/2MS+Xylan"))
+n_counts$Carbon_source <- factor(n_counts$Carbon_source, levels = c ("1/2MS", "1/2MS+Glucose", "1/2MS+Mannose", "1/2MS+Galactose", "1/2MS+Arabinose", "1/2MS+Xylose", "1/2MS+Starch", "1/2MS+Carboxymethylcellulose", "1/2MS+Pectin", "1/2MS+Xylan"))
+
+raw_data_norm2$Carbon_category <- factor(raw_data_norm2$Carbon_category, levels = c ("Control", "Polysaccharides", "Monosaccharides"))
+cld_all$Carbon_category <- factor(cld_all$Carbon_category, levels = c ("Control", "Polysaccharides", "Monosaccharides"))
+n_counts$Carbon_category <- factor(n_counts$Carbon_category, levels = c ("Control", "Polysaccharides", "Monosaccharides"))
+
+#Only keep 1 week
+raw_data_norm2 <- subset(raw_data_norm2, Time_Points %in% c("D07"))
+cld_all <- subset(cld_all, Time_Points %in% c("D07"))
+n_counts <- subset(n_counts, Time_Points %in% c("D07"))
+
+# Plot
+plot_carbo <- ggplot(raw_data_norm2, aes(x = Carbon_source, y = Normalized, color = Organism)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_Rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette_Fungi) +
+  scale_color_manual(values = color_palette_Fungi) +
+  labs(y = "Microbial Expansion (Log2 FC 3OMG vs Water)", x = "", fill = "Organism", shape = "Biological Replicate") +
+  base_theme +
+  geom_text(data = cld_all, aes(x = Carbon_source, y = y_pos, label = p.adj.signif),
+            inherit.aes = FALSE, size = 4) +
+  geom_text(data = n_counts, aes(x = Carbon_source, y = y_pos_n, label = paste0("n=", n)),
+            inherit.aes = FALSE, size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  facet_grid(Time_Points ~ Carbon_category, scales = "free") +
+  ggh4x::facet_grid2(Time_Points ~ Carbon_category , space = "free", scales = "free", labeller = as_labeller(labels))
+plot_carbo
+```
+
+# C] Simple plot for presentation
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Subset pentoses
+raw_data_norm2 <- subset(raw_data_norm2, !Carbon_source %in% c("1/2MS+Xylan", "1/2MS+Arabinose", "1/2MS+Xylose"))
+cld_all <- subset(cld_all, !Carbon_source %in% c("1/2MS+Xylan", "1/2MS+Arabinose", "1/2MS+Xylose"))
+n_counts <- subset(n_counts, !Carbon_source %in% c("1/2MS+Xylan", "1/2MS+Arabinose", "1/2MS+Xylose"))
+n_counts
+
+raw_data_norm2 <- subset(raw_data_norm2, !Time_Points %in% c("D03"))
+cld_all <- subset(cld_all, !Time_Points %in% c("D03"))
+n_counts <- subset(n_counts, !Time_Points %in% c("D03"))
+
+# Plot
+plot_carbo_simplidy <- ggplot(raw_data_norm2, aes(x = Carbon_source, y = Normalized, color = Organism)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_Rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette_Fungi) +
+  scale_color_manual(values = color_palette_Fungi) +
+  labs(y = "Microbial Expansion (Log2 FC 3OMG vs Water)", x = "", fill = "Organism", shape = "Biological Replicate") +
+  base_theme +
+  geom_text(data = cld_all, aes(x = Carbon_source, y = y_pos, label = p.adj.signif),
+            inherit.aes = FALSE, size = 4) +
+  geom_text(data = n_counts, aes(x = Carbon_source, y = y_pos_n, label = paste0("n=", n)),
+            inherit.aes = FALSE, size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  facet_grid(Time_Points ~ Carbon_category, scales = "free") +
+  ggh4x::facet_grid2(Time_Points ~ Carbon_category , space = "free", scales = "free", labeller = as_labeller(labels))
+plot_carbo_simplidy
+```
+
+# D] All plots
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+plot_carbo_tot
+plot_carbo
+```
+
+---
+END
+---

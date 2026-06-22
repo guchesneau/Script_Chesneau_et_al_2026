@@ -1,0 +1,15 @@
+Sample_ID	Conditions	Microbes	Molecule	Rep
+m3OMG_F16_1	3OMG_F16	F16	3OMG	1
+m3OMG_F16_2	3OMG_F16	F16	3OMG	2
+m3OMG_F16_3	3OMG_F16	F16	3OMG	3
+m3OMG_F16_4	3OMG_F16	F16	3OMG	4
+m3OMG_microbeFree_1	3OMG_MF	MF	3OMG	1
+m3OMG_microbeFree_3	3OMG_MF	MF	3OMG	3
+m3OMG_microbeFree_4	3OMG_MF	MF	3OMG	4
+water_F16_1	Water_F16	F16	water	1
+water_F16_2	Water_F16	F16	water	2
+water_F16_3	Water_F16	F16	water	3
+water_F16_4	Water_F16	F16	water	4
+water_microbeFree_1	Water-MF	MF	water	1
+water_microbeFree_2	Water-MF	MF	water	2
+water_microbeFree_4	Water-MF	MF	water	4

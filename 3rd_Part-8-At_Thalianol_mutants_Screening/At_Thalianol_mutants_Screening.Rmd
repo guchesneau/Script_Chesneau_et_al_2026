@@ -1,0 +1,445 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+```
+
+```{r}
+#Load libraries
+library(ggplot2)
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(dplyr)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF","F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'BFSC'="Bacterial and Fungal<br>SynCom",
+  'BSC'="Bacterial<br>SynCom",
+  'FSC' = "Fungal<br>SynCom",
+  'F16' = "*Plectosphaerella*<br>*cucumerina*",
+  'F44' = "*Fusarium*<br>*tricinctum*",
+  'F64' = "*Alternaria*<br>*alternata*",
+  'F96' = "*Rhizoctonia*<br>*solani*",
+  'F100' = "*Boeremia*<br>*exigua*",
+  'F117' = "*Plectosphaerella*<br>*plurivora*",
+  'F147' = "*Dactylonectria*<br>*macrodidyma*",
+  'F212' = "*Fusarium*<br>*oxysporum*",
+  'F243' = "*Dendryphion*<br>*nanum*",
+  'Pu' = "*Globisporangium*<br>*ultimum*",
+  'Rs' = "*Ralstonia*<br>*solanacearum*",
+  'Bs' = "*Bipolaris*<br>*sorokiniana*",
+  'NoAMF' = "Microbe free",
+  'Vd' = "*Verticilium*<br> *dahliae*",
+  'AMF' = "*Rhizophagus*<br>*irregularis*",
+  'Fungi' = "Fungi",
+  'Oomycetes' = "Oomycetes",
+  'Bacteria' = "Bacteria",
+  'Flowpots' = "Flowpots",
+  'MS_agar' = "Agar 1/2 MS",
+  'Arabidopsis_thaliana' = "A. thaliana",
+  'Micro_Tomato' = "S. lycopersicum",
+  'Hordeum_vulgare' = "H. vulgare",
+  'D07' = "1 week",
+  'D14' = "2 weeks",
+  '5weeks' = "5 weeks",
+  "Col0" = "Col0",
+  "HXK1" = "HXK1", 
+  "TOR" = "TOR",
+  "RAPTOR1A"= "RAPTOR1A",
+  "STP1_13"= "STP1_13",
+  "RAPTOR1B"= "RAPTOR1B"
+)
+```
+
+# A] Thalianol Agar 
+
+## 1) Microbre-free
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Load data
+raw_data<-read.csv(file = "Results_Atmutant_thalianol_Full.csv", header = TRUE, sep=",")
+raw_data
+
+# Filter data
+df_plot <- raw_data %>%
+  filter(System == "Agar", Microbes == "MF")
+
+df_plot <- subset(df_plot, !Plant2 %in% c("ThaS1-1"))
+
+
+# Calculate replicate counts per Plant x Time x Treatment
+rep_counts <- df_plot %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Calculate germination rate per Plant x Time x Treatment
+germ_rate <- df_plot %>%
+  group_by(Plant, Time, Treatment, Seeds) %>%
+  summarise(Germinated = n(), .groups = "drop") %>%
+  mutate(GermRate = Germinated / Seeds) %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(GermRate = mean(GermRate), .groups = "drop")
+
+# Wilcoxon test per Plant x Time
+wilcox_results <- df_plot %>%
+  group_by(Plant, Time) %>%
+  wilcox_test(Root.length.Weight ~ Treatment, paired = FALSE) %>%
+  adjust_pvalue(method = "holm") %>%
+  mutate(p.label = paste0("p = ", signif(p.adj, 3))) %>%
+  group_by(Plant, Time) %>%
+  mutate(y.position = max(df_plot$Root.length.Weight[df_plot$Time == Time]) * 1.05) %>%
+  ungroup() %>%
+  subset(p.adj < 0.05)
+
+#Add column for plotting
+wilcox_results$Treatment <- c("Water")
+
+# Merge replicate counts and germination for plotting text
+rep_counts_text <- rep_counts %>%
+  mutate(label = paste0("n=", n))
+
+germ_rate_text <- germ_rate %>%
+  mutate(label = paste0("GR=", round(GermRate*100), "%"))
+
+#Order Time
+time_levels <- c("72h", "1week", "2weeks")
+df_plot$Time <- factor(df_plot$Time, levels = time_levels)
+rep_counts_text$Time <- factor(rep_counts_text$Time, levels = time_levels)
+germ_rate_text$Time <- factor(germ_rate_text$Time, levels = time_levels)
+wilcox_results$Time <- factor(wilcox_results$Time, levels = time_levels)
+
+# Calculer le ymin proportionnel par Time
+ymin_time <- df_plot %>%
+  group_by(Time) %>%
+  summarise(ymin = -(0.15 * max(Root.length.Weight, na.rm = TRUE)), .groups = "drop")
+
+#Add column for plotting
+ymin_time$Treatment <- c("Water")
+
+# Ajouter un geom_blank pour chaque facette pour forcer le min
+Plot_Root_MF <- ggplot(df_plot, aes(x = Treatment, y = Root.length.Weight, fill = Treatment)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.7)) +
+  geom_jitter(aes(shape = Bio_rep), width = 0.2, alpha = 0.7, size = 2) +
+  facet_grid(Time ~ Plant, scales = "free") +
+  scale_fill_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  geom_text(data = rep_counts_text,
+            aes(x = Treatment, y = 0, label = label),
+            position = position_dodge(width = 0.7),
+            vjust = 1.5, size = 3, inherit.aes = FALSE) +
+  geom_text(data = germ_rate_text,
+            aes(x = Treatment, y = 0, label = label),
+            position = position_dodge(width = 0.7),
+            vjust = 3, size = 3, inherit.aes = FALSE) +
+  stat_pvalue_manual(wilcox_results, label = "p.label", tip.length = 0.02) +
+geom_blank(data = ymin_time, aes(y = ymin)) +  # ici le min par Time
+  labs(x = "Treatment", y = "Root length (mm)",
+       title = "Note: Statistics are impossible if Water group has no variance") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 90, hjust = 1))
+
+Plot_Root_MF
+
+```
+
+## 2) P. cucumerina
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Load data
+raw_data<-read.csv(file = "Results_Atmutant_thalianol_Full.csv", header = TRUE, sep=",")
+raw_data
+
+# Filter data
+df_plot <- raw_data %>%
+  filter(System == "Agar", !Microbes == "MF")
+
+df_plot <- subset(df_plot, !Plant2 %in% c("ThaS1-1"))
+
+
+# Calculate replicate counts per Plant x Time x Treatment
+rep_counts <- df_plot %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Calculate germination rate per Plant x Time x Treatment
+germ_rate <- df_plot %>%
+  group_by(Plant, Time, Treatment, Seeds) %>%
+  summarise(Germinated = n(), .groups = "drop") %>%
+  mutate(GermRate = Germinated / Seeds) %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(GermRate = mean(GermRate), .groups = "drop")
+
+# Wilcoxon test per Plant x Time
+wilcox_results <- df_plot %>%
+  group_by(Plant, Time) %>%
+  wilcox_test(Root.length.Weight ~ Treatment, paired = FALSE) %>%
+  adjust_pvalue(method = "holm") %>%
+  mutate(p.label = paste0("p = ", signif(p.adj, 3))) %>%
+  group_by(Plant, Time) %>%
+  mutate(y.position = max(df_plot$Root.length.Weight[df_plot$Time == Time]) * 1.05) %>%
+  ungroup() %>%
+  subset(p.adj < 0.05)
+
+#Add column for plotting
+wilcox_results$Treatment <- c("Water")
+
+# Merge replicate counts and germination for plotting text
+rep_counts_text <- rep_counts %>%
+  mutate(label = paste0("n=", n))
+
+germ_rate_text <- germ_rate %>%
+  mutate(label = paste0("GR=", round(GermRate*100), "%"))
+
+#Order Time
+time_levels <- c("72h", "1week", "2weeks")
+df_plot$Time <- factor(df_plot$Time, levels = time_levels)
+rep_counts_text$Time <- factor(rep_counts_text$Time, levels = time_levels)
+germ_rate_text$Time <- factor(germ_rate_text$Time, levels = time_levels)
+wilcox_results$Time <- factor(wilcox_results$Time, levels = time_levels)
+
+#Order Treatment
+Treatment_levels <- c("Water", "3OMG")
+df_plot$Treatment <- factor(df_plot$Treatment, levels = Treatment_levels)
+rep_counts_text$Treatment <- factor(rep_counts_text$Treatment, levels = Treatment_levels)
+germ_rate_text$Treatment <- factor(germ_rate_text$Treatment, levels = Treatment_levels)
+wilcox_results$Treatment <- factor(wilcox_results$Treatment, levels = Treatment_levels)
+
+# Calculer le ymin proportionnel par Time
+ymin_time <- df_plot %>%
+  group_by(Time) %>%
+  summarise(ymin = -(0.15 * max(Root.length.Weight, na.rm = TRUE)), .groups = "drop")
+
+#Add column for plotting
+ymin_time$Treatment <- c("Water")
+
+# Make the plot
+# Plot
+Plot_Root_F16 <- ggplot(df_plot, aes(x = Treatment, y = Root.length.Weight, fill = Treatment)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.7)) +
+  geom_jitter(aes(shape = Bio_rep), width = 0.2, alpha = 0.7, size = 2) +
+  facet_grid(Time ~ Plant, scales = "free") + 
+  scale_fill_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  geom_text(data = rep_counts_text,
+            aes(x = Treatment, y = 0, label = label),
+            position = position_dodge(width = 0.7),
+            vjust = 1.5, size = 3, inherit.aes = FALSE) +
+  geom_text(data = germ_rate_text,
+            aes(x = Treatment, y = 0, label = label),
+            position = position_dodge(width = 0.7),
+            vjust = 3, size = 3, inherit.aes = FALSE) +
+  stat_pvalue_manual(wilcox_results, label = "p.label", tip.length = 0.02) +
+  labs(x = "Treatment", y = "Root length (mm)",
+       title = "Note: Statistics are impossible if Water group has no variance") +
+  geom_blank(data = ymin_time, aes(y = ymin)) +  # ici le min par Time
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 90, hjust = 1))
+
+Plot_Root_F16
+```
+
+
+# B] Thalianol Flowpots 
+
+## 1) Microbre-free
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Filtrer le système Flowpots et Microbes MF
+df_plot <- raw_data %>%
+  filter(System == "Flowpots", Microbes == "MF")
+
+#Remove stp1-13 (not for that experiment)
+df_plot <- subset(df_plot, !Plant %in% c("STP1+13"))
+
+# Calculate germination rate correctly
+df_plot$GermRate <- df_plot$Nb * 100 / df_plot$Seeds
+
+# Calculer PPI
+df_plot <- df_plot %>%
+  mutate(PPI = Root.length.Weight * GermRate)
+
+# Réplicats pour annotation
+rep_counts <- df_plot %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(label = paste0("n=", n))
+
+# Moyenne GermRate pour annotation
+germ_rate_text <- df_plot %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(GermRate = mean(GermRate, na.rm = TRUE), .groups = "drop") %>%
+  mutate(label = paste0("GR=", round(GermRate), "%"))
+
+# Wilcoxon test sur PPI par Plant x Time
+alpha <- 0.05
+
+# Calculer une seule y.position par Plant
+y_pos <- df_plot %>%
+  group_by(Plant) %>%
+  summarise(y.position = max(PPI, na.rm = TRUE) * 1.05, .groups = "drop")
+
+# Test Wilcoxon
+wilcox_results <- df_plot %>%
+  group_by(Plant, Time) %>%
+  wilcox_test(PPI ~ Treatment, paired = FALSE) %>%
+  adjust_pvalue(method = "holm") %>%
+  mutate(p.label = ifelse(p.adj < alpha, paste0("p = ", signif(p.adj, 3)), NA)) %>%
+  filter(!is.na(p.label)) %>%
+  left_join(y_pos, by = "Plant")  # ajouter la y.position globale
+
+
+# Réordonner facteurs
+Treatment_levels <- c("Water", "3OMG")
+
+df_plot$Treatment <- factor(df_plot$Treatment, levels = Treatment_levels)
+rep_counts$Treatment <- factor(rep_counts$Treatment, levels = Treatment_levels)
+germ_rate_text$Treatment <- factor(germ_rate_text$Treatment, levels = Treatment_levels)
+wilcox_results$Treatment <- factor(wilcox_results$Treatment, levels = Treatment_levels)
+
+# Plot PPI
+Plot_PPI_MF <- ggplot(df_plot, aes(x = Treatment, y = PPI, fill = Treatment)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.7)) +
+  geom_jitter(aes(shape = Bio_rep), width = 0.2, alpha = 0.7, size = 2) +
+  facet_grid(Time ~ Plant, scales = "free") +
+  geom_text(data = rep_counts, aes(x = Treatment, y = 0, label = label),
+            position = position_dodge(width = 0.7), vjust = 1.5, size = 3, inherit.aes = FALSE) +
+  geom_text(data = germ_rate_text, aes(x = Treatment, y = -1, label = label),
+            position = position_dodge(width = 0.7), vjust = 3, size = 3, inherit.aes = FALSE) +
+  stat_pvalue_manual(wilcox_results, label = "p.label", tip.length = 0.02) +
+  scale_fill_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  labs(x = "Treatment", y = "Plant Performance Index (PPI)",
+       title = "PPI = Root length × Germination rate") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylim(-200,2500)
+
+Plot_PPI_MF
+```
+
+
+## 2) P. cucumerina
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Filtrer le système Flowpots et Microbes MF
+df_plot <- raw_data %>%
+  filter(System == "Flowpots", !Microbes == "MF")
+
+#Remove stp1-13 (not for that experiment)
+df_plot <- subset(df_plot, !Plant %in% c("STP1+13"))
+
+# Calculate germination rate correctly
+df_plot$GermRate <- df_plot$Nb * 100 / df_plot$Seeds
+
+# Calculer PPI
+df_plot <- df_plot %>%
+  mutate(PPI = Root.length.Weight * GermRate)
+
+# Réplicats pour annotation
+rep_counts <- df_plot %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(label = paste0("n=", n))
+
+# Moyenne GermRate pour annotation
+germ_rate_text <- df_plot %>%
+  group_by(Plant, Time, Treatment) %>%
+  summarise(GermRate = mean(GermRate, na.rm = TRUE), .groups = "drop") %>%
+  mutate(label = paste0("GR=", round(GermRate), "%"))
+
+# Wilcoxon test sur PPI par Plant x Time
+alpha <- 0.05
+
+# Calculer une seule y.position par Plant
+y_pos <- df_plot %>%
+  summarise(y.position = max(PPI, na.rm = TRUE) * 1.05, .groups = "drop")
+y_pos$Time <- c("5weeks")
+
+# Test Wilcoxon
+wilcox_results <- df_plot %>%
+  group_by(Plant, Time) %>%
+  wilcox_test(PPI ~ Treatment, paired = FALSE) %>%
+  adjust_pvalue(method = "holm") %>%
+  mutate(p.label = ifelse(p.adj < alpha, paste0("p = ", signif(p.adj, 3)), NA)) %>%
+  filter(!is.na(p.label)) %>%
+  left_join(y_pos, by = "Time")  # ajouter la y.position globale
+
+#Add a column for plotting
+wilcox_results$Treatment <- c("Water")
+
+# Réordonner facteurs
+Treatment_levels <- c("Water", "3OMG")
+
+df_plot$Treatment <- factor(df_plot$Treatment, levels = Treatment_levels)
+rep_counts$Treatment <- factor(rep_counts$Treatment, levels = Treatment_levels)
+germ_rate_text$Treatment <- factor(germ_rate_text$Treatment, levels = Treatment_levels)
+wilcox_results$Treatment <- factor(wilcox_results$Treatment, levels = Treatment_levels)
+
+# Plot PPI
+Plot_PPI_F16 <- ggplot(df_plot, aes(x = Treatment, y = PPI, fill = Treatment)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.7)) +
+  geom_jitter(aes(shape = Bio_rep), width = 0.2, alpha = 0.7, size = 2) +
+  facet_grid(Time ~ Plant, scales = "free") +
+  geom_text(data = rep_counts, aes(x = Treatment, y = 0, label = label),
+            position = position_dodge(width = 0.7), vjust = 1.5, size = 3, inherit.aes = FALSE) +
+  geom_text(data = germ_rate_text, aes(x = Treatment, y = -1, label = label),
+            position = position_dodge(width = 0.7), vjust = 3, size = 3, inherit.aes = FALSE) +
+  stat_pvalue_manual(wilcox_results, label = "p.label", tip.length = 0.02) +
+  scale_fill_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  labs(x = "Treatment", y = "Plant Performance Index (PPI)",
+       title = "PPI = Root length × Germination rate") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylim(-200, 5200)
+
+Plot_PPI_F16
+```
+
+---
+END
+---
+

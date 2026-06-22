@@ -1,0 +1,325 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "")
+
+# Load libraries
+library(cowplot)
+library(dplyr)
+library(dunn.test)
+library(ggplot2)
+library(ggpubr)
+library(ggtext)
+library(ggthemes)
+library(markdown)
+library(rstatix)
+library(tidyr)
+
+theme_set(theme_bw())
+```
+
+# Before you start
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+
+```{r R version}
+R.version
+```
+
+```{r}
+# Plot colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75)
+  )
+
+# Set the levels of the experiment
+Microbes_levels <- c("MF", "F16")
+Treatment_levels <- c("Water", "3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'F16' = "*Plectosphaerella*<br>*cucumerina*",
+  'MS_agar' = "Agar 1/2 MS",
+  'Arabidopsis_thaliana' = "A. thaliana",
+  'D07' = "1 week",
+  'D14' = "2 weeks",
+  "Col0" = "Col0",
+  "HXK1" = "HXK1", 
+  "TOR" = "TOR",
+  "RAPTOR1A" = "RAPTOR1A",
+  "STP1_13" = "STP1_13",
+  "RAPTOR1B" = "RAPTOR1B"
+)
+```
+
+# A] Arabidopsis root length MF
+
+```{r roots-mf, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+# Load data
+raw_data <- read.csv(file = "At_mutants_Roots_Final.csv", header = TRUE, sep = ",")
+raw_data
+
+# Remove Hexokinase + Raptor1B
+raw_data <- subset(raw_data, !Plant %in% c("HXK1", "RAPTOR1B"))
+
+# Keep just MF
+raw_data_MF <- subset(raw_data, Microbes %in% c("MF"))
+
+# Compute one p-value y-position per time point.
+y_positions <- raw_data_MF %>%
+  group_by(Time_Point) %>%
+  summarise(max_root = max(Root_Length, na.rm = TRUE), .groups = "drop") %>%
+  mutate(y.position = max_root * 1.05)
+
+# Compute Wilcoxon tests between treatments for each time point and plant.
+stat_test <- raw_data_MF %>%
+  group_by(Time_Point, Plant) %>%
+  wilcox_test(Root_Length ~ Treatment) %>%
+  add_significance("p") %>%
+  adjust_pvalue(method = "BH") %>%
+  ungroup() %>%
+  # join y.position per Time_Point
+  left_join(y_positions, by = "Time_Point") %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+
+# Add x-position for p-value brackets.
+stat_test$Treatment <- c("Water")
+
+# Compute the Col0 Water median used as a dashed reference line.
+median_line <- raw_data_MF %>%
+  filter(Treatment == "Water", Plant == "Col0") %>%
+  group_by(Time_Point) %>%
+  summarise(median_root = median(Root_Length, na.rm = TRUE))
+
+
+# Create a column with "P = ..." formatting.
+stat_test <- stat_test %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+# Order treatments and plants for plotting.
+raw_data_MF$Treatment <- factor(raw_data_MF$Treatment, levels = c("Water", "3OMG"))
+raw_data_MF$Plant <- factor(raw_data_MF$Plant, levels = c("Col0", "STP1_13", "HXK1", "TOR", "RAPTOR1A", "RAPTOR1B"))
+stat_test$Plant <- factor(stat_test$Plant, levels = c("Col0", "STP1_13", "HXK1", "TOR", "RAPTOR1A", "RAPTOR1B"))
+
+# Add number of replicates displayed inside each facet.
+n_labels <- raw_data_MF %>%
+  group_by(Treatment, Time_Point, Plant) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+# Plot with ggplot and add stats.
+plot_mutant_Roots_MF <- ggplot(raw_data_MF, aes(x = Treatment, y = Root_Length, fill = Treatment)) +
+  geom_jitter(aes(shape = as.character(Bio_rep)), alpha = 0.5, size = 1, width = 0.2, height = 0) +
+   geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values = color_palette) +
+   facet_wrap(~ Time_Point + Plant,
+             labeller = as_labeller(labels),
+             scales = "free",
+             nrow = 2) +
+  labs(y = "Root Length (mm)", x = "", fill = "Treatment", shape = "Biological Replicate") +
+  base_theme +
+  stat_pvalue_manual(stat_test, label = "label_text", tip.length = 0.02, hide.ns = TRUE, size = 3) +
+  geom_hline(data = median_line, aes(yintercept = median_root),
+             linetype = "dashed", color = "black")+
+   geom_text(
+    data = n_labels,
+    aes(x = Treatment, y = 0.5, label = paste0("n=", n)),
+    size = 3, inherit.aes = FALSE
+  )
+
+
+plot_mutant_Roots_MF
+
+
+# Make plot per Time 1W.
+plot_mutant_Roots_MF_1W <- ggplot(
+  subset(raw_data_MF, Time_Point == "D07"),
+  aes(x = Treatment, y = Root_Length, fill = Treatment)
+) +
+  geom_jitter(aes(shape = as.character(Bio_rep)),
+              alpha = 0.5, size = 1, width = 0.2, height = 0) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values = color_palette) +
+  facet_wrap(~ Plant,
+             labeller = as_labeller(labels),
+             scales = "free",
+             nrow = 2) +
+  labs(y = "Root Length (mm)", x = "",
+       fill = "Treatment", shape = "Biological Replicate",
+       title = "Time_Point T1") +
+  base_theme +
+  stat_pvalue_manual(stat_test %>% dplyr::filter(Time_Point == "D07"),
+                     label = "label_text",
+                     tip.length = 0.02,
+                     hide.ns = TRUE,
+                     size = 3) +
+  geom_hline(data = median_line %>% dplyr::filter(Time_Point == "D07"),
+             aes(yintercept = median_root),
+             linetype = "dashed") +
+  geom_text(data = n_labels %>% dplyr::filter(Time_Point == "D07"),
+            aes(x = Treatment, y = 0.5, label = paste0("n=", n)),
+            size = 3,
+            inherit.aes = FALSE) +
+   ylim(-1,28)
+plot_mutant_Roots_MF_1W
+
+# Make plot per Time 2W.
+plot_mutant_Roots_MF_2W <- ggplot(
+  subset(raw_data_MF, Time_Point == "D14"),
+  aes(x = Treatment, y = Root_Length, fill = Treatment)
+) +
+  geom_jitter(aes(shape = as.character(Bio_rep)),
+              alpha = 0.5, size = 1, width = 0.2, height = 0) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values = color_palette) +
+  facet_wrap(~ Plant,
+             labeller = as_labeller(labels),
+             scales = "free",
+             nrow = 2) +
+  labs(y = "Root Length (mm)", x = "",
+       fill = "Treatment", shape = "Biological Replicate",
+       title = "Time_Point T2") +
+  base_theme +
+  stat_pvalue_manual(stat_test %>% dplyr::filter(Time_Point == "D14"),
+                     label = "label_text",
+                     tip.length = 0.02,
+                     hide.ns = TRUE,
+                     size = 3) +
+  geom_hline(data = median_line %>% dplyr::filter(Time_Point == "D14"),
+             aes(yintercept = median_root),
+             linetype = "dashed") +
+  geom_text(data = n_labels %>% dplyr::filter(Time_Point == "D14"),
+            aes(x = Treatment, y = 0.5, label = paste0("n=", n)),
+            size = 3,
+            inherit.aes = FALSE) +
+  ylim(-1,85)
+plot_mutant_Roots_MF_2W
+```
+
+
+# B] Arabidopsis root length F16
+
+```{r roots-f16, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+# Load data
+raw_data <- read.csv(file = "At_mutants_Roots_Final.csv", header = TRUE, sep = ",")
+raw_data
+
+# Remove Hexokinase + Raptor1B
+raw_data <- subset(raw_data, !Plant %in% c("HXK1", "RAPTOR1B"))
+
+# Keep just F16
+raw_data_MF <- subset(raw_data, Microbes %in% c("F16"))
+
+# Compute one p-value y-position per time point.
+y_positions <- raw_data_MF %>%
+  group_by(Time_Point) %>%
+  summarise(max_root = max(Root_Length, na.rm = TRUE), .groups = "drop") %>%
+  mutate(y.position = max_root * 1.05)
+
+
+# Compute Wilcoxon tests between treatments for each time point and plant.
+stat_test <- raw_data_MF %>%
+  group_by(Time_Point, Plant) %>%
+  wilcox_test(Root_Length ~ Treatment) %>%
+  add_significance("p") %>%
+  adjust_pvalue(method = "BH") %>%
+  ungroup() %>%
+  # join y.position per Time_Point
+  left_join(y_positions, by = "Time_Point") %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+
+# Add x-position for p-value brackets.
+stat_test$Treatment <- c("Water")
+
+
+# Compute the Col0 Water median used as a dashed reference line.
+median_line <- raw_data_MF %>%
+  filter(Treatment == "Water", Plant == "Col0") %>%
+  group_by(Time_Point) %>%
+  summarise(median_root = median(Root_Length, na.rm = TRUE))
+
+
+# Create a column with "P = ..." formatting.
+stat_test <- stat_test %>%
+  mutate(label_text = paste0("P = ", signif(p.adj, 3)))
+
+# Order treatments and plants for plotting.
+raw_data_MF$Treatment <- factor(raw_data_MF$Treatment, levels = c("Water", "3OMG"))
+
+# Add number of replicates displayed inside each facet.
+n_labels <- raw_data_MF %>%
+  group_by(Treatment, Time_Point, Plant) %>%
+  summarise(n = n(), .groups = "drop")
+
+raw_data_MF$Plant <- factor(raw_data_MF$Plant, levels = c("Col0", "STP1_13", "HXK1", "TOR", "RAPTOR1A", "RAPTOR1B"))
+stat_test$Plant <- factor(stat_test$Plant, levels = c("Col0", "STP1_13", "HXK1", "TOR", "RAPTOR1A", "RAPTOR1B"))
+n_labels$Plant <- factor(n_labels$Plant, levels = c("Col0", "STP1_13", "HXK1", "TOR", "RAPTOR1A", "RAPTOR1B"))
+
+# Plot with ggplot and add stats.
+plot_mutant_Roots_F16 <- ggplot(raw_data_MF, aes(x = Treatment, y = Root_Length, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(shape = as.character(Bio_rep)), alpha = 0.5, size = 1.5, width = 0.2, height = 0) +
+  scale_fill_manual(values = color_palette) +
+   facet_wrap(~ Plant,
+             labeller = as_labeller(labels),
+             scales = "free",
+             nrow = 2) +
+  labs(y = "Root Length (mm)", x = "", fill = "Treatment", shape = "Biological Replicate") +
+  base_theme +
+  stat_pvalue_manual(stat_test, label = "label_text",y.position = 15, tip.length = 0.01, hide.ns = TRUE, size = 3) +
+  geom_hline(data = median_line, aes(yintercept = median_root),
+             linetype = "dashed", color = "black")+
+  ylim(-0.8, 16) +
+   geom_text(
+    data = n_labels,
+    aes(x = Treatment, y = 0.5, label = paste0("n=", n)),
+    vjust = 1.5, size = 3, inherit.aes = FALSE
+  )
+
+
+plot_mutant_Roots_F16
+
+```
+
+
+# C]  All plots Plant
+
+```{r all-plots, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+plot_mutant_Roots_MF
+plot_mutant_Roots_MF
+# Expected from the full analysis script; this object is not created in this pasted excerpt.
+plot_mutant_Shoots_MF
+plot_mutant_Roots_MF_1W
+plot_mutant_Roots_MF_2W
+
+# Create an empty plot
+empty_plot <- ggplot() + 
+  theme_void()  # completely blank
+plot_mutant_Roots_MF_2W
+Plot_Supp <- plot_grid(plot_mutant_Roots_MF_1W, plot_mutant_Roots_F16, rel_heights = c(1,1), rel_widths = c(1,1), nrow=1,   align="hv",  axis = "tb")
+Plot_Supp
+```
+
+
+---
+END
+---

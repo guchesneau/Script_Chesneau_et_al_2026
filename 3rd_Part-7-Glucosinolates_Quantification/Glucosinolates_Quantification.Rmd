@@ -1,0 +1,209 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+```
+
+```{r plot-settings, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load libraries
+library(cowplot)
+library(dplyr)
+library(forcats)
+library(ggplot2)
+library(ggtext)
+library(scales)
+library(tidyr)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75)
+  )
+
+```
+
+# A] Prepare data
+
+```{r prepare-data, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Read the data
+df <- read.csv(file = "Df_Glucosinolates_Cam_Results.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+
+# Keep only the two microbe conditions used in the figures.
+df <- subset(df, Microbe %in% c("MF", "F16"))
+
+# Convert to long format
+df_long <- data.frame(df %>%
+  pivot_longer(
+    cols = 10:ncol(df),
+    names_to = "Glucosinolates",
+    values_to = "PEAK.AREA"
+  ))
+
+# Remove pool samples before plotting.
+df_long <- subset(df_long, !Carbon %in% c("Pool"))
+
+# Normalize peak area by shoot fresh weight.
+df_long <- df_long %>%
+  mutate(normalized_PEAK_Area = PEAK.AREA / SFW.Plant)
+
+# Keep compounds with available standards.
+df_long <- subset(df_long, Glucosinolates %in% c("X2pe.GLS", "X4MOI3M.GLS",  "X4msb.GLS", "X4mtb.GLS", "I3M.GLS",  "NMOI3M.GLS" , "Camalexin"))
+
+# Rename compounds for plotting.
+df_long <- df_long %>%
+  mutate(Glucosinolates = case_when(
+    Glucosinolates == "X2.S..3but.GLS" ~ "2.sulfinyl.3.butenyl.GLS",
+    Glucosinolates == "X2pe.GLS" ~ "2.phenylethyl.GLS",
+    Glucosinolates == "X3bzo.GLS" ~ "3.Benzoyl.GLS",
+    Glucosinolates == "X3but.GLS" ~ "3.Butenyl.GLS",
+    Glucosinolates == "X3msp.GLS" ~ "3.Methylsulfinylpropyl.GLS",
+    Glucosinolates == "X4bzo.GLS" ~ "4.Benzoyl.GLS",
+    Glucosinolates == "X4MOI3M.GLS" ~ "4.Methoxy.Indole.3.Methyl.GLS",
+    Glucosinolates == "X4msb.GLS" ~ "4.Methylsulfonylbutyl.GLS",
+    Glucosinolates == "X4mtb.GLS" ~ "4.Methylthio.butyl.GLS",
+    Glucosinolates == "X5msp.GLS" ~ "5.Methylsulfinylpentyl.GLS",
+    Glucosinolates == "X7msh" ~ "7.Methylsulfonylheptyl",
+    Glucosinolates == "X7mth.GLS" ~ "7.Methylthioheptyl.GLS",
+    Glucosinolates == "X8mso.GLS" ~ "8.Methanesulfonyl.octyl.GLS",
+    Glucosinolates == "X8mto.GLS" ~ "8.Methylthiooctyl.GLS",
+    Glucosinolates == "X9msn.GLS" ~ "9.methylsulfonylnonyl.GLS",
+    Glucosinolates == "I3M.GLS" ~ "Indole.3.Methyl.GLS",
+    Glucosinolates == "NMOI3M.GLS" ~ "N.Methoxy.Indole.3.Methyl.GLS",
+    Glucosinolates == "Camalexin" ~ "Camalexin",
+    TRUE ~ Glucosinolates
+  ))
+```
+
+# B] HeatMap 72h
+
+```{r heatmap-72h, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Keep only 72h samples.
+df_long2 <- subset(df_long, Time.point %in% c("72h"))
+
+# Z-scale normalized peak area per compound without aggregation.
+df_long_scaled <- df_long2 %>%
+  group_by(Glucosinolates) %>%
+  mutate(z_scaled_PEAK_Area = scale(normalized_PEAK_Area)) %>%
+  ungroup()
+
+# Place Camalexin last.
+df_long_scaled <- df_long_scaled %>%
+  mutate(Glucosinolates = fct_relevel(Glucosinolates, "Camalexin", after = Inf))
+
+# Order conditions for plotting.
+df_long_scaled$Carbon <- factor(df_long_scaled$Carbon,
+                                    levels = c("Water", "3OMG"))
+
+df_long_scaled$Microbe <- factor(df_long_scaled$Microbe,
+                                 levels = c("MF", "F16"))
+
+df_long_scaled$Time.point <- factor(df_long_scaled$Time.point, levels = c("72h", "1week"))
+
+# Plot zeros as missing values.
+df_long_scaled$z_plot <- ifelse(df_long_scaled$PEAK.AREA == 0, NA, df_long_scaled$z_scaled_PEAK_Area)
+
+# Plot heatmap
+HeatMap_72h <- ggplot(df_long_scaled, aes(x = FEATURE_ID, y = Glucosinolates, fill = z_plot)) +
+  geom_tile(color = "white") +
+  scale_fill_gradientn(
+    colors = c("white", "lightblue", "#74add1", "black"),
+    values = scales::rescale(c(-2, 0, 1, 2)),
+    limits = c(min(df_long_scaled$z_scaled_PEAK_Area, na.rm = TRUE),
+               max(df_long_scaled$z_scaled_PEAK_Area, na.rm = TRUE)),
+    na.value = "gray"
+  ) +
+  labs(title = "Z-scaled Heatmap of Normalized Peak Area",
+       x = "Feature ID",
+       y = "Glucosinolates",
+       fill = "Z-scaled Peak Area") +
+  base_theme +
+  theme(legend.position = "bottom",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank()) +
+  facet_grid(Time.point ~ Microbe + Carbon, scales = "free",
+             labeller = labeller(Microbe = c("F16" = "P. cucumerina", "MF" = "Microbe Free")))
+
+HeatMap_72h
+```
+
+# C] HeatMap 1week
+
+```{r heatmap-1week, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Keep only 1 week samples.
+df_long2 <- subset(df_long, Time.point %in% c("1week"))
+
+# Z-scale normalized peak area per compound without aggregation.
+df_long_scaled <- df_long2 %>%
+  group_by(Glucosinolates) %>%
+  mutate(z_scaled_PEAK_Area = scale(normalized_PEAK_Area)) %>%
+  ungroup()
+
+# Place Camalexin last.
+df_long_scaled <- df_long_scaled %>%
+  mutate(Glucosinolates = fct_relevel(Glucosinolates, "Camalexin", after = Inf))
+
+# Order conditions for plotting.
+df_long_scaled$Carbon <- factor(df_long_scaled$Carbon,
+                                    levels = c("Water", "3OMG"))
+
+df_long_scaled$Microbe <- factor(df_long_scaled$Microbe,
+                                 levels = c("MF", "F16"))
+
+df_long_scaled$Time.point <- factor(df_long_scaled$Time.point, levels = c("72h", "1week"))
+
+# Plot zeros as missing values.
+df_long_scaled$z_plot <- ifelse(df_long_scaled$PEAK.AREA == 0, NA, df_long_scaled$z_scaled_PEAK_Area)
+
+# Plot heatmap
+HeatMap_1w <- ggplot(df_long_scaled, aes(x = FEATURE_ID, y = Glucosinolates, fill = z_plot)) +
+  geom_tile(color = "white") +
+  scale_fill_gradientn(
+    colors = c("white", "lightblue", "#74add1", "black"),
+    values = scales::rescale(c(-2, 0, 1, 2)),
+    limits = c(min(df_long_scaled$z_scaled_PEAK_Area, na.rm = TRUE),
+               max(df_long_scaled$z_scaled_PEAK_Area, na.rm = TRUE)),
+    na.value = "gray"
+  ) +
+  labs(title = "Z-scaled Heatmap of Normalized Peak Area",
+       x = "Feature ID",
+       y = "Glucosinolates",
+       fill = "Z-scaled Peak Area") +
+  base_theme +
+  theme(legend.position = "bottom",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank()) +
+  facet_grid(Time.point ~ Microbe + Carbon, scales = "free",
+             labeller = labeller(Microbe = c("F16" = "P. cucumerina", "MF" = "Microbe Free")))
+
+HeatMap_1w
+```
+
+# D] Figure Final
+
+```{r figure-final, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Plot_Comb1 <- plot_grid(HeatMap_72h, HeatMap_1w , rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,ncol=1,   align="hv",  axis = "tb")
+Plot_Comb1
+```
+
+---
+END
+---

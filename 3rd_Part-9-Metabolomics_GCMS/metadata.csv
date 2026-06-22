@@ -1,0 +1,59 @@
+﻿Sample_ID,Samples,Plate,N° Tube,Condition,Plant_Compartment,Sample_including_3OMG,Tare,Tare+Plant,Plant,mg,norm.fact,norm.fact2,Initial volumn,sample_type
+1,X1.MS.Shoot,C12,1,MS.Shoot,Plant Tissues,No,1.2728,1.2945,0.0217,21.7,21.7,400,NA,Ground
+2,X2.MS.Shoot,C12,2,MS.Shoot,Plant Tissues,No,1.278,1.2988,0.0208,20.8,20.8,400,NA,Ground
+3,X3.MS.Shoot,C12,3,MS.Shoot,Plant Tissues,No,1.2731,1.2939,0.0208,20.8,20.8,400,NA,Ground
+4,X4.MS.Root,C12,4,MS.Root,Plant Tissues,No,1.2735,1.2789,0.0054,5.4,5.4,400,NA,Ground
+5,X5.MS.Root,C12,5,MS.Root,Plant Tissues,No,1.2676,1.2712,0.0036,3.6,3.6,400,NA,Ground
+6,X6.MS.Root,C12,6,MS.Root,Plant Tissues,No,1.2685,1.2728,0.0043,4.3,4.3,400,NA,Ground
+7,X7.MS.Glucose.Root,C11,7,MS.Root+Glucose,Plant Tissues,No,1.2672,1.273,0.0058,5.8,5.8,400,NA,Ground
+8,X8.MS.Glucose.Root,C11,8,MS.Root+Glucose,Plant Tissues,No,1.2738,1.2794,0.0056,5.6,5.6,400,NA,Ground
+9,X9.MS.Glucose.Root,C11,9,MS.Root+Glucose,Plant Tissues,No,1.2745,1.2799,0.0054,5.4,5.4,400,NA,Ground
+10,X10.MS.3OMG.Root,C6,10,MS.Root+3OMG,Plant Tissues,Yes,1.2769,1.282,0.0051,5.1,5.1,400,NA,Ground
+11,X11.MS.3OMG.Root,C6,11,MS.Root+3OMG,Plant Tissues,Yes,1.275,1.2793,0.0043,4.3,4.3,400,NA,Ground
+12,X12.MS.3OMG.Root,C6,12,MS.Root+3OMG,Plant Tissues,Yes,1.2753,1.2814,0.0061,6.1,6.1,400,NA,Ground
+13,X13.MS.Glucose.3OMG.Root,C1,13,MS.Root+Glucose+3OMG,Plant Tissues,Yes,1.2736,1.2796,0.006,6,6,400,NA,Ground
+14,X14.MS.Glucose.3OMG.Root,C1,14,MS.Root+Glucose+3OMG,Plant Tissues,Yes,1.2732,1.2773,0.0041,4.1,4.1,400,NA,Ground
+15,X15.MS.Glucose.3OMG.Root,C1,15,MS.Root+Glucose+3OMG,Plant Tissues,Yes,1.2734,1.2766,0.0032,3.2,3.2,400,NA,Ground
+16,X16.CAS.Soil.Wash.Soil,NA,16,CAS-Soil-Wash,Substrates,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+17,X17.CAS.Soil.Wash.Soil,NA,17,CAS-Soil-Wash,Substrates,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+18,X18.CAS.Soil.Wash.Soil,NA,18,CAS-Soil-Wash,Substrates,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+19,X19.Peat.Wash.Peat,NA,19,Peat-Wash,Substrates,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+20,X20.Peat.Wash.Peat,NA,20,Peat-Wash,Substrates,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+21,X21.Peat.Wash.Peat,NA,21,Peat-Wash,Substrates,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+22,X22.Water.Control.Water,NA,22,Water-Control,Water,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+23,X23.Water.Control.Water,NA,23,Water-Control,Water,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+24,X24.Water.Control.Water,NA,24,Water-Control,Water,No,NA,NA,NA,NA,5,950,5mL,Lyophilized
+25,X25.seedcoat.Arabidopsis,NA,25,seedcoat Arabidopsis,Seed tissues,No,NA,NA,NA,150 graines,150,400,NA,NA
+26,X26.seedcoat.Arabidopsis,NA,26,seedcoat Arabidopsis,Seed tissues,No,NA,NA,NA,150 graines,150,400,NA,NA
+27,X27.seedcoat.Arabidopsis,NA,27,seedcoat Arabidopsis,Seed tissues,No,NA,NA,NA,150 graines,150,400,NA,NA
+28,X28.Embryon.Arabidopsis,NA,28,Embryon Arabidopsis,Seed tissues,No,NA,NA,NA,150 graines,150,400,NA,NA
+29,X29.Embryon.Arabidopsis,NA,29,Embryon Arabidopsis,Seed tissues,No,NA,NA,NA,150 graines,150,400,NA,NA
+30,X30.Embryon.Arabidopsis,NA,30,Embryon Arabidopsis,Seed tissues,No,NA,NA,NA,150 graines,150,400,NA,NA
+31,QC1,NA,31,QC,QC,QC,QC,QC,QC,QC,NA,300,QC,QC
+32,QC2,NA,32,QC,QC,QC,QC,QC,QC,QC,NA,300,QC,QC
+33,QC3,NA,33,QC,QC,QC,QC,QC,QC,QC,NA,300,QC,QC
+34,blanc1,NA,34,Blanc,Blanc,Blanc,Blanc,Blanc,Blanc,Blanc,NA,300,Blanc,Blanc
+35,blanc2,NA,35,Blanc,Blanc,Blanc,Blanc,Blanc,Blanc,Blanc,NA,300,Blanc,Blanc
+36,blanc3,NA,36,Blanc,Blanc,Blanc,Blanc,Blanc,Blanc,Blanc,NA,300,Blanc,Blanc
+37,XQC1,NA,1,QC,QC,QC,QC,QC,QC,QC,NA,300,QC,QC
+38,XQC2,NA,2,QC,QC,QC,QC,QC,QC,QC,NA,300,QC,QC
+39,XQC3,NA,3,QC,QC,QC,QC,QC,QC,QC,NA,300,QC,QC
+40,Exsudat.Arabido.A1,NA,4,Exudates.Arabido,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+41,Exsudat.Arabido.A2,NA,5,Exudates.Arabido,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+42,Exsudat.Arabido.A3,NA,6,Exudates.Arabido,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+43,Exsudat.Arabido.A4,NA,7,Exudates.Arabido,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+44,Exsudat.Arabido.A5,NA,8,Exudates.Arabido,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+45,Exsudat.MicroTom.T1,NA,9,Exudates.Tom,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+46,Exsudat.MicroTom.T2,NA,10,Exudates.Tom,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+47,Exsudat.MicroTom.T3,NA,11,Exudates.Tom,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+48,Exsudat.MicroTom.T4,NA,12,Exudates.Tom,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+49,Exsudat.MicroTom.T5,NA,13,Exudates.Tom,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+50,Exsudat.Lotus.japonicus.L1,NA,14,Exudates.Lotus,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+51,Exsudat.Lotus.japonicus.L2,NA,15,Exudates.Lotus,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+52,Exsudat.Lotus.japonicus.L3,NA,16,Exudates.Lotus,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+53,Exsudat.Lotus.japonicus.L4,NA,17,Exudates.Lotus,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+54,Exsudat.Lotus.japonicus.L5,NA,18,Exudates.Lotus,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+55,Controle.sans.plante.C1,NA,19,Exudates.Control,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+56,Controle.sans.plante.C2,NA,20,Exudates.Control,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+57,Controle.sans.plante.C3,NA,21,Exudates.Control,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized
+58,Pool.exsudat,NA,22,Pool,Root Exudates,No,NA,NA,NA,NA,NA,5000,5mL,Lyophilized

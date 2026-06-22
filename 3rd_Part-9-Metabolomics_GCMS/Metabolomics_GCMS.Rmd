@@ -1,0 +1,824 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+```
+
+```{r}
+#Load libraries
+library(markdown)
+library(ggthemes)
+library(ggpubr)
+library(rstatix)
+library(dunn.test)
+library(ggtext)
+library(tidyr)
+library(reshape2)
+library(dplyr)
+library(purrr)
+library(ggh4x)
+library(ggplot2)
+library(stringr)
+library(vegan)
+library(multcompView)
+library(pheatmap)
+library(RColorBrewer)
+library(tibble)
+library(KEGGREST)
+library(webchem)
+library(fmsb)
+library(cowplot)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B", "Glucose" = "#817E9F")
+theme_set(theme_bw())
+
+my_colors2 <- c(
+  # Controls
+  "Blanc" = "#000000",             # black
+  "QC" = "#000000",
+  "Water-Control" = "#000000",
+  # Soil / Wash samples
+  "CAS-Soil-Wash" = "#8B4513",     # saddle brown
+  "Peat-Wash" = "#A0522D",         # sienna
+  "Embryon Arabidopsis" = "#A0522D", # same as Peat-Wash for organic
+  "MS.Root" = "#949494",           # neutral gray
+  "MS.Root+3OMG" = "#7FC29B",     # greenish for 3OMG
+  "MS.Root+Glucose" = "#817E9F",  # purple/blue for glucose
+  "MS.Root+Glucose+3OMG" = "#3B9AB2", # blend between #7FC29B and #817E9F
+  "MS.Shoot" = "#BCBD22",          # yellow-green
+  "seedcoat Arabidopsis" = "#8B4513" # same brown-ish as soil/wash
+)
+
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+
+```
+
+# A] 3OMG uptake
+
+## 1) Prepare data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load data
+raw_data<-read.csv(file = "df_raw.csv", header = TRUE, sep=",", row.names=1)
+raw_data_ex<-read.csv(file = "df_raw_Exudates.csv", header = TRUE, sep=",", row.names=1)
+raw_data
+raw_data_ex
+
+#Merge table while keeping 3OMG in case not present in both table
+special_compound <- c("3-O-methylGlucose$meox2!1831.8/261_SUG", 	
+"Glucose$meox1!1888/319_SUG")
+
+merged_raw_data <- raw_data %>%
+  inner_join(raw_data_ex, by = "Compounds") %>%
+  bind_rows(
+    raw_data %>% 
+      filter(Compounds %in% special_compound) %>%
+      left_join(raw_data_ex, by = "Compounds")
+  ) %>%
+  distinct(Compounds, .keep_all = TRUE)
+
+
+#Keep only 3OMG
+raw_data_filtered <- merged_raw_data %>% filter(Compounds %in% c("3-O-methylGlucose$meox2!1831.8/261_SUG", "Glucose$meox1!1888/319_SUG", "Malate!1483.7/133_OA"))
+
+#Manage data frame
+raw_data_filtered_long <- raw_data_filtered %>%
+  pivot_longer(
+    cols = -Compounds,        # keep Compound as-is
+    names_to = "Samples",    # new column for former column names
+    values_to = "Value"      # new column for values
+  )
+
+#Match medatadata file
+metadata <-read.csv(file = "metadata.csv", header = TRUE, sep=",", row.names=1)
+df_3OMG <- merge(raw_data_filtered_long, metadata, by = c("Samples"))
+
+#Remove GC-MS Control for plotting
+df_3OMG <- subset(df_3OMG, !Condition %in% c("Blanc", "QC", "Water-Control", "Pool"))
+```
+
+## 2) Barplot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+df_summary <- df_3OMG %>%
+  group_by(Compounds, Condition, Plant_Compartment) %>%
+  summarise(
+    median_value = median(Value, na.rm = TRUE),
+    q1 = quantile(Value, 0.25, na.rm = TRUE),
+    q3 = quantile(Value, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+#Order
+df_summary$Condition <- factor(df_summary$Condition, levels = c ( "Water-Control", "MS.Root","MS.Root+Glucose",  "MS.Root+3OMG", "MS.Root+Glucose+3OMG", "MS.Shoot", "Embryon Arabidopsis", "seedcoat Arabidopsis", "Peat-Wash", "CAS-Soil-Wash", "Exudates.Control", "Exudates.Arabido", "Exudates.Tom", "Exudates.Lotus"))
+
+df_summary$Plant_Compartment <- factor(df_summary$Plant_Compartment, levels = c ( "Water", "Plant Tissues","Root Exudates",  "Seed tissues", "Substrates"))
+
+#Remove 3OMG + Glucose
+df_summary <- subset(df_summary, !Condition %in% c("MS.Root+Glucose+3OMG"))
+
+#Plot
+barplot_3OMG <- ggplot(df_summary,
+                       aes(x = Condition, y = median_value, fill = Compounds)) +
+  geom_col(
+    width = 0.8,
+    color = "black",
+    position = position_dodge(width = 0.8)) +
+  geom_errorbar(
+    aes(ymin = q1, ymax = q3),
+    width = 0.2,
+    linewidth = 0.8,
+    position = position_dodge(width = 1)) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none") +
+  base_theme +
+  scale_fill_manual(values = c("#7FC29B", "#817e9f", "#ffc125")) +
+  facet_wrap(~ Plant_Compartment, scales = "free",  space = "free_x")
+
+barplot_3OMG
+```
+
+
+# B] PcoA
+
+## 1) Prepare data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load data frame
+df_mat <- raw_data
+
+# Cleaning function (yours is correct)
+clean_names <- function(x) {
+  x |>
+    #stringr::str_remove("\\$.*") |>   # remove derivatization info (keep if needed)
+    stringr::str_remove("!.*") |>     # remove MS tags
+    stringr::str_trim()
+}
+
+# Clean names
+df_mat$Compounds <- clean_names(df_mat$Compounds)
+
+#Identify duplicate compounds
+duplicated_compounds <- df_mat %>%
+  count(Compounds) %>%
+  filter(n > 1)
+
+#Just one
+df_mat <- df_mat %>%
+  distinct(Compounds, .keep_all = TRUE)
+
+#Remove blanks and QC
+df_mat <- df_mat[, !names(df_mat) %in% c("blanc1", "blanc2", "blanc3", "QC1", "QC2", "QC3", "X16.CAS.Soil.Wash.Soil", "X17.CAS.Soil.Wash.Soil", "X18.CAS.Soil.Wash.Soil", "X19.Peat.Wash.Peat",   "X20.Peat.Wash.Peat",  "X21.Peat.Wash.Peat",   "X25.seedcoat.Arabidopsis", "X26.seedcoat.Arabidopsis", "X27.seedcoat.Arabidopsis", "X28.Embryon.Arabidopsis",  "X29.Embryon.Arabidopsis",  "X30.Embryon.Arabidopsis", "X22.Water.Control.Water", "X23.Water.Control.Water", "X24.Water.Control.Water", "X1.MS.Shoot", "X2.MS.Shoot", "X3.MS.Shoot", "X13.MS.Glucose.3OMG.Root", "X14.MS.Glucose.3OMG.Root", "X15.MS.Glucose.3OMG.Root")]
+
+#, "X16.CAS.Soil.Wash.Soil", "X17.CAS.Soil.Wash.Soil", "X18.CAS.Soil.Wash.Soil", "X19.Peat.Wash.Peat",   "X20.Peat.Wash.Peat",  "X21.Peat.Wash.Peat"
+
+#,       "X22.Water.Control.Water", "X23.Water.Control.Water", "X24.Water.Control.Water"
+
+#, "X25.seedcoat.Arabidopsis", "X26.seedcoat.Arabidopsis", "X27.seedcoat.Arabidopsis", "X28.Embryon.Arabidopsis",  "X29.Embryon.Arabidopsis",  "X30.Embryon.Arabidopsis"
+
+#, "X1.MS.Shoot", "X2.MS.Shoot", "X3.MS.Shoot"    
+
+# "X13.MS.Glucose.3OMG.Root", "X14.MS.Glucose.3OMG.Root", "X15.MS.Glucose.3OMG.Root"
+#Set cumpound as row.names
+rownames(df_mat) <- df_mat$Compounds
+df_mat$Compounds <- NULL
+#Remove Coumpounds = 0
+# Remove rows where the sum across all columns is 0
+df_mat <- df_mat[rowSums(df_mat) != 0, ]
+#Transpose the table
+df_t <- as.data.frame(t(df_mat))
+#Add sample as first column
+df_t$Samples <- rownames(df_t)
+rownames(df_t) <- NULL
+abund_df <- df_t[, c("Samples", setdiff(names(df_t), "Samples"))]
+
+
+#Keep most abundant compound 100 excluding water control
+# Define water control samples
+water_controls <- c("X22.Water.Control.Water", "X23.Water.Control.Water", "X24.Water.Control.Water")
+# 1: subset to non-water samples to compute top compounds
+non_water <- abund_df[!abund_df$Samples %in% water_controls, ]
+# 2: select top 150 compounds based on non-water samples
+top_compounds <- names(sort(colSums(non_water[,-1]), decreasing = TRUE)[1:150])
+#3: keep all samples, but only top compounds + Sample column
+abund_df <- abund_df[, c("Samples", top_compounds)]
+
+#Match medatadata file
+meta_df <-read.csv(file = "metadata.csv", header = TRUE, sep=",", row.names=1)
+meta_df <- subset(meta_df, !Condition %in% c("Blanc", "QC", "CAS-Soil-Wash", "Peat-Wash",  "CAS-Soil-Wash", "Peat-Wash", "seedcoat Arabidopsis", "Embryon Arabidopsis", "Water-Control", "MS.Shoot", "MS.Root+Glucose+3OMG"))
+
+#"MS.Shoot",
+#"CAS-Soil-Wash", "Peat-Wash", "Water-Control"
+#, "CAS-Soil-Wash", "Peat-Wash"
+#, "seedcoat Arabidopsis", "Embryon Arabidopsis"
+```
+
+## 2) PcoA
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare abundance matrix
+rownames(abund_df) <- abund_df$Samples
+abund_mat <- abund_df[, -which(names(abund_df) == "Samples")]
+
+#Remove 3OMG to not influence data
+#abund_mat <- abund_mat[, !grepl("methylGlucose", colnames(abund_mat))]
+
+#Check if abundance talbe and metadata matches
+all(rownames(abund_mat) %in% meta_df$Samples) #TRUE
+
+#Reorder metadata to match abundance table
+meta_df <- meta_df[match(rownames(abund_mat), meta_df$Samples), ]
+#Check
+all(rownames(abund_mat) == meta_df$Samples) #TRUE
+
+#Normalize by mg or ml NO NEED ALREADY NORMALIZED
+#norm.fact <- meta_df$norm.fact
+#names(norm.fact) <- meta_df$Samples
+
+#normalize abundances by mg or Ml
+#abund_mat_norm <- sweep(abund_mat, 1, norm.fact, FUN = "/")
+
+abund_mat_norm <- abund_mat
+#Transfrom data
+#abund_mat_norm <- log1p(abund_mat_norm)
+
+#Calculate Bray-curtis matrix
+dist_mat <- vegdist(abund_mat_norm, method = "bray")
+
+#PcoA
+pcoa <- cmdscale(dist_mat, eig = TRUE, k = 2)
+
+#Plotting dataframe
+pcoa_df <- data.frame(
+  Samples = rownames(abund_mat_norm),
+  PC1 = pcoa$points[,1],
+  PC2 = pcoa$points[,2]
+)
+
+pcoa_df <- cbind(pcoa_df, meta_df[, -which(names(meta_df) == "Samples")])
+
+#Variance explained
+var_exp <- round(100 * pcoa$eig / sum(pcoa$eig), 1)
+
+#Calculate Centroïds
+centroids <- aggregate(
+  cbind(PC1, PC2) ~ Condition,
+  data = pcoa_df,
+  FUN = mean
+)
+
+#Merge centroïds to main data frame
+pcoa_df2 <- merge(
+  pcoa_df,
+  centroids,
+  by = "Condition",
+  suffixes = c("", "_centroid")
+)
+
+#Stats
+# PERMANOVA on normalized abundance matrix
+set.seed(123)  # reproducible
+perm <- adonis2(abund_mat_norm ~ Condition, data = meta_df, method = "bray")
+print(perm) #Significant
+
+# Pairwise PERMANOVA with adonis2
+pairwise.adonis2 <- function(dist_mat, groups, p.adjust.method = "none", nperm = 999) {
+  dist_mat <- as.matrix(dist_mat)
+  groups <- factor(groups)
+  levs <- levels(groups)
+  
+  combs <- utils::combn(levs, 2, simplify = FALSE)
+  results <- data.frame(
+    group1 = character(),
+    group2 = character(),
+    F.Model = numeric(),
+    R2 = numeric(),
+    p.value = numeric(),
+    stringsAsFactors = FALSE
+  )
+  for (c in combs) {
+    grp1 <- c[1]
+    grp2 <- c[2]
+    keep <- which(groups %in% c(grp1, grp2))
+    sub_dist <- as.dist(dist_mat[keep, keep])
+    sub_group <- droplevels(groups[keep])
+    
+    ad <- adonis2(sub_dist ~ sub_group, permutations = nperm)
+    
+    results <- rbind(
+      results,
+      data.frame(
+        group1 = grp1,
+        group2 = grp2,
+        F.Model = ad[1, "F"],
+        R2 = ad[1, "R2"],
+        p.value = ad[1, "Pr(>F)"]
+      )
+    )
+  }
+  
+  results$p.adjusted <- p.adjust(results$p.value, method = p.adjust.method)
+  return(results)
+}
+
+#Run pairwaise
+pair_res <- pairwise.adonis2(
+  dist_mat,
+  meta_df$Condition,
+  p.adjust.method = "BH",
+  nperm = 999
+)
+pair_res
+#Nothing significant
+
+# Number of features
+n_features <- ncol(abund_mat_norm)
+# PERMANOVA result
+perm_res <- adonis2(abund_mat_norm ~ Condition, data = meta_df, method = "bray")
+R2 <- round(perm_res$R2[1] * 100, 2)   # convert to %
+pval <- perm_res$`Pr(>F)`[1]
+# Text to show in the panel
+perm_text <- paste0("PERMANOVA: R²=", R2, "%, P=", pval)
+
+
+#ggplot2
+Plot_pcoA <- ggplot(pcoa_df2, aes(x = PC1, y = PC2, color = Condition)) +
+  geom_segment(
+    aes(xend = PC1_centroid, yend = PC2_centroid),
+    linewidth = 0.5,
+    alpha = 0.6) +
+  geom_jitter(size = 3, alpha = 0.3) +
+  geom_point(
+    data = centroids,
+    aes(x = PC1, y = PC2, color = Condition),
+    size = 7) +
+  labs(
+    title = paste0("Untargeted GC-MS (Top ", n_features, " features)"),
+    x = paste0("PCoA 1 (", var_exp[1], "%)"),
+    y = paste0("PCoA 2 (", var_exp[2], "%)")) +
+  base_theme +
+  scale_color_manual(values = my_colors2) +
+  annotate(
+    "text",
+    x = max(pcoa_df2$PC1),           # top right
+    y = min(pcoa_df2$PC2),
+    label = perm_text,
+    hjust = 1,                        # right align
+    vjust = 1,                        # top align
+    size = 3)
+
+Plot_pcoA
+```
+
+# C] HeatMap
+
+## 1) HeatMap full
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Make a data frame with Sample column
+abund_df_melt <- abund_mat_norm %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column(var = "Sample") %>%
+  melt(id.vars = "Sample", variable.name = "Compound", value.name = "Abundance")
+
+# Add Condition information from metadata
+abund_df_melt$Condition <- meta_df$Condition[match(abund_df_melt$Sample, meta_df$Samples)]
+
+# Optional: order Samples by Condition
+sample_order <- meta_df$Samples[order(meta_df$Condition)]
+abund_df_melt$Sample <- factor(abund_df_melt$Sample, levels = sample_order)
+
+# Optional: order Compounds by total abundance
+compound_order <- colnames(abund_mat_norm)[order(colSums(abund_mat_norm), decreasing = TRUE)]
+abund_df_melt$Compound <- factor(abund_df_melt$Compound, levels = compound_order)
+
+#Scaled data
+abund_df_melt <- abund_df_melt %>%
+  group_by(Compound) %>%
+  mutate(Abundance_scaled = scale(Abundance)) %>%
+  ungroup()
+
+# Heatmap plot
+heatmap_plot <- ggplot(abund_df_melt, aes(x = Sample, y = Compound, fill = Abundance_scaled)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+  ) +
+  labs(fill = "Scaled Abundance")
+heatmap_plot
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Remove rows with sum = 0
+abund_mat_norm <- abund_mat_norm[rowSums(abund_mat_norm) != 0, ]
+
+# Scale rows
+scaled_mat <- scale(abund_mat_norm)
+
+# Define a diverging color palette centered at 0
+# negative = blue, zero = white, positive = orange/red
+my_colors <- colorRampPalette(c("#4575b4", "#ffffff", "#f7685b"))(100)
+
+
+# Find limits for symmetric scaling around zero
+max_val <- max(abs(scaled_mat))
+breaks <- seq(-max_val, max_val, length.out = 101)
+
+# Annotation for Conditions
+annotation_col <- data.frame(
+  row.names = meta_df$Samples,      # optional for your reference
+  Condition = meta_df$Condition
+)
+
+#Predefined colors for each Condition
+valid_conditions <- unique(annotation_col$Condition)
+annotation_colors <- list(Condition = my_colors2[names(my_colors2) %in% valid_conditions])
+
+# Clustered heatmap
+p_F <- pheatmap(
+  t(scaled_mat),
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  color = my_colors,
+  breaks = breaks,          # ensures 0 maps to white
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  main = "Clustered Heatmap",
+  fontsize_row = 5,
+  fontsize_col = 10,
+  annotation_col = annotation_col,
+  annotation_colors = annotation_colors
+)
+
+p_F
+```
+
+## 2) HeatMap aggregated
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Make sure your metadata has a column "Samples" matching rownames of scaled_mat
+# For example, if rownames(scaled_mat) = "X4.MS.Root", make sure metadata$Samples matches
+metadata$Samples <- as.character(metadata$Samples)
+
+# Convert scaled_mat to long format
+long_mat <- as.data.frame(scaled_mat) %>%
+  rownames_to_column(var = "Samples") %>%       # sample names become a column
+  pivot_longer(-Samples, names_to = "metabolite", values_to = "value") %>%
+  left_join(metadata, by = c("Samples" = "Samples"))
+
+# Aggregate median per metabolite per condition
+median_mat <- long_mat %>%
+  group_by(metabolite, Condition) %>%
+  summarise(median_value = median(value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = Condition, values_from = median_value) %>%
+  column_to_rownames(var = "metabolite")
+
+# Make heatmap
+p <- pheatmap(
+  median_mat,             # transpose: conditions as rows
+  cluster_rows = TRUE,       # cluster conditions
+  cluster_cols = TRUE,       # cluster metabolites
+  color = my_colors,
+  breaks = breaks,           # optional: ensures 0 maps to white
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  main = "Clustered Heatmap (Median per Condition)",
+  fontsize_row = 6,
+  fontsize_col = 10,
+  annotation_col = annotation_col,        # optional
+  annotation_colors = annotation_colors   # optional
+)
+
+p
+```
+
+# D] Annotation metabolites
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Your metabolite table
+met_table <- tibble(
+  Compound = c(raw_data$Compounds) # add all
+)
+
+# Clean names if not already
+clean_names <- function(x) {
+  x |>
+    str_remove("\\$.*") |>
+    str_remove("!.*") |>
+    str_trim()
+}
+
+met_table <- met_table %>%
+  mutate(Compound = clean_names(Compound))
+
+
+# Function to get KEGG info
+get_kegg_info <- function(name) {
+  res <- tryCatch(keggFind("compound", name), error = function(e) NULL)
+  if (is.null(res) || length(res) == 0) {
+    return(list(KEGG_ID = NA, KEGG_Pathways = NA))
+  }
+  kegg_id <- names(res)[1]
+  entry <- tryCatch(keggGet(kegg_id)[[1]], error = function(e) NULL)
+  pathways <- if (!is.null(entry$PATHWAY)) paste(unique(entry$PATHWAY), collapse = "; ") else NA
+  list(KEGG_ID = kegg_id, KEGG_Pathways = pathways)
+}
+
+#Load annotation
+df_annot <- read.csv(file = "metabolite_annotation.csv", header = TRUE, sep= c(",", ";"))
+df_annot <- df_annot %>%
+  separate(KEGG_Pathways, into = paste0("Pathway", 1:100), sep = ";", fill = "right")
+```
+
+# E] Full family plot
+
+## 1) Prepare data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load data
+raw_data<-read.csv(file = "df_raw.csv", header = TRUE, sep=",", row.names=1)
+raw_data
+
+#Manage data frame
+raw_data_filtered_long <- raw_data %>%
+  pivot_longer(
+    cols = -Compounds,        # keep Compound as-is
+    names_to = "Samples",    # new column for former column names
+    values_to = "Value"      # new column for values
+  )
+
+#Match medatadata file
+metadata <-read.csv(file = "metadata.csv", header = TRUE, sep=",", row.names=1)
+df_fam <- merge(raw_data_filtered_long, metadata, by = c("Samples"))
+
+#Remove GC-MS Control for plotting
+df_fam <- subset(df_fam, !Condition %in% c("Blanc", "QC"))
+
+#Get Compound_Family
+df_fam <- df_fam %>%
+  separate(Compounds, into = c("Compounds", "Compound_Family"), sep = "_", extra = "merge", fill = "right")
+
+# Cleaning function (yours is correct)
+clean_names <- function(x) {
+  x |>
+    stringr::str_remove("\\$.*") |>   # remove derivatization info (keep if needed)
+    stringr::str_remove("!.*") |>     # remove MS tags
+    stringr::str_trim()
+}
+
+# Clean names
+df_fam$Compounds <- clean_names(df_fam$Compounds)
+```
+
+## 2) Barplot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Median per compound per condition and sample
+df_summary <- df_fam %>%
+  group_by(Compound_Family, Compounds, Samples, Condition) %>%
+  summarise(median_value = median(Value, na.rm = TRUE), .groups = "drop")
+
+# Keep only Root-related conditions
+df_summary <- df_summary %>%
+  filter(Condition %in% c("MS.Root", "MS.Root+Glucose", "MS.Root+3OMG"))
+
+# Convert Condition to factor
+df_summary$Condition <- factor(df_summary$Condition, levels = c("MS.Root", "MS.Root+Glucose", "MS.Root+3OMG"))
+
+# Count number of compounds per family
+compound_counts <- df_summary %>%
+  group_by(Compound_Family) %>%
+  summarise(n_compounds = n_distinct(Compounds), .groups = "drop")
+
+# Aggregate to family-level per sample (sum medians)
+df_family <- df_summary %>%
+  group_by(Compound_Family, Samples, Condition) %>%
+  summarise(family_value = sum(median_value, na.rm = TRUE), .groups = "drop")
+
+# Calculate median of MS.Root per family (across samples)
+ms_root_medians <- df_family %>%
+  filter(Condition == "MS.Root") %>%
+  group_by(Compound_Family) %>%
+  summarise(ms_root_median = median(family_value, na.rm = TRUE), .groups = "drop")
+
+# Calculate Log2FC per sample
+df_family_log2fc <- df_family %>%
+  left_join(ms_root_medians, by = "Compound_Family") %>%
+  mutate(Log2FC = log2((family_value + 1) / (ms_root_median + 1))) %>%
+  filter(!Compound_Family %in% c("0", "U", "MA", "PHTALATE", "FA"))
+
+# Add compound counts to facet labels
+df_family_log2fc <- df_family_log2fc %>%
+  left_join(compound_counts, by = "Compound_Family")
+
+facet_labels <- setNames(
+  paste0(df_family_log2fc$Compound_Family, " (n=", df_family_log2fc$n_compounds, ")"),
+  df_family_log2fc$Compound_Family
+)
+
+# Compute median Log2FC per Compound_Family per Condition
+df_family_median <- df_family_log2fc %>%
+  group_by(Compound_Family, Condition) %>%
+  summarise(median_Log2FC = median(Log2FC, na.rm = TRUE), .groups = "drop")
+
+# List of conditions
+conditions <- c("MS.Root", "MS.Root+Glucose", "MS.Root+3OMG")
+
+# Compute pairwise Wilcoxon tests per family
+df_stats <- df_family_log2fc %>%
+  filter(Condition %in% conditions) %>%
+  group_by(Compound_Family) %>%
+  nest() %>%
+  mutate(pairwise = map(data, ~ {
+    combos <- combn(conditions, 2, simplify = FALSE)
+    map_dfr(combos, function(x) {
+      tibble(
+        x1 = x[1],
+        x2 = x[2],
+        p_value = wilcox.test(
+          .x$Log2FC[.x$Condition == x[1]],
+          .x$Log2FC[.x$Condition == x[2]],
+          paired = TRUE
+        )$p.value
+      )
+    })
+  })) %>%
+  select(-data) %>%
+  unnest(pairwise) %>%
+  left_join(df_family_median %>% group_by(Compound_Family) %>%
+              summarise(max_y = max(median_Log2FC, na.rm = TRUE)), by = "Compound_Family") %>%
+  mutate(y_position = max_y + 0.1 * max_y,
+         label = case_when(
+           p_value < 0.001 ~ "***",
+           p_value < 0.01  ~ "**",
+           p_value < 0.05  ~ "*",
+           TRUE ~ "ns"
+         ))
+
+#REmove Water
+df_family_median <- subset(df_family_median, !Condition %in% c("MS.Root"))
+df_family_log2fc <- subset(df_family_log2fc, !Condition %in% c("MS.Root"))
+
+# Plot
+log2fc_plot <- ggplot() +
+  geom_col(data = df_family_median, aes(x = Condition, y = median_Log2FC, fill = Condition), width = 0.7, color = "black") +
+  geom_jitter(data = df_family_log2fc, aes(x = Condition, y = Log2FC), width = 0.1, size = 2, color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray") +
+  facet_wrap(~ Compound_Family, ncol= 2, scales = "free_y", labeller = labeller(Compound_Family = facet_labels)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") +
+  labs(y = "Log2 Fold Change vs MS.Root", x = "Condition") +
+  scale_fill_manual(values = my_colors2) +
+  base_theme# +
+ # geom_signif(data = df_stats, aes(xmin = x1, xmax = x2, y_position = y_position, annotations = #label),manual = TRUE, tip_length = 0.02)
+
+log2fc_plot
+```
+
+## 3) Spider plot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Median per compound per condition
+df_summary <- df_fam %>%
+  group_by(Compound_Family, Compounds, Condition) %>%
+  summarise(
+    median_value = median(Value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Condition %in% c("MS.Root", "MS.Root+Glucose", "MS.Root+3OMG"))
+
+# Rank compounds by overall abundance (across conditions)
+top_compounds <- df_summary %>%
+  group_by(Compounds) %>%
+  summarise(
+    total_median = sum(median_value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_median)) %>%
+  slice_head(n = 150) %>%
+  pull(Compounds)
+
+# Keep only top 150 compounds
+df_summary <- df_summary %>%
+  filter(Compounds %in% top_compounds)
+
+#Keep only interesting families
+df_summary <- subset(df_summary, !Compound_Family %in% c("0", "U"))
+
+df_scaled <- df_summary %>%
+  group_by(Compound_Family, Compounds) %>%
+  mutate(
+    scaled_value = median_value / max(median_value, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+#Plot Spider function
+plot_family_radar <- function(family_name) {
+
+  df_fam_plot <- df_scaled %>%
+    filter(Compound_Family == family_name) %>%
+    select(Compounds, Condition, scaled_value) %>%
+    tidyr::pivot_wider(
+      names_from = Compounds,
+      values_from = scaled_value)
+  # If too few compounds, skip
+  if (ncol(df_fam_plot) < 4) {
+    message("Skipping ", family_name, ": not enough compounds")
+    return(NULL)
+  }
+  # Remove Condition column and convert to numeric data.frame
+  radar_vals <- df_fam_plot %>%
+    select(-Condition) %>%
+    as.data.frame()
+  # Force numeric + replace NA
+  radar_vals[] <- lapply(radar_vals, function(x) as.numeric(replace(x, is.na(x), 0)))
+  # Add max/min rows (required by fmsb)
+  radar_df <- rbind(
+    max = rep(1, ncol(radar_vals)),
+    min = rep(0, ncol(radar_vals)),
+    radar_vals
+  )
+  rownames(radar_df)[3:nrow(radar_df)] <- df_fam_plot$Condition
+  fmsb::radarchart(
+    radar_df,
+    axistype = 1,
+    pcol = c(
+      "#4D4D4D",
+      my_colors2["MS.Root+3OMG"],
+      my_colors2["MS.Root+Glucose"]
+    ),
+    pfcol = scales::alpha(c(
+      "#4D4D4D",
+      my_colors2["MS.Root+3OMG"],
+      my_colors2["MS.Root+Glucose"]
+    ), 0.2),
+    plwd = 2,
+    title = family_name,
+    vlcex = 0.7,
+    calcex = 0.7
+  )
+
+  legend(
+    "topright",
+    legend = c("MS.Root", "Glucose", "3OMG"),
+    col = c(
+      "#4D4D4D",
+      my_colors2["MS.Root+Glucose"],
+      my_colors2["MS.Root+3OMG"]
+    ),
+    lwd = 2,
+    bty = "n"
+  )
+}
+
+write.csv(df_scaled, "df_scaled.csv")
+#PLot
+families <- unique(df_scaled$Compound_Family)
+
+for (fam in unique(df_scaled$Compound_Family)) {
+  pdf(paste0("Radar_", gsub("[^A-Za-z0-9]", "_", fam), ".pdf"), 6, 6)
+  plot_family_radar(fam)
+  dev.off()
+}
+```
+
+
+# F]  All plots Plant
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Supp HeatMap
+p_F
+
+#Supp Overall FC
+log2fc_plot
+
+
+#Main
+Plot_Supp <- plot_grid(Plot_pcoA, barplot_3OMG, rel_heights = c(1,1), rel_widths = c(1,1.1), nrow=1,   align="hv",  axis = "tb")
+Plot_Supp
+```
+
+---
+END
+---
+

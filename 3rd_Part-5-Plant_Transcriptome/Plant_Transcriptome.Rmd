@@ -1,0 +1,775 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+Pre-processing in Galaxy.     
+- Quality checked with FastQC, Flatten, MultiFastQG.   
+- Mapping using STAR.   
+- Strandness checked with Infer Experiment (Reverse stranded library).     
+- Feature counts (exons, fragments are counted).   
+- DeSeq : All comparions made with Water-MF conditions:     
+  - Water-MF_3OMG-MF.  
+  - Water-MF_3OMG-F16.  
+  - Water-MF_Water-F16.      
+  
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(stringr)
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(markdown)
+library(DESeq2)
+library(vegan)
+library(ggrepel)
+library(clusterProfiler)
+library(org.At.tair.db)
+library(cowplot)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+
+# Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B",  "Glucose" = "#817E9F")
+```
+
+# Before you start
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+theme_set(theme_bw())
+```
+# A] Root length
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+df_length <- read.table("Transcripto_length.txt", sep="\t", dec=".", header=TRUE, row.names=1)
+
+df_length$Time <- factor(df_length$Time, levels = c("72h", "1week"))
+df_length$Supplementation <- factor(df_length$Supplementation, levels = c("Water", "3OMG"))
+df_length$Microbe <- factor(df_length$Microbe, levels = c("M.free", "F16"))
+
+# Test de normalité (Shapiro)
+normality_results <- df_length %>%
+  group_by(Time, Microbe, Supplementation) %>%
+  shapiro_test(Root_Length)
+print(normality_results)
+
+# Tests Wilcoxon (Time × Microbe)
+Stats_length <- df_length %>%
+  group_by(Time, Microbe) %>%
+  wilcox_test(Root_Length ~ Supplementation) %>%
+  adjust_pvalue(method = "fdr") %>%
+  mutate(label_text = paste0("P=", formatC(p.adj, format="e", digits=2)))
+
+# Positions pour les brackets
+Stats_length <- Stats_length %>%
+  left_join(
+    df_length %>%
+      group_by(Time, Microbe, Supplementation) %>%
+      summarise(ymax = max(Root_Length, na.rm=TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = Supplementation, values_from = ymax),
+    by = c("Time", "Microbe")
+  ) %>%
+  mutate(
+    y_position = max(df_length$Root_Length, na.rm=TRUE) * 1.05,
+    x1 = as.numeric(factor(Microbe)) - 0.2,
+    x2 = as.numeric(factor(Microbe)) + 0.2,
+    Supplementation = "3OMG"
+  )
+
+Stats_length <- Stats_length %>% filter(p.adj < 0.05)
+
+# Comptage des réplicats
+rep_counts <- df_length %>%
+  group_by(Time, Microbe, Supplementation) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  left_join(
+    df_length %>%
+      group_by(Time) %>%
+      summarise(y_pos = min(Root_Length, na.rm=TRUE) - 0.05 * diff(range(Root_Length))),
+    by = "Time"
+  )
+
+# Plot
+Plot_length <- ggplot(df_length, aes(x = Microbe, y = Root_Length, fill = Supplementation)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA, position = position_dodge(width = 0.75)) +
+  geom_jitter(aes(shape = Supplementation),
+              alpha = 0.2, size = 1,
+              position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75)) +
+  geom_segment(data = Stats_length,
+               aes(x = x1, xend = x2, y = y_position, yend = y_position),
+               inherit.aes = FALSE) +
+  geom_text(data = Stats_length,
+            aes(x = (x1 + x2)/2, y = y_position * 1.03, label = label_text),
+            size = 3) +
+  geom_text(data = rep_counts,
+            aes(x = Microbe, y = -0.5, label = paste0("n=", n)),
+            position = position_dodge(width = 0.75),
+            vjust = 1, size = 3) +
+  facet_grid(~Time, space = "free", scales = "free") +
+  scale_fill_manual(values = c("#949494", "#7FC29B"), name = "Supplementation") +
+  labs(x = "", y = "Root Length (mm)", title = "") +
+  theme_bw(base_size = 12) +
+  theme(strip.background = element_rect(color = "black", fill = "white"),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+Plot_length
+
+```
+
+# B] In Planta Transcriptome
+
+## 1) Normalize prepare data
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+QC_Sum <- read.table(file="summary_table_salmon_mapping.txt",sep="\t",dec=".",header=TRUE, row.names = 1)
+    
+QC_Sum_long <- QC_Sum %>%
+  gather(key = "read_type", value = "proportion", prop.plant, prop.fungi)
+
+plot_prop <- ggplot(QC_Sum_long, aes(x = sampleID, y = proportion, fill = read_type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_manual(values = c("prop.plant" = "#521A10", "prop.fungi" = "#F9B244")) +
+  labs(x = "Sample ID", y = "Proportion", fill = "Read Type") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+plot_prop
+
+table_counts <- read.table(file="count_table_arath.txt",sep="\t",dec=".",header=TRUE, row.names = 1)
+
+# Merge transcript isoforms by gene ID.
+table_counts <- table_counts %>%
+  mutate(GeneID = gsub("\\..*", "", TranscriptID)) %>%
+  group_by(GeneID) %>%
+  summarise(across(where(is.numeric), sum, na.rm = TRUE))
+
+
+# Remove fungi-only control samples.
+cols_to_remove <- c("Control_3OMG_F16_1", "Control_3OMG_F16_2", "Control_3OMG_F16_3", "Control_3OMG_F16_4",
+                    "Control_Water_F16_1", "Control_Water_F16_2", "Control_Water_F16_3")
+
+table_counts2 <- table_counts %>% dplyr::select(-all_of(cols_to_remove))
+
+
+# Remove two samples with low assigned reads.
+table_counts_filtered <- data.frame(table_counts2[, !names(table_counts2) %in% c("m3OMG_microbeFree_2", "water_microbeFree_3")])
+
+
+row.names(table_counts_filtered) <- table_counts_filtered$GeneID
+table_counts_filtered$GeneID <- NULL
+
+matrix_counts_Plant <- as.matrix(table_counts_filtered)
+```
+
+## 2) PcoA Bray-Curtis
+```{r echo=FALSE, fig.show='hide', message=FALSE, results="hide"}
+df_transformed <- data.frame(matrix_counts_Plant)
+
+# Transpose count table for sample-level distance analysis.
+df_transformed <- data.frame(t(df_transformed))
+
+env <- read.table(file="env2.txt",sep="\t",dec=".",header=TRUE, row.names = 1)
+
+#Adonis
+data.div <- adonis2(df_transformed ~ Microbes/Molecule, data = env, permutations = 999, method="canberra")
+data.div
+
+
+dds <- DESeqDataSetFromMatrix(countData = matrix_counts_Plant, colData = env, design = ~ Conditions)
+
+rld <- rlog(dds, blind = FALSE)
+
+pca_res <- prcomp(t(assay(rld)))
+
+percentVar <- round(100 * (pca_res$sdev^2 / sum(pca_res$sdev^2)), 2)
+
+pca_df <- data.frame(PC1 = pca_res$x[, 1],
+                     PC2 = pca_res$x[, 2],
+                     Condition = env$Conditions)
+
+# Extract molecule and microbe information from sample names.
+pca_df <- pca_df %>%
+  mutate(Molecule = str_split_fixed(row.names(pca_df), '_', 3)[, 1],
+         Microbes = str_split_fixed(row.names(pca_df), '_', 3)[, 2],
+         Microbes_Molecule = paste(Microbes, Molecule, sep = " - "))
+pca_df
+
+
+mean_pca <- pca_df %>%
+  group_by(Microbes_Molecule) %>%
+  summarise(PC1 = mean(PC1), PC2 = mean(PC2)) %>%
+  separate(Microbes_Molecule, into = c("Microbes", "Molecule"))
+
+segments_pca <- pca_df %>%
+  group_by(Microbes, Molecule) %>%
+  mutate(meanX = mean(PC1), meanY = mean(PC2))
+
+
+pca_df$Environement <- c("Plant Transcriptome")
+
+PcoA_Plant <- ggplot() +
+  geom_point(data = pca_df, aes(x = PC1, y = PC2, color = Molecule , shape = Microbes), size = 2, alpha = 1) +
+  geom_point(data = mean_pca, aes(x = PC1, y = PC2, color = Molecule, shape = Microbes), size = 5) +
+  geom_segment(data = segments_pca, aes(x = meanX, y = meanY, xend = PC1, yend = PC2, color = Molecule), size = 0.7, alpha = 0.5) +
+  facet_grid(~Environement, space="free", scales="free")+
+  scale_color_manual('Microbes', labels = c("3OMG", "Water"), values = c("#7FC29B", "#949494")) +
+ scale_shape_manual('Microbes', labels = c("P. cucumerina", "Microbes Free"), values = c(16, 17)) +
+  xlab(paste("PC1 (", percentVar[1], "%)", sep = "")) +
+  ylab(paste("PC2 (", percentVar[2], "%)", sep = "")) +
+ base_theme
+PcoA_Plant
+```
+## 3) Differential expressed gene analysis 
+
+### a) Run DeSeq2
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+dds <- DESeqDataSetFromMatrix(countData = matrix_counts_Plant, colData = env, design = ~ Conditions)
+
+
+# Pre-filter low-count genes.
+smallestGroupSize <- 3
+keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
+dds <- dds[keep,]
+
+dds <- DESeq(dds)
+
+conditions <- levels(dds$Conditions)
+all_comparisons <- combn(conditions, 2)
+
+results_list <- list()
+
+for (i in 1:ncol(all_comparisons)) {
+  contrast <- all_comparisons[, i]
+  result_name <- paste(contrast[1], "_vs_", contrast[2], sep = "")
+  
+  res <- results(dds, contrast = c("Conditions", contrast[1], contrast[2]))
+  results_list[[result_name]] <- res
+}
+
+names(results_list) <- apply(all_comparisons, 2, function(x) paste(x, collapse = "_vs_"))
+
+# Combine pairwise DESeq2 results.
+combined_results <- do.call(rbind, lapply(names(results_list), function(name) {
+  res <- as.data.frame(results_list[[name]])
+  res$Comparison <- name
+  res$GeneID <- row.names(res)
+  row.names(res) <- NULL
+  res
+}))
+
+
+filtered_results <- combined_results[
+  (combined_results$log2FoldChange >= 0.5 | combined_results$log2FoldChange <= -0.5) & 
+  combined_results$padj < 0.05, 
+]
+
+filtered_results <- na.omit(filtered_results)
+
+count_MF <- subset(filtered_results, Comparison %in% c("3OMG_MF_vs_Water-MF"))
+count_MF_df <- table(Direction = ifelse(count_MF$log2FoldChange > 0, "Above 0", "Below 0"))
+
+```
+
+### b) Vulcano Plots
+
+#### i) Loop all conditions
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+gene_annot_short <- read.table(file = "At_Gene_Short.txt", sep = "\t", header = TRUE)
+
+condition_levels <- levels(dds$Conditions)
+
+volcano_plots <- list()
+
+for (i in 1:(length(condition_levels) - 1)) {
+  for (j in (i + 1):length(condition_levels)) {
+    condition1 <- condition_levels[i]
+    condition2 <- condition_levels[j]
+    
+    results_df <- results(dds, contrast = c("Conditions", condition1, condition2)) %>%
+      as.data.frame() %>%
+      mutate(
+        logP = -log10(padj),
+        Color = case_when(
+          log2FoldChange > 0.5 & padj < 0.05 ~ "#7FC29B",
+          log2FoldChange < -0.5 & padj < 0.05 ~ "#949494",
+          TRUE ~ "lightgray"
+        )
+      ) %>%
+      rownames_to_column("locus_name") %>%
+      inner_join(gene_annot_short, by = "locus_name") %>%
+      mutate(
+        symbol_2 = ifelse(Color != "lightgray", symbol, NA)
+      ) %>%
+      distinct(locus_name, .keep_all = TRUE)
+
+    top_pos_loci <- results_df %>%
+      filter(log2FoldChange > 0) %>%
+      arrange(desc(logP)) %>%
+      head(30)
+
+    top_neg_loci <- results_df %>%
+      filter(log2FoldChange < 0) %>%
+      arrange(desc(logP)) %>%
+      head(30)
+
+    top_loci <- bind_rows(top_pos_loci, top_neg_loci)
+
+    volcano_plot <- ggplot(results_df, aes(x = log2FoldChange, y = logP, label = symbol_2, color = Color)) +
+      geom_point(size = 2) +
+      geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "darkgray", size = 0.5) +
+      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "darkgray", size = 0.5) +
+      geom_text_repel(
+        data = top_loci,
+        aes(label = symbol),
+        size = 3,
+        max.overlaps = 50,
+        box.padding = 0.5,
+        point.padding = 0.5,
+        segment.size = 0.2,
+        segment.color = "grey50"
+      ) +
+     base_theme +
+      scale_color_identity() +
+      labs(
+        title = paste("Volcano Plot:", condition1, "vs", condition2),
+        x = "Log2 Fold Change",
+        y = "-Log10(p-value)"
+      ) +
+      theme(legend.position = "none")
+
+    plot_name <- paste(condition1, "vs", condition2, sep = "_")
+    volcano_plots[[plot_name]] <- volcano_plot
+  }
+}
+
+volcano_plots[[1]]
+
+output_dir <- "volcano_plots/"
+dir.create(output_dir, showWarnings = FALSE)
+for (name in names(volcano_plots)) {
+  ggsave(filename = paste0(output_dir, name, ".png"), plot = volcano_plots[[name]], width = 8, height = 6)
+}
+```
+#### ii) 3OMG_MF VS Water-MF
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+gene_annot_short <- read.table(file = "At_Gene_Short.txt", sep = "\t", header = TRUE)
+
+condition1 <- c("3OMG_MF")
+condition2 <- c("Water-MF")
+  
+results1 <- results(dds, contrast = c("Conditions", condition1, condition2)) %>%
+  as.data.frame() %>%
+  mutate(
+    logP = -log10(padj),
+    Color = case_when(
+      log2FoldChange > 0.5 & padj < 0.05 ~ "#7FC29B",
+      log2FoldChange < -0.5 & padj < 0.05 ~ "#949494",
+      TRUE ~ "lightgray"
+    )
+  )
+
+results1 <- results1 %>%
+  rownames_to_column("locus_name") %>%
+  left_join(gene_annot_short, by = "locus_name") %>%
+  mutate(
+    symbol_2 = ifelse(Color != "lightgray", symbol, NA)
+  ) %>%
+  distinct(locus_name, .keep_all = TRUE)
+
+    top_pos_loci <- results1 %>%
+      filter(log2FoldChange > 0.5) %>%
+      arrange(desc(logP))
+
+    top_neg_loci <- results1 %>%
+      filter(log2FoldChange < -0.5) %>%
+      arrange(desc(logP))
+
+    top_loci <- bind_rows(top_pos_loci, top_neg_loci)
+
+genes_to_highlight <- c("AT1G59750","AT1G11260", "AT5G01770", "AT1G50030", "AT1G10760", "AT5G26570", "AT1G22770", "AT1G69830", "AT3G46970", "AT1G01060", "AT4G36880", "AT3G23390", "AT3G05600")
+
+top_loci_f <- top_loci %>%
+  filter(locus_name %in% genes_to_highlight)
+  
+    results1$Comp <- paste(condition1, "vs", condition2)
+
+df_results_MF <- results1
+  
+    volcano_results1 <- ggplot(results1, aes(x = log2FoldChange, y = logP, label = symbol)) +
+      geom_point(aes(color = Color),size = 2) +
+      geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "darkgray", size = 0.5) +
+      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "darkgray", size = 0.5) +
+      facet_grid(~Comp, space="free", scales="free")+
+      geom_text_repel(
+        data = top_loci_f,
+        aes(label = symbol_2),
+        size = 2.5,
+        max.overlaps = 50,
+        box.padding = 0.5,
+        point.padding = 0.5,
+        segment.size = 0.2,
+        segment.color = "grey50"
+      ) +
+   base_theme +
+      scale_color_identity() +
+      labs(
+        x = "Log2 Fold Change",
+        y = "-Log10(p-value)"
+      )  + ylim(0, 22) + xlim(-4,4)
+
+volcano_results1
+
+volcano_results1_MF <- volcano_results1
+```
+
+
+#### iii) 3OMG_F16 VS Water_F16
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+gene_annot_short <- read.table(file = "gene_annotations_Selec_f.txt", sep = "\t", header = TRUE)
+
+condition1 <- c("3OMG_F16")
+condition2 <- c("Water_F16")
+
+gene_annot_short <- gene_annot_short[gene_annot_short$X3OMGF16_WaterF16 != "NULL", ]
+
+  
+results1 <- results(dds, contrast = c("Conditions", condition1, condition2)) %>%
+  as.data.frame() %>%
+  mutate(
+    logP = -log10(padj),
+    Color = case_when(
+      log2FoldChange > 0.5 & padj < 0.05 ~ "#7FC29B",
+      log2FoldChange < -0.5 & padj < 0.05 ~ "#949494",
+      TRUE ~ "lightgray"
+    )
+  )
+
+results1 <- results1 %>%
+  rownames_to_column("locus_name") %>%
+  left_join(gene_annot_short, by = "locus_name") %>%
+  mutate(
+    symbol_2 = ifelse(Color != "lightgray", symbol, NA)
+  ) %>%
+  distinct(locus_name, .keep_all = TRUE)
+
+    top_pos_loci <- results1 %>%
+      filter(log2FoldChange > 0.5) %>%
+      arrange(desc(logP)) %>%
+      head(50)
+
+    top_neg_loci <- results1 %>%
+      filter(log2FoldChange < -0.5) %>%
+      arrange(desc(logP)) %>%
+      head(50)
+
+    top_loci <- bind_rows(top_pos_loci, top_neg_loci)
+
+    results1$Comp <- paste(condition1, "vs", condition2)
+    
+    
+df_results_F16 <- results1
+
+    volcano_results1 <- ggplot(results1, aes(x = log2FoldChange, y = logP, label = symbol)) +
+      geom_point(aes(color = Color),size = 2) +
+      geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "darkgray", size = 0.5) +
+      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "darkgray", size = 0.5) +
+      facet_grid(~Comp, space="free", scales="free")+
+      geom_text_repel(
+        data = top_loci,
+        aes(label = symbol),
+        size = 2.5,
+        max.overlaps = 50,
+        box.padding = 0.5,
+        point.padding = 0.5,
+        segment.size = 0.2,
+        segment.color = "grey50"
+      ) +
+base_theme +
+      scale_color_identity() +
+      labs(
+        x = "Log2 Fold Change",
+        y = "-Log10(p-value)"
+      )  + ylim(0, 22) + xlim(-4,4)
+
+volcano_results1
+
+volcano_results1_F16 <- volcano_results1
+```
+
+## 4) Go Term enrichment analysis
+
+### a) 3OMG_MF VS Water-MF
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+condition1 <- c("3OMG MF")
+condition2 <- c("Water MF")
+
+gene_list_red <- df_results_MF$locus_name[df_results_MF$Color == "#7FC29B"]
+gene_list_blue <- df_results_MF$locus_name[df_results_MF$Color == "#949494"]
+
+gene_list_red <- gene_list_red[!is.na(gene_list_red)]
+gene_list_blue <- gene_list_blue[!is.na(gene_list_blue)]
+
+converted_genes_red <- bitr(gene_list_red, fromType = "TAIR", 
+                            toType = c("ENTREZID", "SYMBOL"), 
+                            OrgDb = org.At.tair.db)
+converted_genes_blue <- bitr(gene_list_blue, fromType = "TAIR", 
+                             toType = c("ENTREZID", "SYMBOL"), 
+                             OrgDb = org.At.tair.db)
+
+
+ego_red <- enrichGO(gene         = converted_genes_red$ENTREZID,
+                    OrgDb        = org.At.tair.db,
+                    keyType      = "ENTREZID",
+                    ont          = "ALL",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+
+ego_blue <- enrichGO(gene         = converted_genes_blue$ENTREZID,
+                     OrgDb        = org.At.tair.db,
+                     keyType      = "ENTREZID",
+                     ont          = "ALL",
+                     pAdjustMethod = "BH",
+                     pvalueCutoff  = 0.05,
+                     qvalueCutoff  = 0.05)
+
+data_red <- data.frame(ego_red)
+data_blue <- data.frame(ego_blue)
+
+data_red <- data_red %>%
+  mutate(GeneRatioPercentage = (as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 1)) / 
+                               as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 2))) * 100)
+
+data_blue <- data_blue %>%
+  mutate(GeneRatioPercentage = (as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 1)) / 
+                               as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 2))) * 100)
+
+data_top10_red <- data_red %>%
+  arrange(p.adjust) %>%
+  slice_head(n = 15)
+
+data_top10_blue <- data_blue %>%
+  arrange(p.adjust) %>%
+  slice_head(n = 15)
+
+data_red$Comp <- paste("GO Term Up", condition1, "vs", condition2)
+data_blue$Comp <- paste("GO Term Down", condition1, "vs", condition2)
+
+data_top10_red$Comp <- paste("GO Term Up", condition1, "vs", condition2)
+data_top10_blue$Comp <- paste("GO Term Down", condition1, "vs", condition2)
+
+data_top10_red$Description <- data_top10_red$Description %>%
+  gsub("metabolic process", "metabolism", .) %>%
+  gsub("biosynthetic process", "biosynthesis", .) %>%
+  gsub("catabolic process", "catabolism", .) %>%
+  gsub("transporter activity", "transport", .)
+
+data_top10_blue$Description <- data_top10_blue$Description %>%
+  gsub("metabolic process", "metabolism", .) %>%
+  gsub("biosynthetic process", "biosynthesis", .) %>%
+  gsub("catabolic process", "catabolism", .) %>%
+  gsub("transporter activity", "transport", .)
+
+plot_dot_MF_up <- ggplot(data_top10_red, aes(x = -log10(p.adjust), y = reorder(Description, -log10(p.adjust)), fill = -log10(p.adjust))) +
+  geom_point(aes(size = Count), shape = 21) +
+  facet_grid(~Comp, space="free", scales="free")+
+  scale_fill_gradient(low = "#D1E8D3", high = "#4F8C6B") +
+  labs(x = "-log10 p-value", y = "") +
+ base_theme +
+  theme(legend.position = "bottom") +
+   scale_y_discrete(position = "right")
+plot_dot_MF_up
+
+plot_dot_MF_down <- ggplot(data_top10_blue, aes(x = -log10(p.adjust), y = reorder(Description, -log10(p.adjust)), fill =  -log10(p.adjust))) +
+  geom_point(aes(size = Count), shape = 21) +
+  facet_grid(~Comp, space="free", scales="free")+
+  scale_fill_gradient(low = "lightgray", high = "black") +
+  labs(x = "-log10 p-value", y = "") +
+ base_theme +
+  theme(legend.position = "bottom")
+plot_dot_MF_down
+
+data_top10_blue$Color <- c("darkblue")
+data_top10_red$Color <- c("darkred")
+
+data_GoTerm <- rbind(data_top10_blue, data_top10_red)
+```
+
+### b) 3OMG_F16 VS Water_F16
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+condition1 <- c("3OMG F16")
+condition2 <- c("Water F16")
+
+gene_list_red <- df_results_F16$locus_name[df_results_F16$Color == "#7FC29B"]
+gene_list_blue <- df_results_F16$locus_name[df_results_F16$Color == "#949494"]
+
+gene_list_red <- gene_list_red[!is.na(gene_list_red)]
+gene_list_blue <- gene_list_blue[!is.na(gene_list_blue)]
+
+converted_genes_red <- bitr(gene_list_red, fromType = "TAIR", 
+                            toType = c("ENTREZID", "SYMBOL"), 
+                            OrgDb = org.At.tair.db)
+converted_genes_blue <- bitr(gene_list_blue, fromType = "TAIR", 
+                             toType = c("ENTREZID", "SYMBOL"), 
+                             OrgDb = org.At.tair.db)
+
+ego_red <- enrichGO(gene         = converted_genes_red$ENTREZID,
+                    OrgDb        = org.At.tair.db,
+                    keyType      = "ENTREZID",
+                    ont          = "ALL",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+
+ego_blue <- enrichGO(gene         = converted_genes_blue$ENTREZID,
+                     OrgDb        = org.At.tair.db,
+                     keyType      = "ENTREZID",
+                     ont          = "ALL",
+                     pAdjustMethod = "BH",
+                     pvalueCutoff  = 0.05,
+                     qvalueCutoff  = 0.05)
+
+data_red <- data.frame(ego_red)
+data_blue <- data.frame(ego_blue)
+
+data_red <- data_red %>%
+  mutate(GeneRatioPercentage = (as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 1)) / 
+                               as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 2))) * 100)
+
+data_blue <- data_blue %>%
+  mutate(GeneRatioPercentage = (as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 1)) / 
+                               as.numeric(sapply(strsplit(as.character(GeneRatio), "/"), "[", 2))) * 100)
+
+data_top10_red <- data_red %>%
+  arrange(p.adjust) %>%
+  slice_head(n = 15)
+
+data_top10_blue <- data_blue %>%
+  arrange(p.adjust) %>%
+  slice_head(n = 15)
+
+data_red$Comp <- paste("GO Term Up", condition1, "vs", condition2)
+data_blue$Comp <- paste("GO Term Down", condition1, "vs", condition2)
+
+data_top10_red$Comp <- paste("GO Term Up", condition1, "vs", condition2)
+data_top10_blue$Comp <- paste("GO Term Down", condition1, "vs", condition2)
+
+data_top10_red$Description <- data_top10_red$Description %>%
+  gsub("metabolic process", "metabolism", .) %>%
+  gsub("biosynthetic process", "biosynthesis", .) %>%
+  gsub("catabolic process", "catabolism", .) %>%
+  gsub("transporter activity", "transport", .)
+
+data_top10_blue$Description <- data_top10_blue$Description %>%
+  gsub("metabolic process", "metabolism", .) %>%
+  gsub("biosynthetic process", "biosynthesis", .) %>%
+  gsub("catabolic process", "catabolism", .) %>%
+  gsub("transporter activity", "transport", .)
+
+
+plot_dot_F16_up <- ggplot(data_top10_red, aes(x = -log10(p.adjust), y = reorder(Description, -log10(p.adjust)), fill = -log10(p.adjust))) +
+  geom_point(aes(size = Count), shape = 21) +
+  facet_grid(~Comp, space="free", scales="free")+
+  scale_fill_gradient(low = "#D1E8D3", high = "#4F8C6B") +
+  labs(x = "-log10 p-value", y = "") +
+ base_theme +
+  theme(legend.position = "bottom") +
+   scale_y_discrete(position = "right")
+plot_dot_F16_up
+
+plot_dot_F16_down <- ggplot(data_top10_blue, aes(x = -log10(p.adjust), y = reorder(Description, -log10(p.adjust)), fill =  -log10(p.adjust))) +
+  geom_point(aes(size = Count), shape = 21) +
+  facet_grid(~Comp, space="free", scales="free")+
+  scale_fill_gradient(low = "lightgray", high = "black") +
+  labs(x = "-log10 p-value", y = "") +
+ base_theme +
+  theme(legend.position = "bottom")
+plot_dot_F16_down
+
+data_top10_blue$Color <- c("darkblue")
+data_top10_red$Color <- c("darkred")
+
+data_GoTerm <- rbind(data_top10_blue, data_top10_red)
+```
+
+
+
+## 5) All plots Plant
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+# Create an empty plot
+empty_plot <- ggplot() + 
+  theme_void()  # completely blank
+
+Plot_Comb1 <- plot_grid(volcano_results1_MF, volcano_results1_F16, rel_heights = c(1,1), rel_widths = c(1,1), nrow=1,   align="hv",  axis = "tb")
+Plot_Comb1
+
+Plot_Comb_up <- plot_grid(plot_dot_MF_up, plot_dot_F16_up, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="hv",  axis = "tb")
+Plot_Comb_up
+
+Plot_Comb_down <- plot_grid(plot_dot_MF_down,plot_dot_F16_down, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="hv",  axis = "tb")
+Plot_Comb_down
+
+#Export 15x14
+Plot_Comb_MF <- plot_grid(
+  plot_dot_MF_down, volcano_results1_MF, plot_dot_MF_up, rel_heights = c(1,1,1), rel_widths = c(0.6,0.5,0.75), nrow=1,   align="h",  axis = "tb")
+Plot_Comb_MF
+
+Plot_Comb_F16 <- plot_grid(
+  plot_dot_F16_down, volcano_results1_F16, plot_dot_F16_up, rel_heights = c(1,1,1), rel_widths = c(0.7,0.5,0.65), nrow=1,   align="h",  axis = "tb")
+Plot_Comb_F16
+
+#Plot verti
+Plot_Comb_Vulc <- plot_grid( volcano_results1_MF,empty_plot,  volcano_results1_F16, empty_plot, rel_heights = c(1,0.25,1,0.25), rel_widths = c(1), nrow=4,ncol=1,   align="vh",  axis = "tb")
+Plot_Comb_Vulc
+
+Plot_Comb_Down <- plot_grid( plot_dot_MF_down, plot_dot_F16_down, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="vh",  axis = "tb")
+Plot_Comb_Down
+
+Plot_Comb_Up <- plot_grid( plot_dot_MF_up, plot_dot_F16_up, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="vh",  axis = "tb")
+Plot_Comb_Up
+
+Plot_Comb_Final <- plot_grid( Plot_Comb_Down, Plot_Comb_Vulc,Plot_Comb_Up,  rel_heights = c(1,1), rel_widths = c(0.85,0.6,1), nrow=1,   align="vh",  axis = "tb")
+Plot_Comb_Final
+```
+
+---
+END
+---

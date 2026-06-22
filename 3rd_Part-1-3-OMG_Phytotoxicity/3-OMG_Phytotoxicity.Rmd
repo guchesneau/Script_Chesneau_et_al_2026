@@ -1,0 +1,711 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.0.0 (and Rstudio 1.2.5019)
+
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load libraries
+library(ggplot2)
+library(rstatix)  
+library(ggpubr)   
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(cowplot)
+library(dplyr)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B",  "Glucose" = "#817E9F")
+```
+# A] Agar
+
+## 1) Plot 72h Agar
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Calculate median values
+Median <- df %>%
+  group_by(Treatment, Time, Plant,System,Element ) %>%
+  summarise(median_value = median(Weight_length_Per_Plant, na.rm = TRUE))
+
+#Remove glucose
+df <- subset(df, !Treatment %in% c("Glucose"))
+df <- subset(df, Plant %in% c("Arabidopsis_thaliana"))
+df <- subset(df, System %in% c("Agar"))
+df <- subset(df, Time %in% c("72h"))
+
+#Create Expe column
+df <- df %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns")
+  )
+
+# Calculate n for each group
+df_n <- df %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df$Treatment <- factor(df$Treatment,
+                           levels = c("Water", "3OMG"))
+
+#Plot
+Plot_72h <- ggplot(df, aes(x = Treatment, y = Weight_length_Per_Plant, fill = Treatment)) +
+   geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.1, size = 0.5) +
+  facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Arabidopsis_thaliana" = "A. thaliana"))) +
+  labs(x = "Treatment", y = "Root length (mm)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y = - 1, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) + ylim(-1,6)
+  
+Plot_72h
+```
+
+## 2) Plot 1 week
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove glucose
+df <- subset(df, !Treatment %in% c("Glucose"))
+df <- subset(df, Plant %in% c("Arabidopsis_thaliana"))
+df <- subset(df, System %in% c("Agar"))
+df <- subset(df, Time %in% c("1 week"))
+
+#Create Expe column
+df <- df %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns")
+  )
+
+# Calculate n for each group
+df_n <- df %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df$Treatment <- factor(df$Treatment,
+                           levels = c("Water", "3OMG"))
+
+#Plot
+Plot_1W <- ggplot(df, aes(x = Treatment, y = Weight_length_Per_Plant)) +
+  geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.2, size = 1) +
+   facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Arabidopsis_thaliana" = "A. thaliana"))) +
+  labs(x = "Treatment", y = "Root length (mm)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y = - 1, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) + ylim(-1,24)
+  
+Plot_1W
+```
+
+## 3) Plot 2 weeks Roots
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove glucose
+df <- subset(df, !Treatment %in% c("Glucose"))
+df <- subset(df, Plant %in% c("Arabidopsis_thaliana"))
+df <- subset(df, System %in% c("Agar"))
+df <- subset(df, Time %in% c("2 weeks"))
+df <- subset(df, Element %in% c("Roots"))
+
+#Create Expe column
+df <- df %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns")
+  )
+
+# Calculate n for each group
+df_n <- df %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df$Treatment <- factor(df$Treatment,
+                           levels = c("Water", "3OMG"))
+
+#Plot
+Plot_2W_Roots <- ggplot(df, aes(x = Treatment, y = Weight_length_Per_Plant)) +
+  geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.2, size = 1) +
+    facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Arabidopsis_thaliana" = "A. thaliana"))) +
+  labs(x = "Treatment", y = "Root length (mm)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y = - 10, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) + ylim(-10, 60)
+  
+Plot_2W_Roots
+```
+
+## 4) Plot 2 weeks Shoots
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df_Shoot <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove glucose
+df_Shoot <- subset(df_Shoot, !Treatment %in% c("Glucose"))
+df_Shoot <- subset(df_Shoot, Plant %in% c("Arabidopsis_thaliana"))
+df_Shoot <- subset(df_Shoot, System %in% c("Agar"))
+df_Shoot <- subset(df_Shoot, Time %in% c("2 weeks"))
+df_Shoot <- subset(df_Shoot, Element %in% c("Shoots"))
+
+#Create Expe column
+df_Shoot <- df_Shoot %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df_Shoot %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df_Shoot %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns")
+  )
+
+# Calculate n for each group
+df_n <- df_Shoot %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df_Shoot$Treatment <- factor(df_Shoot$Treatment,
+                           levels = c("Water", "3OMG"))
+
+#Plot
+Plot_2W_Shoots <- ggplot(df_Shoot, aes(x = Treatment, y = Weight_length_Per_Plant)) +
+  geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.2, size = 1) +
+   facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Arabidopsis_thaliana" = "A. thaliana"))) +
+  labs(x = "Treatment", y = "Shoot Fresh Weigth (mg/Plant)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y =  - 5, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) + ylim(-5, 55)
+  
+Plot_2W_Shoots
+```
+## 5) Plot all timepoints Roots
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove glucose
+df <- subset(df, !Treatment %in% c("Glucose"))
+df <- subset(df, Plant %in% c("Arabidopsis_thaliana"))
+df <- subset(df, System %in% c("Agar"))
+df <- subset(df, Element %in% c("Roots"))
+
+#Create Expe column
+df <- df %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns"))
+
+# Calculate n for each group
+df_n <- df %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df$Treatment <- factor(df$Treatment, levels = c("Water", "3OMG"))
+df$Time <- factor(df$Time, levels = c("72h", "1 week", "2 weeks", "3 weeks"))
+df_n$Time <- factor(df_n$Time, levels = c("72h", "1 week", "2 weeks", "3 weeks"))
+stats_df$Time <- factor(stats_df$Time, levels = c("72h", "1 week", "2 weeks", "3 weeks"))
+
+#Plot
+Plot_Roots_Total <- ggplot(df, aes(x = Treatment, y = Weight_length_Per_Plant)) +
+  geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.2, size = 1) +
+   facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Arabidopsis_thaliana" = "A. thaliana"))) +
+  labs(x = "Treatment", y = "Root length (mm)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y =  - 5, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) +
+  ylim(-1,85)
+  
+Plot_Roots_Total
+```
+# B] Flowpots
+
+## 1) Plot Arabidopsis
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df_at <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove glucose
+df_at <- subset(df_at, !Treatment %in% c("Glucose"))
+df_at <- subset(df_at, Plant %in% c("Arabidopsis_thaliana"))
+df_at <- subset(df_at, System %in% c("Flowpot"))
+
+#Create Expe column
+df_at <- df_at %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df_at %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df_at %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns")
+  )
+
+# Calculate n for each group
+df_n <- df_at %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df_at$Treatment <- factor(df_at$Treatment,
+                           levels = c("Water", "3OMG"))
+
+#Plot
+Plot_FP_at <- ggplot(df_at, aes(x = Treatment, y = Weight_length_Per_Plant)) +
+  geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.1, size = 1) +
+  facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Arabidopsis_thaliana" = "A. thaliana"))) +
+  labs(x = "Treatment", y = "Show fresh Weight (mg/plant)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y = - 10, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) + ylim(-10, 75)
+  
+Plot_FP_at
+```
+
+## 2) Plot Tomato
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df_T <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove glucose
+df_T <- subset(df_T, !Treatment %in% c("Glucose"))
+df_T <- subset(df_T, Plant %in% c("Micro_Tomato"))
+df_T <- subset(df_T, System %in% c("Flowpot"))
+
+#Create Expe column
+df_T <- df_T %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df_T %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df_T %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns")
+  )
+
+# Calculate n for each group
+df_n <- df_T %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df_T$Treatment <- factor(df_T$Treatment,
+                           levels = c("Water", "3OMG"))
+
+#Plot
+Plot_FP_T <- ggplot(df_T, aes(x = Treatment, y = Weight_length_Per_Plant)) +
+  geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.2, size = 1) +
+   facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Micro_Tomato" = "Micro Tomato"))) +
+  labs(x = "Treatment", y = "Show fresh Weight (mg/plant)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y =  - 50, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) + ylim(-50,470)
+  
+Plot_FP_T
+```
+
+## 3) Plot Barley
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df_B <- read.table(file="Table_MF.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Remove glucose
+df_B <- subset(df_B, !Treatment %in% c("Glucose"))
+df_B <- subset(df_B, Plant %in% c("Hordeum_vulgare"))
+df_B <- subset(df_B, System %in% c("Flowpot"))
+
+#Create Expe column
+df_B <- df_B %>%
+  mutate(Expe_short = paste0("E", as.numeric(factor(Expe))))
+
+#Stats
+# Shapiro–Wilk normality test per group
+shapiro_df <- df_B %>%
+  group_by(Element, Time, Treatment) %>%
+  shapiro_test(Weight_length_Per_Plant)
+
+shapiro_df #Deviate from normality run Wilcoxon
+
+#Wilcoxon
+stats_df <- df_B %>%
+  group_by(Element, Time) %>%
+  wilcox_test(Weight_length_Per_Plant ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_xy_position(x = "Treatment") %>%
+  mutate(
+    # Label: "P=..." if significant, otherwise "ns"
+    p.adj.label = ifelse(p.adj <= 0.05,
+                         paste0("P=", signif(p.adj, 3)),
+                         "ns")
+  )
+
+# Calculate n for each group
+df_n <- df_B %>%
+  group_by(Treatment, Element, Time) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+#Add for plotting column
+stats_df$Treatment <- c("")
+stats_df$Expe_short <- c("")
+df_n$Expe_short <- c("")
+
+#Order plot
+df_B$Treatment <- factor(df_B$Treatment,
+                           levels = c("Water", "3OMG"))
+
+#Plot
+Plot_FP_B <- ggplot(df_B, aes(x = Treatment, y = Weight_length_Per_Plant)) +
+  geom_violin(outlier.shape = NA, aes(fill = Treatment), alpha =0.2) +
+   geom_boxplot(width= 0.2,outlier.shape = NA, aes(fill = Treatment)) +
+  geom_jitter(aes(shape = Expe_short), width= 0.05, alpha = 0.2, size = 1) +
+ facet_grid(Element ~ Plant +Time, scales = "free", labeller = labeller(
+    Plant = c("Hordeum_vulgare" = "Barley"))) +
+  labs(x = "Treatment", y = "Show fresh Weight (mg/plant)", title = "") +
+  base_theme +
+  theme(axis.title.x = element_blank()) +
+   geom_text(
+    data = df_n,
+    aes(x = Treatment, y = - 50, 
+        label = paste0("n=", n)),
+    size = 3
+  ) +
+ stat_pvalue_manual(
+    stats_df,
+    label = "p.adj.label",
+    tip.length = 0.01
+  ) +
+    scale_fill_manual(values = color_palette) +
+  labs(
+    shape = "Independent experiment"    # legend title
+  ) + ylim(-50,570)
+  
+Plot_FP_B
+```
+
+# C] Figure Final
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Main Figure
+Main_Figure <- Plot_Roots_Total
+Main_Figure
+
+#Supplementary Figure
+Plot_CombSUPP <- plot_grid(Plot_2W_Shoots, Plot_FP_at, Plot_FP_T ,Plot_FP_B, rel_heights = c(1,1,1), rel_widths = c(1,1,1), nrow=1, ncol=4,   align="hv",  axis = "tb")
+Plot_CombSUPP
+```
+
+---
+END
+---
+

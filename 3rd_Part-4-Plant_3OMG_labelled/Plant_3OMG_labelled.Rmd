@@ -1,0 +1,150 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=FALSE, autodep = TRUE, warning = FALSE)
+#Set working direction
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.2.2 (and Rstudio 2023.09.1+494)
+
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load libraries 
+library(rstatix) 
+library(ggpubr)   
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggplot2)
+library(dplyr)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B",  "Glucose" = "#817E9F")
+```
+
+# A] Labelled 3OMG in planta
+
+## 1) Prepare data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df <- read.table(file="df_labelled.txt",sep="\t",dec = ".",header=TRUE, row.names=1)
+
+#Subset soil
+df <- subset(df, Labelled %in% c("Yes"))
+df <- subset(df, !Time %in% c("Control", "Ctrl"))
+```
+
+## 2) Plot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Note: Statistics are impossible because Water groups have no variance
+# Therefore, no t-test or Wilcoxon test can be performed
+
+# Create a new column with normalized values
+df <- df %>%
+  mutate(PEAK_AREA_Norm = PEAK_AREA / Mg.Plant)
+
+#Remove 2 weeks
+df <- subset(df, !Time %in% c("2weeks"))
+
+# Order factors
+df$Time <- factor(df$Time, levels = c("72h", "1week", "2weeks"))
+df$Treatment <- factor(df$Treatment, levels = c("Water", "3OMG"))
+
+# Subset compounds
+df <- subset(df, Compound %in% c("13C_3OMG_06", "13C_3OMG6P_06"))
+
+# Summarise mean and SE
+df_summary <- df %>%
+  group_by(Time, Treatment, Compound) %>%
+  summarise(
+    mean_value = mean(PEAK_AREA_Norm, na.rm = TRUE),
+    se_value = sd(PEAK_AREA_Norm, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+# Custom colors
+treat_colors <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+
+# Keep factor levels
+df$Compound <- factor(df$Compound)
+df_summary$Compound <- factor(df_summary$Compound)
+
+# Named vector for facet labels with clean chemical names
+compound_labels <- c(
+  "13C_3OMG_06"   = "3OMG (13C)",
+  "13C_3OMG6P_06" = "3OMG-6P (13C)"
+)
+
+# Plot
+Plot_Labelled_Plant <- ggplot() +
+  geom_bar(
+    data = df_summary,
+    aes(x = Time, y = mean_value, fill = Treatment),
+    stat = "identity",
+    position = position_dodge(width = 0.9),
+    alpha = 1
+  ) +
+  geom_errorbar(
+    data = df_summary,
+    aes(x = Time, ymin = mean_value - se_value, ymax = mean_value + se_value, group = Treatment),
+    position = position_dodge(width = 0.9),
+    width = 0.2
+  ) +
+  geom_jitter(
+    data = df,
+    aes(x = Time, y = PEAK_AREA_Norm, fill = Treatment),
+    size = 2,
+    alpha = 0.8,
+    position = position_jitterdodge(jitter.width = 0.4, dodge.width = 0.9),
+    shape = 21, color = "black"
+  ) +
+  scale_fill_manual(values = treat_colors) +
+  facet_wrap(~ Compound, scales = "fixed",
+             labeller = labeller(Compound = as_labeller(compound_labels))) +
+  labs(
+    x = "Treatment",
+    y = "Peak Area per mg Plant",
+    title = "Note: Statistics are impossible because Water groups have no variance"
+  ) +
+  base_theme +
+   theme(legend.position = "right",
+         axis.title.x = element_blank()) 
+
+Plot_Labelled_Plant
+```
+
+---
+END
+---
+
+
+
+
+
+

@@ -1,0 +1,394 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+# Before you start
+
+This script has been made on R 4.0.0 (and Rstudio 1.2.5019)
+
+```{r R version}
+R.version
+```
+
+```{r}
+#Load libraries
+library(ggplot2)
+library(rstatix)  
+library(ggpubr)   
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(dplyr)
+library(multcompView)
+library(emmeans)
+library(cowplot)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free"
+)
+```
+
+# A] Inhibition 3OMG MF
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load data
+raw_data <- read.csv("Time_Points_Full.csv", header = TRUE, sep = ",")
+
+#Remove D0 Rep1 which has not not work (bad germination)
+raw_data <- subset(raw_data, !Bio_Rep %in% c("R0"))
+
+# Keep only D0 as day of inoculation
+raw_data_D0 <- raw_data %>%
+  filter(Time_Inoc %in% c("D0"))
+
+# Remove plants that did not grow
+raw_data_D0_filtered <- subset(raw_data_D0, !No.growth %in% c("No growth"))
+
+#Calculate median values
+Median <- raw_data_D0_filtered %>%
+  group_by(DAI, Concentration, Time_Inoc, Treatment) %>%
+  summarise(median_value = median(Root_Length, na.rm = TRUE))
+
+# Order factors
+raw_data_D0_filtered$Concentration <- factor(raw_data_D0_filtered$Concentration,
+                                             levels = c("7.5mM", "15mM"))
+
+# Keep DAI numeric for geom_smooth
+raw_data_D0_filtered$DAI <- as.numeric(raw_data_D0_filtered$DAI)
+
+#Check normality
+# Vérifier la normalité
+normality_results <- raw_data_D0_filtered %>%
+  group_by(Concentration, DAI, Treatment) %>%
+  shapiro_test(Root_Length) 
+normality_results # Half not normal 
+
+# Wilcoxon tests per Concentration and DAI
+wilcox_results <- raw_data_D0_filtered %>%
+  group_by(Concentration, DAI_f = as.factor(DAI)) %>%  # group using factor version
+  rstatix::wilcox_test(Root_Length ~ Treatment) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance("p.adj")
+
+# Find max Root_Length per group for label placement
+max_y <- raw_data_D0_filtered %>%
+  group_by(Concentration, DAI_f = as.factor(DAI)) %>%
+  summarise(y.position = max(Root_Length, na.rm = TRUE) * 1.05)
+
+# Merge positions with p-values
+wilcox_annot <- left_join(wilcox_results, max_y, by = c("Concentration", "DAI_f"))
+
+# Add column for plotting
+wilcox_annot$Treatment <- c("Water")
+wilcox_annot$Bio_Rep <- c("")
+
+# Plot
+Plot_DO <- ggplot(raw_data_D0_filtered, aes(x = DAI, y = Root_Length, color = Treatment, fill = Treatment)) +
+  geom_point(aes(shape = Bio_Rep), alpha = 0.5, size = 2) +
+  geom_smooth(
+    method = "loess",
+    se = TRUE,
+    level = 0.9,
+    linewidth = 1.2,
+    alpha = 0.2
+  ) +
+  scale_fill_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  scale_color_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  facet_grid(
+    Concentration ~ Time_Inoc,
+    scales = "fixed",
+    labeller = labeller(
+      Time_Inoc = function(x) paste("Days of Inoculation:", x)
+    )
+  ) +
+  labs(
+    x = "Days After Inoculation (DAI)",
+    y = "Root Length (mm)",
+    color = "Treatment",
+    fill = "Treatment"
+  ) +
+  # Vertical lines at x = 3, 7, 14
+  geom_vline(xintercept = c(3, 7, 14), linetype = "dashed", color = "grey50") +
+  # Stats stars
+  geom_text(
+    data = wilcox_annot %>% filter(p.adj <= 0.05),
+    aes(
+      x = as.numeric(as.character(DAI_f)), 
+      y = y.position, 
+      label = p.adj.signif
+    ),
+    color = "black",
+    size = 5,
+    vjust = 0
+  ) +
+  # Stats P-values
+  geom_text(
+    data = wilcox_annot %>% filter(p.adj <= 0.05),
+    aes(
+      x = as.numeric(as.character(DAI_f)), 
+      y = 120, 
+      label = paste0("P=", formatC(p.adj, format = "e", digits = 1))  # scientific notation, 1 sig digit
+    ),
+    color = "black",
+    size = 2.5,
+    angle = 90,   # rotate vertically
+    vjust = 1
+  ) +
+  base_theme +
+  ylim(0,130)
+
+Plot_DO
+```
+
+# B] Time Points
+
+## 1) Anova
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load data
+raw_data<-read.csv(file = "Time_Points_Full.csv", header = TRUE, sep=",")
+raw_data
+
+#Remove D0 Rep1 which has not weel germinated
+raw_data <- subset(raw_data, !Bio_Rep %in% c("R0"))
+
+#Remove Plants that did not germinate
+raw_data <- subset(raw_data, !No.growth %in% c("No growth"))
+
+# Calculate growth speed per plant
+growth_data <- raw_data %>%
+  mutate(
+    Growth_speed = Root_Length / (Time_Measurement2 - Time_Inoc2)
+  )
+
+# Subset DAI of interest and remove NA
+growth_data2 <- growth_data %>%
+  filter(DAI %in% c(3, 4, 7)) %>%
+  filter(!is.na(Growth_speed))
+
+
+#Remove plant that did not grow.
+growth_data2_filtered <- subset(growth_data2, !No.growth %in% c("No growth"))
+
+
+# Calculate median Water growth per Time_Inoc and DAI
+water_median <- growth_data2_filtered %>%
+  filter(Treatment == "Water") %>%
+  group_by(Concentration, Time_Inoc2, DAI) %>%
+  summarise(Water_median = median(Growth_speed, na.rm = TRUE)) %>%
+  ungroup()
+
+# Compute log2FC for 3OMG relative to median Water
+log2fc_data <- growth_data2_filtered %>%
+  filter(Treatment == "3OMG") %>%
+  left_join(water_median, by = c("Concentration", "Time_Inoc2", "DAI")) %>%
+  mutate(log2FC = log2(Growth_speed / Water_median))
+
+# Check normality for each Concentration × DAI × Time_Inoc group
+normality_test <- log2fc_data %>%
+  group_by(Concentration, DAI, Time_Inoc) %>%
+  shapiro_test(log2FC)
+print(normality_test) #Most of them are normal
+
+# Run ANOVA per Concentration and DAI
+anova_results <- log2fc_data %>%
+  group_by(Concentration, DAI) %>%
+  anova_test(log2FC ~ Time_Inoc)
+print(anova_results)
+
+# Compute Tukey post-hoc and compact letter display
+letters_data <- log2fc_data %>%
+  group_by(Concentration, DAI) %>%
+  do({
+    model <- aov(log2FC ~ Time_Inoc, data = .)
+    tuk <- TukeyHSD(model)
+    cld <- multcompLetters4(model, tuk)
+    tibble(Time_Inoc = names(cld$Time_Inoc$Letters),
+           Letters = cld$Time_Inoc$Letters)
+  }) %>%
+  ungroup()
+
+# Merge letters for plotting
+log2fc_with_letters <- left_join(log2fc_data, letters_data, 
+                                 by = c("Concentration", "DAI", "Time_Inoc"))
+
+# Add column for plotting
+letters_data$Treatment <- c("3OMG")
+
+# Order factors
+log2fc_data$Concentration <- factor(log2fc_data$Concentration,
+                                             levels = c("7.5mM", "15mM"))
+letters_data$Concentration <- factor(letters_data$Concentration,
+                                             levels = c("7.5mM", "15mM"))
+
+# Plot with letters
+plot_DAI <- ggplot(log2fc_data, aes(x = factor(Time_Inoc), y = log2FC, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(aes(color = Treatment, shape =Bio_Rep), width = 0.2, alpha = 0.7, size = 2) +
+    facet_grid(
+    Concentration ~ DAI,
+    scales = "free",
+    labeller = labeller(
+      DAI = function(x) paste("Days After Inoculation:", x)
+    )
+  ) +
+  geom_text(
+    data = letters_data,
+    aes(x = Time_Inoc, y = max(log2fc_data$log2FC, na.rm = TRUE) + 0.2, label = Letters),
+    color = "black",
+    size = 4
+  ) +
+  scale_fill_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  scale_color_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(
+    x = "Day of Inoculation",
+    y = "log2 Fold Change (Root growth (mm/day) : 3OMG / median Water)",
+    title = ""
+  ) +
+  base_theme
+
+plot_DAI
+```
+
+## 2) Wilcoxon-tests
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+library(tidyverse)
+library(rstatix)
+library(ggpubr)
+
+# Load and clean data (same as before)
+raw_data <- read.csv("Time_Points_Full.csv", header = TRUE, sep = ",") %>% 
+  filter(!Bio_Rep %in% c("R0")) %>%
+  filter(!No.growth %in% c("No growth"))
+
+growth_data <- raw_data %>% 
+  mutate(Growth_speed = Root_Length / (Time_Measurement2 - Time_Inoc2))
+
+growth_data2 <- growth_data %>% 
+  filter(DAI %in% c(3,4,7)) %>%
+  filter(!is.na(Growth_speed)) %>%
+  filter(!No.growth %in% c("No growth"))
+
+# Median Water growth
+water_median <- growth_data2 %>% 
+  filter(Treatment == "Water") %>% 
+  group_by(Concentration, Time_Inoc2, DAI) %>% 
+  summarise(Water_median = median(Growth_speed, na.rm = TRUE), .groups = "drop")
+
+# log2FC
+log2fc_data <- growth_data2 %>% 
+  filter(Treatment == "3OMG") %>% 
+  left_join(water_median, by = c("Concentration", "Time_Inoc2", "DAI")) %>% 
+  mutate(log2FC = log2(Growth_speed / Water_median))
+
+# Wilcoxon test per Concentration × DAI × Time_Inoc2
+wilcox_results <- growth_data2 %>%
+  filter(Treatment %in% c("Water", "3OMG")) %>%
+  group_by(Concentration, DAI, Time_Inoc2) %>%
+  summarise(
+    p_value = wilcox.test(Growth_speed ~ Treatment, data = cur_data())$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),  # adjust p-values
+    # Stars for significance using adjusted p-values
+    signif_label = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ ""
+    ),
+    # p-value label for plotting using adjusted p-values
+    p_label = ifelse(p_adj < 0.05, paste0("P=", signif(p_adj, 1)), "")
+  )
+
+# Order factors
+log2fc_data$Concentration <- factor(log2fc_data$Concentration, levels = c("7.5mM", "15mM"))
+wilcox_results$Concentration <- factor(wilcox_results$Concentration, levels = c("7.5mM", "15mM"))
+
+# Compute y-position for stars/p-values above each boxplot
+# We can use the max of log2FC per group + a small offset
+y_positions <- log2fc_data %>%
+  group_by(Concentration, DAI, Time_Inoc2) %>%
+  summarise(ymax = max(log2FC, na.rm = TRUE), .groups = "drop") %>%
+  left_join(wilcox_results, by = c("Concentration", "DAI", "Time_Inoc2")) %>%
+  mutate(y_pos = ymax + 0.1)  # offset
+
+# Plot
+plot_DAI <- ggplot(log2fc_data, aes(x = factor(Time_Inoc2), y = log2FC, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(aes(color = Treatment, shape = Bio_Rep), width = 0.2, alpha = 0.7, size = 2) +
+  facet_grid(
+    Concentration ~ DAI,
+    scales = "free",
+    labeller = labeller(DAI = function(x) paste("Days After Inoculation:", x))
+  ) +
+  # Add stars directly above boxes
+  geom_text(
+    data = y_positions,
+    aes(x = factor(Time_Inoc2), y = y_pos+0.05, label = signif_label),
+    inherit.aes = FALSE,
+    size = 5
+  ) +
+  # Add p-value at the top of the plot
+  geom_text(
+    data = y_positions,
+    aes(x = factor(Time_Inoc2), y = 0.45, label = p_label, angle = 90),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  scale_fill_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  scale_color_manual(values = c("Water" = "#949494", "3OMG" = "#7FC29B")) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(
+    x = "Day of Inoculation",
+    y = "log2 Fold Change (Root growth (mm/day) : 3OMG / median Water)",
+    title = ""
+  ) +
+  base_theme +
+  ylim(-0.8,0.6)
+
+plot_DAI
+```
+
+
+# C] Figure Final
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Plot_Comb1 <- plot_grid(Plot_DO, plot_DAI , rel_heights = c(1,1), rel_widths = c(1,1), nrow=1,ncol=2,   align="hv",  axis = "tb")
+Plot_Comb1
+```
+
+---
+END
+---

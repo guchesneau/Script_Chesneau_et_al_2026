@@ -1,0 +1,95 @@
+#NEXUS
+[R-package APE, Thu Feb 19 18:52:02 2026]
+
+BEGIN TAXA;
+	DIMENSIONS NTAX = 41;
+	TAXLABELS
+		Coprinopsis_sp._MPI-PUGE-AT-0042
+		Auriculariales_sp._MPI-PUGE-AT-0066
+		Rhizoctonia_solani_MPI-SDFR-AT-0096
+		Mortierella_elongata_MPI-CAGE-AA-0104
+		Macrophomina_phaseolina_MPI-SDFR-AT-0080
+		Dendryphion_nanum_MPI-CAGE-CH-0243
+		Boeremia_exigua_MPI-SDFR-AT-0100
+		Paraphoma_chrysanthemicola_MPI-SDFR-AT-0120
+		Paraphoma_chrysanthemicola_MPI-GEGE-AT-0034
+		Phaeosphaeria_sp._MPI-PUGE-AT-0046c
+		Pyrenochaeta_sp._MPI-SDFR-AT-0127
+		Alternaria_alternata_MPI-PUGE-AT-0064
+		Alternaria_rosae_MPI-PUGE-AT-0040
+		Leotiomycetes_sp._MPI-SDFR-AT-0126
+		Leptodontidium_sp._MPI-SDFR-AT-0119
+		Rhexocercosporidium_sp._MPI-PUGE-AT-0058
+		Halenospora_varia_MPI-CAGE-AT-0135
+		Sordaria_sp._MPI-SDFR-AT-0083
+		Chaetomium_sp._MPI-SDFR-AT-0129
+		Chaetomium_globosum_MPI-SDFR-AT-0079
+		Chaetomium_sp._MPI-CAGE-AT-0009
+		Stachybotrys_elegans_MPI-CAGE-CH-0235
+		Fusarium_solani_MPI-SDFR-AT-0091
+		Fusarium_sp._MPI-CAGE-AA-0113
+		Fusarium_venenatum_MPI-CAGE-CH-0201
+		Fusarium_tricinctum_MPI-SDFR-AT-0068
+		Fusarium_tricinctum_MPI-SDFR-AT-0044
+		Fusarium_redolens_MPI-CAGE-AT-0023
+		Fusarium_oxysporum_MPI-CAGE-CH-0212
+		Fusarium_oxysporum_MPI-SDFR-AT-0094
+		Fusarium_sp._MPI-SDFR-AT-0072
+		Cylindrocarpon_olidum_MPI-CAGE-CH-0241
+		Ilyonectria_sp._MPI-CAGE-AT-0134
+		Ilyonectria_europaea_MPI-CAGE-AT-0026
+		Dactylonectria_estremocensis_MPI-CAGE-AT-0021
+		Dactylonectria_macrodidyma_MPI-CAGE-AT-0147
+		Verticillium_dahliae_MPI-CAGE-AT-0001
+		Plectosphaerella_plurivora_MPI-SDFR-AT-0117
+		Plectosphaerella_cucumerina_MPI-CAGE-AT-0016
+		Truncatella_angustata_MPI-SDFR-AT-0073
+		Microdochium_trichocladiopsis_MPI-CAGE-CH-0230
+	;
+END;
+BEGIN TREES;
+	TRANSLATE
+		1	Coprinopsis_sp._MPI-PUGE-AT-0042,
+		2	Auriculariales_sp._MPI-PUGE-AT-0066,
+		3	Rhizoctonia_solani_MPI-SDFR-AT-0096,
+		4	Mortierella_elongata_MPI-CAGE-AA-0104,
+		5	Macrophomina_phaseolina_MPI-SDFR-AT-0080,
+		6	Dendryphion_nanum_MPI-CAGE-CH-0243,
+		7	Boeremia_exigua_MPI-SDFR-AT-0100,
+		8	Paraphoma_chrysanthemicola_MPI-SDFR-AT-0120,
+		9	Paraphoma_chrysanthemicola_MPI-GEGE-AT-0034,
+		10	Phaeosphaeria_sp._MPI-PUGE-AT-0046c,
+		11	Pyrenochaeta_sp._MPI-SDFR-AT-0127,
+		12	Alternaria_alternata_MPI-PUGE-AT-0064,
+		13	Alternaria_rosae_MPI-PUGE-AT-0040,
+		14	Leotiomycetes_sp._MPI-SDFR-AT-0126,
+		15	Leptodontidium_sp._MPI-SDFR-AT-0119,
+		16	Rhexocercosporidium_sp._MPI-PUGE-AT-0058,
+		17	Halenospora_varia_MPI-CAGE-AT-0135,
+		18	Sordaria_sp._MPI-SDFR-AT-0083,
+		19	Chaetomium_sp._MPI-SDFR-AT-0129,
+		20	Chaetomium_globosum_MPI-SDFR-AT-0079,
+		21	Chaetomium_sp._MPI-CAGE-AT-0009,
+		22	Stachybotrys_elegans_MPI-CAGE-CH-0235,
+		23	Fusarium_solani_MPI-SDFR-AT-0091,
+		24	Fusarium_sp._MPI-CAGE-AA-0113,
+		25	Fusarium_venenatum_MPI-CAGE-CH-0201,
+		26	Fusarium_tricinctum_MPI-SDFR-AT-0068,
+		27	Fusarium_tricinctum_MPI-SDFR-AT-0044,
+		28	Fusarium_redolens_MPI-CAGE-AT-0023,
+		29	Fusarium_oxysporum_MPI-CAGE-CH-0212,
+		30	Fusarium_oxysporum_MPI-SDFR-AT-0094,
+		31	Fusarium_sp._MPI-SDFR-AT-0072,
+		32	Cylindrocarpon_olidum_MPI-CAGE-CH-0241,
+		33	Ilyonectria_sp._MPI-CAGE-AT-0134,
+		34	Ilyonectria_europaea_MPI-CAGE-AT-0026,
+		35	Dactylonectria_estremocensis_MPI-CAGE-AT-0021,
+		36	Dactylonectria_macrodidyma_MPI-CAGE-AT-0147,
+		37	Verticillium_dahliae_MPI-CAGE-AT-0001,
+		38	Plectosphaerella_plurivora_MPI-SDFR-AT-0117,
+		39	Plectosphaerella_cucumerina_MPI-CAGE-AT-0016,
+		40	Truncatella_angustata_MPI-SDFR-AT-0073,
+		41	Microdochium_trichocladiopsis_MPI-CAGE-CH-0230
+	;
+	TREE * UNTITLED = [&R] ((((1:0.423913,2:0.432995)0.421942:0.0723538,3:0.404464)0.942806:0.231185,4:0.601692)0.980576:0.170933,((5:0.276204,(6:0.198378,(7:0.163676,(((8:0.0225937,9:0.0201943)0.965827:0.0839511,10:0.113152)0.772662:0.0301395,(11:0.105536,(12:0.0576436,13:0.0586562)0.956835:0.0703576)0.538129:0.0209923)0.664748:0.0272969)0.820144:0.0552279)0.928417:0.115795)0.855396:0.0983746,(((14:0.0622781,(15:0.0425325,16:0.0454175)0.775899:0.0257134)0.966906:0.105411,17:0.16934)0.956115:0.113202,(((18:0.255621,(19:0.160696,(20:0.0894462,21:0.0796772)0.940288:0.0671325)0.943525:0.092236)0.858633:0.0766344,((22:0.19862,((23:0.096695,((24:0.0558212,25:0.0601389)0.80036:0.0260648,((26:0.0141102,27:0.0158261)0.941727:0.0582855,(28:0.0203059,((29:0.00542306,30:0.00525286)0.626978:0.00916899,31:0.00986795)0.716187:0.0171472)0.896763:0.0520686)0.343525:0.0117794)0.866547:0.0413438)0.81295:0.036782,(32:0.124038,((33:0.0172446,34:0.0187395)0.923741:0.0548938,(35:0.0405244,36:0.0382953)0.906835:0.0419594)0.898561:0.0419525)0.751079:0.0289083)0.851439:0.0496782)0.847842:0.066071,(37:0.193213,(38:0.0662187,39:0.0622722)0.984892:0.132315)0.903237:0.076553)0.591367:0.0339416)0.273022:0.0210598,(40:0.21944,41:0.237952)0.779496:0.0556777)0.72554:0.0671072)0.634892:0.0854475)0.980576:0.170933);
+END;

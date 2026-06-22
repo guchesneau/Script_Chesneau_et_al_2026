@@ -1,0 +1,860 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+
+```{r R version}
+R.version
+```
+
+
+```{r}
+# Load libraries
+library(tidyverse)
+library(rcompanion)
+library(rstatix)
+library(cowplot)
+library(ggplot2)
+library(forcats)
+library(markdown)
+library(ggthemes)
+library(ggpubr) 
+library(dunn.test)
+library(ggtext)
+library(tidyr)
+
+
+
+# Set the color palette
+color_palette <- c("#949494", "#56B4E9",  "#2780F5","#7570B3", "white", "#E6AB02")
+
+# Set the microbe levels
+Microbes_levels <- c("F16", "B329_WT", "B329_WT+F16", "B329_LIKE+F16", "B329_LIKE+F16_low", "B329_LIKE+F16_high")
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+```
+
+# A] Validation 23 -> 8
+
+
+```{r}
+# Read the data
+df_parsed <- read.csv(file = "Validation screening.csv", header = TRUE, sep = ";", stringsAsFactors = FALSE)
+```
+
+
+```{r}
+
+# Spread the measurements into different columns
+df_parsed <- df_parsed %>%
+  spread(Measurement_wavelength, Value)
+
+# Separate the Plate and Well columns
+df_parsed <- df_parsed %>%
+  mutate(Plate_Well = paste(Plate, Well, sep = "_")) %>%
+  select(Plate_Well, everything()) %>%
+  separate(Plate_Well, into = c("Plate", "Well"), sep = "_")
+
+# Add border labeling
+plate <- unique(df_parsed$Plate)
+borders <- rep(c(TRUE, FALSE), each = 3, length = length(plate))
+df_parsed <- cbind(df_parsed, borders)
+
+# Filter the data frame to include only non-empty conditions
+df_parsed <- df_parsed %>%
+  filter(Condition != "Empty")
+```
+
+
+```{r}
+# Extract the unique Screening_ID values
+Screening_ID <- unique(df_parsed$Screening_ID)
+
+# Set the prefix for the Validation_ID column
+prefix <- "Mu"
+
+# Filter the data frame for the B329_LIKE+F16 Screening_ID and set the Validation_ID column
+df_Mu <- filter(df_parsed, Screening_ID == "B329_LIKE+F16")
+df_Mu$Validation_ID <- "B329_LIKE+F16"
+
+# Filter the data frame for the B329_LIKE+F16_high Screening_ID and set the Validation_ID column
+df_high <- filter(df_parsed, Screening_ID == "B329_LIKE+F16_high")
+df_high %>%
+  group_by(Validation_ID) %>%
+  summarise_at(vars(`475nm/510nm`), funs(median(., na.rm = TRUE))) -> high_MEDIAN
+colnames(high_MEDIAN) <- c("Validation_ID", "MEDIAN")
+left_join(df_high, high_MEDIAN) -> df_high
+arrange(df_high, desc(MEDIAN)) -> df_high
+length_high <- nrow(df_high) / 3
+rep(paste0(prefix, 1:length_high), each = 3) -> df_high$Validation_ID
+df_high$Validation_ID <- forcats::fct_reorder(df_high$Validation_ID, as.numeric(gsub("Mu", "", df_high$Validation_ID)))
+```
+
+
+```{r}
+
+# Filter the data frame for the B329_LIKE+F16_low Screening_ID and set the Validation_ID column
+df_low <- filter(df_parsed, Screening_ID == "B329_LIKE+F16_low")
+df_low %>%
+  group_by(Validation_ID) %>%
+  summarise_at(vars(`475nm/510nm`), funs(median(., na.rm = TRUE))) -> low_MEDIAN
+colnames(low_MEDIAN) <- c("Validation_ID", "MEDIAN")
+left_join(df_low, low_MEDIAN) -> df_low
+arrange(df_low, desc(MEDIAN)) -> df_low
+length_low <- nrow(df_low) / 3
+df_low$Validation_ID <- rep(paste0(prefix, (1 + length_high):(length_high + length_low)), each = 3)
+df_low$Validation_ID <- forcats::fct_reorder(df_low$Validation_ID, as.numeric(gsub("Mu", "", df_low$Validation_ID)))
+
+# Filter the data frame for the B329_WT Screening_ID
+df_WT <- filter(df_parsed, Screening_ID == "B329_WT")
+
+# Filter the data frame for the B329_WT+F16 Screening_ID
+df_WT_F16 <- filter(df_parsed, Screening_ID == "B329_WT+F16")
+
+# Filter the data frame for the F16 Screening_ID
+df_F16 <- filter(df_parsed, Screening_ID == "F16")
+
+# Bind the filtered data frames together
+df_parsed <- bind_rows(df_Mu, df_high, df_low, df_WT, df_WT_F16, df_F16)
+
+# Set the levels of the Validation_ID factor
+df_parsed$Validation_ID <- fct_relevel(df_parsed$Validation_ID, c("F16", "B329_WT", "B329_WT+F16","B329_LIKE+F16"))
+df_parsed$Validation_ID <- forcats::fct_reorder(df_parsed$Validation_ID, as.numeric(gsub("Mu", "", df_parsed$Validation_ID)))
+df_parsed$Validation_ID <- fct_relevel(df_parsed$Validation_ID, c("F16", "B329_WT", "B329_WT+F16","B329_LIKE+F16"))
+
+# Set the levels of the Screening_ID factor
+df_parsed$Screening_ID <- factor(df_parsed$Screening_ID, levels = Microbes_levels)
+```
+
+
+```{r}
+
+# Calculate the median of the 475nm/510nm measurements for the B329_LIKE condition
+df_parsed %>%
+  filter(Screening_ID == "B329_LIKE+F16") %>%
+  summarise_at(vars(`475nm/510nm`), funs(median(., na.rm = TRUE))) %>%
+ .[1, 1] -> `475nm/510nm_B329_LIKE_MEDIAN`
+```
+
+```{r}
+#Add title to the plot
+df_parsed$title <- c("M9+3OMG+P.cucumerina 16")
+
+#Keep only low candidates
+df_parsed2 <- subset(df_parsed, !Screening_ID %in% c("B329_LIKE+F16_high"))
+
+# Create the boxplot
+boxplot <- ggplot(data = df_parsed2, aes(x = Validation_ID,
+                                        y = `475nm/510nm`,
+                                        fill = Screening_ID)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 0.3, size = 0.01) +
+  scale_fill_manual(values = color_palette) +
+  theme_bw() +
+  ylab("Fungal growth (fluorescens)") +
+  xlab("Validation ID") +
+  geom_abline(aes(intercept = `475nm/510nm_B329_LIKE_MEDIAN`, slope = 0), size =.05, color = "#7570B3") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  base_theme +
+    facet_wrap(~ title, scale = "free")
+boxplot
+```
+
+
+
+
+```{r}
+
+# Perform the Kruskal-Wallis test
+kruskal.test(df_parsed$`475nm/510nm`, df_parsed$Validation_ID)
+
+# Perform the Wilcoxon test
+wilcox <- df_parsed %>%
+  pairwise_wilcox_test(`475nm/510nm` ~ Validation_ID, ref.group = "B329_LIKE+F16", alternative = "two.sided")
+wilcox
+
+# Add the p.signif column
+wilcox$p.signif <- ifelse(wilcox$p < 0.05, "*", "")
+
+# Rename the columns
+colnames(wilcox) <- c("Measurements", "Group1", "Validation_ID", "n1", "n2", "statistic", "p", "p.adjust", "p.adj.signif", "p.signif")
+# wilcox <- wilcox[,-c(1,2)]
+
+# Create the ID data frame
+ID <- data.frame(Validation_ID = df_parsed$Validation_ID, Screening_ID = df_parsed$Screening_ID)
+ID <- ID %>%
+  distinct()
+
+# Join the wilcox and ID data frames
+wilcox <- left_join(wilcox, ID)
+wilcox
+```
+
+
+```{r}
+
+# Filter the data frame for significant p-values
+signif <- wilcox %>%
+  filter(p.signif == "*")
+signif
+
+#signif_data
+signif_data <- signif
+signif_data <- left_join(signif_data, df_parsed)
+
+# Filter the data frame for measurements below the median
+signif_data <- signif_data %>%
+  filter(`475nm/510nm` < `475nm/510nm_B329_LIKE_MEDIAN`)
+
+# Select the relevant columns
+signif_data_plot <- signif_data %>%
+  select(Validation_ID, Screening_ID, ID, p, p.signif, p.adjust)
+```
+
+
+
+
+```{r}
+
+# Create a new label column with scientific P-values
+signif_data_plot <- signif_data_plot %>%
+  mutate(p_label = sprintf("P=%.2E", p.adjust))
+
+# Create the boxplot with the significant p-values
+boxplot_stats_8 <- boxplot +
+  geom_text(
+    data = signif_data_plot,
+    mapping = aes(
+      x = Validation_ID,
+      y = max(df_parsed$`475nm/510nm`) * 0.97,
+      label = p_label
+    ),
+    size = 3,
+    color = "black",
+    angle = 90
+  )
+
+boxplot_stats_8
+```
+
+
+
+
+
+
+# B] Validation 8 -> 5
+
+
+
+```{r}
+# Set the color palette
+color_palette <- c("#949494",  "#56B4E9","#7570B3", "white")
+
+# Set the microbe levels
+Microbes_levels <- c("MgCl2", "B329_WT","B329 mTn5","B329 mTn5::zorA1","B329 mTn5::GalE","B329 mTn5::ThiE","B329 mTn5::pqq-DH_1","B329 mTn5::pqq-DH_2","B329 mTn5::pqqF","B329 mTn5::Gpml","B329 mTn5::NoHit")
+Validation_levels<-c("MgCl2","B329_WT","B329_LIKE","B329_LIKE_low")
+labels<-c(
+  "No"="'M9+3OMG'",
+  "Yes"="'M9+3OMG+P.cucumerina 16'"
+  )
+
+```
+
+
+```{r}
+# Set the working directory
+
+# Read the data
+df_parsed <- read.csv(file = "ValidationOD.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+# Spread the measurements into different columns
+df_parsed <- df_parsed %>%
+  spread(Measurement_wavelength, Value)
+
+#Normamlize based on MgCl2
+library(dplyr)
+
+df_parsed <- df_parsed %>%
+  mutate(
+    median_475_510_MgCl2 = median(`475nm/510nm`[Validation_ID == "MgCl2"], na.rm = TRUE),
+    median_600_MgCl2     = median(`600nm`[Validation_ID == "MgCl2"], na.rm = TRUE)
+  ) %>%
+  mutate(
+    `475nm/510nm` = `475nm/510nm` - median_475_510_MgCl2,
+    `600nm`     = `600nm` - median_600_MgCl2
+  ) %>%
+  ungroup()
+
+
+# Separate the Plate and Well columns
+df_parsed <- df_parsed %>%
+  mutate(Plate_Well = paste(Plate, Well, sep = "_")) %>%
+  select(Plate_Well, everything()) %>%
+  separate(Plate_Well, into = c("Plate", "Well"), sep = "_")
+
+# Filter the data frame to include only non-empty conditions
+df_parsed <- df_parsed %>%
+  filter(Bacteria != "Empty")
+df_parsed
+
+# Split the data into two data frames: one with F16 and one without
+df_F16 <- df_parsed %>%
+  filter(F16 == "Yes")
+df_noF16 <- df_parsed %>%
+  filter(F16 == "No")
+```
+
+
+
+```{r}
+# Relevel the Bacteria and Validation_ID factors
+df_F16$Bacteria <- fct_relevel(df_F16$Bacteria, Microbes_levels)
+df_F16$Validation_ID <- fct_relevel(df_F16$Validation_ID, Validation_levels)
+```
+
+
+```{r}
+# Create the boxplot
+boxplot <- ggplot(data = df_F16, aes(x = Bacteria,
+                                        y = `475nm/510nm`,
+                                        fill = Validation_ID)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 0.3, size = 0.01) +
+  scale_fill_manual(values = color_palette) +
+  theme_bw() +
+  ylab("Fungal growth (fluorescens)") +
+  xlab("Bacteria") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_wrap(~F16, labeller = as_labeller(labels, label_parsed)) +
+  base_theme
+boxplot
+```
+
+
+```{r}
+# Perform the Kruskal-Wallis test
+kruskal.test(df_F16$`475nm/510nm`, df_F16$Bacteria)
+
+# Perform the Wilcoxon test
+wilcox1 <- df_F16 %>%
+  pairwise_wilcox_test(`475nm/510nm` ~ Bacteria,ref.group="B329 mTn5", alternative = "two.sided")
+wilcox1
+
+# Rename the columns
+colnames(wilcox1) <- c("Measurements", "Group1", "Bacteria", "n1", "n2", "statistic", "p", "p.adjust", "p.adj.signif", "p.signif")
+
+# Create the ID data frame
+ID <- data.frame(Bacteria = df_F16$Bacteria, Validation_ID = df_F16$Validation_ID)
+ID <- ID %>%
+  distinct()# Join the wilcox and ID data frames
+wilcox1 <- left_join(wilcox1, ID)
+wilcox1$F16<-"Yes"
+wilcox1
+
+# Perform the Kruskal-Wallis test
+kruskal.test(df_noF16$`475nm/510nm`, df_noF16$Bacteria)
+
+# Perform the Wilcoxon test
+wilcox2 <- df_noF16 %>%
+  pairwise_wilcox_test(`475nm/510nm` ~ Bacteria,ref.group="B329 mTn5", p.adjust.method = "holm")
+wilcox2
+
+# Rename the columns
+colnames(wilcox2) <- c("Measurements", "Group1", "Bacteria", "n1", "n2", "statistic", "p", "p.adjust", "p.adj.signif", "p.signif")
+
+
+# Create the ID data frame
+ID <- data.frame(Bacteria = df_noF16$Bacteria, Validation_ID = df_noF16$Validation_ID)
+ID <- ID %>%
+  distinct()
+
+# Join the wilcox and ID data frames
+wilcox2 <- left_join(wilcox2, ID)
+wilcox2$F16<-"No"
+wilcox2
+
+# Combine the wilcox1 and wilcox2 data frames
+signif <- rbind(wilcox2, wilcox1)
+signif <- signif %>%
+  filter(p.adj.signif != "ns")
+signif
+
+```
+
+
+```{r}
+
+# Create a new label column with scientific P-values
+signif <- signif %>%
+  mutate(p_label = sprintf("P=%.2E", p.adjust))
+
+#Keep only F16 
+signif <- subset(signif, F16 %in% c("Yes"))
+
+# Create the boxplot with the significant p-values
+boxplot_stats_5 <- boxplot +
+  geom_text(
+    data = signif,
+    mapping = aes(
+      x = Bacteria,
+      y = max(df_parsed$`475nm/510nm`) * 0.97,
+      label = p_label
+    ),
+    size = 3,
+    color = "black",
+    angle = 90
+  ) +
+  base_theme
+
+boxplot_stats_5
+```
+
+
+
+
+# C] Validation 5 -> 5
+
+```{r}
+library(growthcurver)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+theme_set(theme_bw())
+
+# Load your data into a dataframe called 'df'
+
+#df<-read.csv(file = "Growth_curve.csv", header = TRUE, sep=";")
+df<-read.csv(file = "Growth_curveFluo.csv", header = TRUE, sep=";")
+df$time<-df$time/60/60
+df[, -1] <- apply(df[, -1], 2, function(x) x - min(x, na.rm = TRUE))
+  
+```
+
+
+```{r}
+# Reshape the data to have one row per well per time point
+df_reshaped <- df %>% 
+  pivot_longer(-time, names_to = "Well", values_to = "Fluorescens")
+
+# Extract the plate row and column from the Well column
+df_reshaped <- df_reshaped %>% 
+  mutate(Row = substr(Well, 1, 1), 
+         Column = parse_number(Well))
+
+
+
+# Create a list of Bacterias in the order of the wells
+Bacterias <- c("B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2",
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2",
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2",
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_1")
+
+Bacterias <- rep(Bacterias, length.out = nrow(df_reshaped))
+
+# Create the Bacteria column
+df_reshaped <- df_reshaped %>% 
+  mutate(Bacteria = Bacterias)
+
+# Create the Medium column
+# Create the Medium column with correct logical conditions
+df_reshaped <- df_reshaped %>% 
+  mutate(Medium = case_when(
+    (Row == "A" & Column %in% 1:9) | 
+    (Row == "C" & Column %in% 4:12) | 
+    (Row == "E" & Column %in% 7:12) | 
+    (Row == "F" & Column %in% 1:3) ~ "TSB",
+    
+    (Row == "A" & Column %in% 10:12) | 
+    (Row == "B" & Column %in% 1:6) | 
+    (Row == "D" & Column %in% 1:9) | 
+    (Row == "F" & Column %in% 4:12) ~ "M9+Glucose",
+    
+    (Row == "B" & Column %in% 7:12) | 
+    (Row == "C" & Column %in% 1:3) | 
+    (Row == "D" & Column %in% 10:12) | 
+    (Row == "E" & Column %in% 1:6) | 
+    (Row == "G" & Column %in% 1:9) ~ "M9+3OMG",
+    
+    TRUE ~ "M9+3OMG+F16"
+  ))
+  
+  
+#normalize by medium
+library(dplyr)
+
+# Compute median Fluorescens of MgCl2 per Medium × time
+mgcl2_medians <- df_reshaped %>%
+  filter(Bacteria == "MgCl2") %>%
+  group_by(Medium, time) %>%
+  summarize(MgCl2_median = median(Fluorescens, na.rm = TRUE), .groups = "drop")
+
+df_reshaped <- df_reshaped %>%
+  left_join(mgcl2_medians, by = c("Medium", "time")) %>%
+  mutate(Fluorescens_norm = Fluorescens - MgCl2_median)
+
+#Put 0 if negative value
+df_reshaped <- df_reshaped %>%
+  mutate(Fluorescens_norm = pmax(0, Fluorescens_norm))
+```
+
+
+```{r}
+growth_metrics<-SummarizeGrowthByPlate(
+  df,
+  t_trim = 0,
+  bg_correct = "min",
+  plot_fit = FALSE
+)
+growth_metrics <- growth_metrics %>% 
+  rename("Well" = sample)
+
+ID<-df_reshaped%>%
+  distinct(Well,Bacteria,Medium)
+
+
+growth_metrics<-left_join(growth_metrics,ID)
+```
+
+
+
+```{r}
+growth_metrics$t_gen[growth_metrics$Bacteria=="MgCl2"]<-0
+
+#Take only co-culture context + 3OMG
+growth_metrics2 <- subset(growth_metrics, Medium %in% c("M9+3OMG+F16"))
+
+
+
+df_mean<-growth_metrics2%>%
+  group_by(Bacteria,Medium)%>%
+  summarise_at(vars(auc_e), funs(mean(., na.rm=TRUE)))
+colnames(df_mean)<-c("Bacteria","Medium","auc_e_mean")
+growth_metrics2<-left_join(growth_metrics2,df_mean)
+
+df_mean$Bacteria<-factor(df_mean$Bacteria,levels = c("MgCl2","B329_WT","B329 mTn5_1", "B329 mTn5_2", "B329 mTn5::pqqDH_1","B329 mTn5::pqqDH_2","B329 mTn5::pqqF_1" ,"B329 mTn5::Gpml", "B329 mTn5::pqqF_2" ))
+
+df_mean$Medium<-factor(df_mean$Medium,levels = c("TSB","M9+Glucose","M9+3OMG", "M9+3OMG+F16" ))
+
+
+growth_metrics2$Bacteria<-factor(growth_metrics2$Bacteria,levels = c("MgCl2","B329_WT", "B329 mTn5_1", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2",  "B329 mTn5::pqqDH_1","B329 mTn5::pqqDH_2" ,"B329 mTn5::Gpml" ))
+
+#Order
+df_mean$Bacteria<-factor(df_mean$Bacteria,levels = c("MgCl2","B329_WT", "B329 mTn5_1", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2",  "B329 mTn5::pqqDH_1","B329 mTn5::pqqDH_2" ,"B329 mTn5::Gpml" ))
+
+#Keep only one TN5 mutant positive control
+df_mean <- subset(df_mean, !Bacteria %in% c("B329 mTn5_2"))
+
+#Plot
+Plot_Comp_5 <- ggplot() +
+  geom_point(
+    data = df_mean,
+    aes(x = Bacteria, y = auc_e_mean, fill = Bacteria),
+    shape = 21,        # allows fill + outline
+    color = "black",   # contour / outline color
+    size = 3,
+    stroke = 0.8       # outline thickness
+  ) +
+  scale_fill_manual(values = c(
+    "B329 mTn5_1" = "#7570B3",
+    "B329 mTn5_2" = "#4B3C80",
+    "B329 mTn5::pqqF_1" = "white",
+    "B329 mTn5::pqqF_2" = "white",
+    "B329 mTn5::pqqDH_1" = "white",
+    "B329 mTn5::pqqDH_2" = "white",
+    "B329 mTn5::Gpml" = "white",
+    "MgCl2" = "lightgray",
+    "B329_WT" = "#2780F5"
+  )) +
+  labs(x = "Bacteria", y = "Fungal growth (Fluorescens - AUC)", fill = "Bacteria") +
+  facet_wrap(~Medium, scales = "free", ncol = 4) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  base_theme
+Plot_Comp_5
+```
+
+
+# D] Growth mutants control (OD600)
+
+```{r}
+library(growthcurver)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+theme_set(theme_bw())
+
+# Load your data into a dataframe called 'df'
+
+df<-read.csv(file = "Growth_curve.csv", header = TRUE, sep=";")
+df$time<-df$time/60/60
+df[, -1] <- apply(df[, -1], 2, function(x) x - min(x, na.rm = TRUE))
+  
+```
+
+
+```{r}
+# Reshape the data to have one row per well per time point
+df_reshaped <- df %>% 
+  pivot_longer(-time, names_to = "Well", values_to = "OD600")
+
+# Extract the plate row and column from the Well column
+df_reshaped <- df_reshaped %>% 
+  mutate(Row = substr(Well, 1, 1), 
+         Column = parse_number(Well))
+
+
+
+# Create a list of Bacterias in the order of the wells
+Bacterias <- c("B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2",
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2",
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2",
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_2", "B329 mTn5::pqqDH_1", "B329_WT", "MgCl2", 
+             "B329 mTn5::Gpml", "B329 mTn5_1", "B329 mTn5::pqqF_2", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqDH_1")
+
+Bacterias <- rep(Bacterias, length.out = nrow(df_reshaped))
+
+# Create the Bacteria column
+df_reshaped <- df_reshaped %>% 
+  mutate(Bacteria = Bacterias)
+
+# Create the Medium column
+# Create the Medium column with correct logical conditions
+df_reshaped <- df_reshaped %>% 
+  mutate(Medium = case_when(
+    (Row == "A" & Column %in% 1:9) | 
+    (Row == "C" & Column %in% 4:12) | 
+    (Row == "E" & Column %in% 7:12) | 
+    (Row == "F" & Column %in% 1:3) ~ "TSB",
+    
+    (Row == "A" & Column %in% 10:12) | 
+    (Row == "B" & Column %in% 1:6) | 
+    (Row == "D" & Column %in% 1:9) | 
+    (Row == "F" & Column %in% 4:12) ~ "M9+Glucose",
+    
+    (Row == "B" & Column %in% 7:12) | 
+    (Row == "C" & Column %in% 1:3) | 
+    (Row == "D" & Column %in% 10:12) | 
+    (Row == "E" & Column %in% 1:6) | 
+    (Row == "G" & Column %in% 1:9) ~ "M9+3OMG",
+    
+    TRUE ~ "M9+3OMG+F16"
+  ))
+  
+  
+#normalize by medium
+library(dplyr)
+
+# Compute median OD600 of MgCl2 per Medium × time
+mgcl2_medians <- df_reshaped %>%
+  filter(Bacteria == "MgCl2") %>%
+  group_by(Medium, time) %>%
+  summarize(MgCl2_median = median(OD600, na.rm = TRUE), .groups = "drop")
+
+df_reshaped <- df_reshaped %>%
+  left_join(mgcl2_medians, by = c("Medium", "time")) %>%
+  mutate(OD600_norm = OD600 - MgCl2_median)
+
+#Put 0 if negative value
+df_reshaped <- df_reshaped %>%
+  mutate(OD600_norm = pmax(0, OD600_norm))
+```
+
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset conditions for riche media 
+df_reshaped_med <- subset(df_reshaped, Medium %in% c("TSB","M9+Glucose", "M9+3OMG"))
+
+df_reshaped_med$Medium<-factor(df_reshaped_med$Medium,levels = c("TSB","M9+Glucose", "M9+3OMG"))
+
+df_reshaped_med$Bacteria<-factor(df_reshaped_med$Bacteria,levels = c("MgCl2","B329_WT", "B329 mTn5_1", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2",  "B329 mTn5::pqqDH_1","B329 mTn5::pqqDH_2" ,"B329 mTn5::Gpml" ))
+
+#Keep only one TN5 mutant positive control
+df_reshaped_med <- subset(df_reshaped_med, !Bacteria %in% c("B329 mTn5_2"))
+
+
+# Plotting for OD600
+plot_Curves_Mutants <- ggplot(
+  df_reshaped_med,
+  aes(x = time, y = OD600_norm,
+      color = Bacteria,
+      fill = Bacteria,
+      linetype = Bacteria)
+) +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 0.6) +
+  scale_color_manual(values = c(
+    "B329 mTn5_1" = "#7570B3",
+    "B329 mTn5_2" = "#4B3C80",
+    "B329 mTn5::pqqF_1" = "black",
+    "B329 mTn5::pqqF_2" = "black",
+    "B329 mTn5::pqqDH_1" = "black",
+    "B329 mTn5::pqqDH_2" = "black",
+    "B329 mTn5::Gpml" = "black",
+    "MgCl2" = "lightgray",
+    "B329_WT" = "#2780F5"
+  )) +
+  scale_fill_manual(values = c(
+    "B329 mTn5_1" = "#7570B3",
+    "B329 mTn5_2" = "#4B3C80",
+    "B329 mTn5::pqqF_1" = "lightgray",
+    "B329 mTn5::pqqF_2" = "lightgray",
+    "B329 mTn5::pqqDH_1" = "lightgray",
+    "B329 mTn5::pqqDH_2" = "lightgray",
+    "B329 mTn5::Gpml" = "lightgray",
+    "MgCl2" = "lightgray",
+    "B329_WT" = "#2780F5"
+  )) +
+  scale_linetype_manual(values = c(
+    "B329 mTn5_1" = "solid",
+    "B329 mTn5_2" = "solid",
+    "B329 mTn5::pqqF_1" = "dotted",
+    "B329 mTn5::pqqF_2" = "dotdash",
+    "B329 mTn5::pqqDH_1" = "dashed",
+    "B329 mTn5::pqqDH_2" = "F8",
+    "B329 mTn5::Gpml" = "solid",
+    "MgCl2" = "solid",
+    "B329_WT" = "solid"
+  )) +
+  facet_wrap(~Medium, scales = "free", ncol = 4) +
+  labs(x = "Time (Hours)", y = "Bacterial growth (norm. OD600)") +
+  ylim(0, NA) +
+  base_theme
+
+plot_Curves_Mutants
+```
+
+```{r}
+growth_metrics<-SummarizeGrowthByPlate(
+  df,
+  t_trim = 0,
+  bg_correct = "min",
+  plot_fit = FALSE
+)
+growth_metrics <- growth_metrics %>% 
+  rename("Well" = sample)
+
+ID<-df_reshaped%>%
+  distinct(Well,Bacteria,Medium)
+
+
+growth_metrics<-left_join(growth_metrics,ID)
+```
+
+```{r}
+#Take only co-culture context + 3OMG
+growth_metrics2 <- subset(growth_metrics, Medium %in% c("TSB","M9+Glucose", "M9+3OMG"))
+
+
+
+df_mean<-growth_metrics2%>%
+  group_by(Bacteria,Medium)%>%
+  summarise_at(vars(auc_e), funs(mean(., na.rm=TRUE)))
+colnames(df_mean)<-c("Bacteria","Medium","auc_e_mean")
+growth_metrics2<-left_join(growth_metrics2,df_mean)
+
+df_mean$Bacteria<-factor(df_mean$Bacteria,levels = c("MgCl2","B329_WT","B329 mTn5_1", "B329 mTn5_2", "B329 mTn5::pqqDH_1","B329 mTn5::pqqDH_2","B329 mTn5::pqqF_1" ,"B329 mTn5::Gpml", "B329 mTn5::pqqF_2" ))
+
+df_mean$Medium<-factor(df_mean$Medium,levels = c("TSB","M9+Glucose","M9+3OMG"))
+
+
+growth_metrics2$Bacteria<-factor(growth_metrics2$Bacteria,levels = c("MgCl2","B329_WT", "B329 mTn5_1", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2",  "B329 mTn5::pqqDH_1","B329 mTn5::pqqDH_2" ,"B329 mTn5::Gpml" ))
+
+#Order
+df_mean$Bacteria<-factor(df_mean$Bacteria,levels = c("MgCl2","B329_WT", "B329 mTn5_1", "B329 mTn5_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2",  "B329 mTn5::pqqDH_1","B329 mTn5::pqqDH_2" ,"B329 mTn5::Gpml" ))
+
+#Keep only one TN5 mutant positive control
+df_mean <- subset(df_mean, !Bacteria %in% c("B329 mTn5_2"))
+
+#Plot
+Plot_Comp_med <- ggplot() +
+  # geom_point(data = growth_metrics2, aes(x = Bacteria, y = auc_e, color = Bacteria), size = 1, alpha = 0.5) +
+  geom_point(
+    data = df_mean,
+    aes(x = Bacteria, y = auc_e_mean, fill = Bacteria),
+    shape = 21,        # enables fill + outline
+    color = "black",   # contour color
+    stroke = 0.8,      # outline thickness
+    size = 3
+  ) +
+  scale_fill_manual(values = c(
+    "B329 mTn5_1" = "#7570B3",
+    "B329 mTn5_2" = "#4B3C80",
+    "B329 mTn5::pqqF_1" = "white",
+    "B329 mTn5::pqqF_2" = "white",
+    "B329 mTn5::pqqDH_1" = "white",
+    "B329 mTn5::pqqDH_2" = "white",
+    "B329 mTn5::Gpml" = "white",
+    "MgCl2" = "lightgray",
+    "B329_WT" = "#2780F5"
+  )) +
+  labs(x = "Bacteria", y = "Bacterial growth (OD600 - AUC)", fill = "Bacteria") +
+  facet_wrap(~Medium, scales = "free", ncol = 4) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  base_theme
+
+Plot_Comp_med
+```
+
+# E] Final Plots
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+boxplot_stats_8
+boxplot_stats_8f <- boxplot_stats_8 + theme(legend.position = "none")
+boxplot_stats_5
+Plot_Comp_5
+
+plot_Curves_Mutants
+
+
+#Plot Portrait 7X10
+Plot_F <- plot_grid(
+  boxplot_stats_8f, 
+  boxplot_stats_5,
+  Plot_Comp_5,
+  rel_heights = c(1, 1, 1),
+  rel_widths  = c(1.3, 1,1),
+  ncol = 3, nrow = 1,
+  align = "h",          # use "h" to align left-right
+  axis = "tb"           # align top/bottom axes (optional)
+)
+
+Plot_F
+```
+
+
+---
+END
+---

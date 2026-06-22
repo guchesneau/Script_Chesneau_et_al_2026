@@ -1,0 +1,76 @@
+Plecto_ID2	Taxomony	color
+P64	P. delsorboi	#e06666
+P30	P. plurivora	#38761d
+P117	P. plurivora	#38761d
+P47	P. cucumerina unclassified	#674ea7
+P40	P. cucumerina unclassified	#674ea7
+P49	P. cucumerina unclassified	#674ea7
+P23	P. cucumerina unclassified	#674ea7
+P9	P. cucumerina subspecies 1	#2986cc
+P65	P. cucumerina subspecies 1	#2986cc
+P22	P. cucumerina subspecies 1	#2986cc
+P20	P. cucumerina subspecies 1	#2986cc
+P7	P. cucumerina subspecies 1	#2986cc
+P46	P. cucumerina subspecies 1	#2986cc
+P2	P. cucumerina subspecies 1	#2986cc
+P8	P. cucumerina subspecies 1	#2986cc
+P31	P. cucumerina subspecies 1	#2986cc
+P1	P. cucumerina subspecies 1	#2986cc
+P13	P. cucumerina subspecies 1	#2986cc
+P50	P. cucumerina subspecies 1	#2986cc
+P3	P. cucumerina subspecies 1	#2986cc
+P12	P. cucumerina subspecies 1	#2986cc
+P11	P. cucumerina subspecies 1	#2986cc
+P10	P. cucumerina subspecies 1	#2986cc
+P21	P. cucumerina subspecies 1	#2986cc
+P56	P. cucumerina subspecies 1	#2986cc
+P54	P. cucumerina subspecies 1	#2986cc
+P67	P. cucumerina subspecies 1	#2986cc
+P60	P. cucumerina subspecies 1	#2986cc
+P59	P. cucumerina subspecies 1	#2986cc
+P62	P. cucumerina subspecies 1	#2986cc
+P58	P. cucumerina subspecies 1	#2986cc
+P57	P. cucumerina subspecies 1	#2986cc
+P55	P. cucumerina subspecies 1	#2986cc
+P6	P. cucumerina subspecies 2	#6fa8dc
+P32	P. cucumerina subspecies 2	#6fa8dc
+P33	P. cucumerina subspecies 2	#6fa8dc
+P63	P. cucumerina subspecies 2	#6fa8dc
+P61	P. cucumerina subspecies 2	#6fa8dc
+P66	P. cucumerina subspecies 2	#6fa8dc
+P42	P. cucumerina subspecies 2	#6fa8dc
+P612	P. cucumerina subspecies 2	#6fa8dc
+P421	P. cucumerina subspecies 2	#6fa8dc
+P43	P. cucumerina subspecies 2	#6fa8dc
+P19	P. cucumerina subspecies 2	#6fa8dc
+P68	P. cucumerina subspecies 2	#6fa8dc
+P18	P. cucumerina subspecies 2	#6fa8dc
+P51	P. cucumerina subspecies 2	#6fa8dc
+P35	P. cucumerina subspecies 2	#6fa8dc
+P340	P. cucumerina subspecies 2	#6fa8dc
+P25	P. cucumerina subspecies 2	#6fa8dc
+P5	P. cucumerina subspecies 2	#6fa8dc
+P34	P. cucumerina subspecies 2	#6fa8dc
+P17	P. cucumerina subspecies 2	#6fa8dc
+P4	P. cucumerina subspecies 2	#6fa8dc
+P38	P. cucumerina subspecies 2	#6fa8dc
+P36	P. cucumerina subspecies 2	#6fa8dc
+P39	P. cucumerina subspecies 2	#6fa8dc
+P455	P. cucumerina subspecies 2	#6fa8dc
+P29	P. cucumerina subspecies 2	#6fa8dc
+P24	P. cucumerina subspecies 2	#6fa8dc
+P14	P. cucumerina subspecies 2	#6fa8dc
+P41	P. cucumerina subspecies 2	#6fa8dc
+P27	P. cucumerina subspecies 2	#6fa8dc
+P26	P. cucumerina subspecies 2	#6fa8dc
+P16	P. cucumerina subspecies 2	#6fa8dc
+P45	P. cucumerina subspecies 2	#6fa8dc
+P44	P. cucumerina subspecies 2	#6fa8dc
+P28	P. cucumerina subspecies 2	#6fa8dc
+P48	P. cucumerina subspecies 2	#6fa8dc
+P143	P. cucumerina subspecies 2	#6fa8dc
+P52	P. cucumerina subspecies 2	#6fa8dc
+P15	P. cucumerina subspecies 2	#6fa8dc
+MgCl2	Control	Control
+Empty	Control	Control
+R329	Control	Control

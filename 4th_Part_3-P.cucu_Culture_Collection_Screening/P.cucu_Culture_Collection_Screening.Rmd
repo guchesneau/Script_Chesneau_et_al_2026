@@ -1,0 +1,358 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+#Load theme set
+theme_set(theme_bw())
+```
+
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load librarys
+library(markdown)
+library(ggthemes)
+library(ggpubr) 
+library(rstatix)
+library(dunn.test)
+library(ggtext)
+library(tidyr)
+library(dplyr)
+library(cowplot)
+library(scales)
+library(ggplot2)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+```
+
+# A] Culture collection
+
+```{r R version}
+R.version
+library(ggplot2)
+theme_set(theme_bw())
+# Read the data
+df <- read.csv(file = "df_Plecto_culture_collection.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+df_order_color <- read.csv(file = "Order_color.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+df <- subset(df, !Plecto_ID2 %in% c("Empty"))
+df_order_color <- subset(df_order_color, !Plecto_ID2 %in% c("Empty"))
+
+df_2 <- merge(df_order_color, df, by = "Plecto_ID2", all = TRUE)
+
+
+#Substract MgCl2 OD600 to conditions
+#Calculate the median OD600 for MgCl2 condition
+median_OD <- median(df_2$OD600[df_2$Plecto_ID2 == "MgCl2"])
+
+#Subtract this median from all OD600 values
+df_2$OD600_corrected <- df_2$OD600 - median_OD
+
+#Replace negative values with 0
+df_2$OD600_corrected[df_2$OD600_corrected < 0] <- 0
+```
+
+## 1) Plot boxplot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Order the strains
+# Ensure that Plecto_ID2 is a factor with levels in the order of df2$Plecto_ID2
+df_2$Plecto_ID2 <- factor(df_2$Plecto_ID2, levels = df_order_color$Plecto_ID2)
+
+df_2$Plecto_ID2 <- factor(df_2$Plecto_ID2, levels = df_order_color$Plecto_ID2)
+
+#Add stats
+# Subset data
+df_3 <- subset(df_2, !Plecto_ID2 %in% c("MgCl2", "R329"))
+
+# Function to check normality using Shapiro-Wilk test
+normality_results <- df_3 %>%
+  group_by(Plecto_ID2, Condition) %>%
+  summarise(
+    p_shapiro = shapiro.test(OD600_corrected)$p.value,
+    .groups = "drop"
+  ) #26 out of 144 are not normal, I perfomed wilcoxon test
+
+# Ensure Condition is a factor
+df_2$Condition <- factor(df_2$Condition, levels = c("MF", "R329"))
+
+# Optional: exclude controls if needed
+df_3 <- subset(df_2, !Plecto_ID2 %in% c("MgCl2", "R329"))
+
+# Perform Wilcoxon test per Plecto_ID2, handle ties with approximation
+wilcox_results <- df_3 %>%
+  group_by(Plecto_ID2) %>%
+  summarise(
+    p_value = wilcox.test(
+      x = OD600_corrected[Condition == "MF" & Plecto_ID2 == cur_group()$Plecto_ID2],
+      y = OD600_corrected[Condition == "R329" & Plecto_ID2 == cur_group()$Plecto_ID2],
+      alternative = "less",
+      exact = FALSE
+    )$p.value,
+    .groups = "drop"
+  )
+# Adjust p-values for multiple testing
+wilcox_results$adj_p_value <- p.adjust(wilcox_results$p_value, method = "BH")
+
+# Add labels in scientific notation for significant p-values
+wilcox_results <- wilcox_results %>%
+  mutate(
+    P_label = ifelse(
+      adj_p_value < 0.05,
+      paste0("P = ", sprintf("%.1E", adj_p_value)),
+      NA
+    )
+  )
+
+# Check results
+print(wilcox_results)
+
+
+
+# Print the updated dataframe
+wilcox_results$Condition <- c("R329")
+wilcox_results <- merge(df_order_color, wilcox_results, by = "Plecto_ID2", all = TRUE)
+wilcox_results$Plecto_ID2 <- factor(wilcox_results$Plecto_ID2, levels = df_order_color$Plecto_ID2)
+
+# Recode Plecto_ID2 for labels
+df_2 <- df_2 %>%
+  mutate(Condition = recode(Condition,
+                                   "MF" = "Plecto. mono",
+                                   "R329" = "B329_WT+Plecto."))
+
+#Update column "Condition"
+wilcox_results$Condition <- ifelse(
+  wilcox_results$Plecto_ID2 == "MgCl2",
+  "MgCl2",
+  ifelse(
+    wilcox_results$Plecto_ID2 == "R329",
+    "B329_WT mono",
+    wilcox_results$Condition
+  )
+)
+
+df_2$Condition <- ifelse(
+  df_2$Plecto_ID2 == "MgCl2",
+  "MgCl2",
+  ifelse(
+    df_2$Plecto_ID2 == "R329" & df_2$Taxomony == "Control",
+    "B329_WT mono",
+    ifelse(
+      df_2$Condition == "Plecto. mono",
+      "Plecto. mono",
+      "B329_WT+Plecto.")))
+
+#Order
+df_2$Condition <- factor(df_2$Condition, levels = c("MgCl2","B329_WT mono","Plecto. mono", "B329_WT+Plecto."))
+
+# Calculate number of replicates per group
+replicates <- df_2 %>%
+  group_by(Plecto_ID2, Condition, Taxomony) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(label = paste0("n = ", n))
+
+
+#Plot + stats
+Plot <- ggplot(df_2, aes(x = Plecto_ID2, y = OD600_corrected, fill = Condition)) +
+  geom_boxplot(outlier.shape = NA) +
+    geom_jitter(aes(fill = Condition),alpha=1, size = 0.5) +
+  labs(x = "Plecto Strain", y = "OD600_corrected", fill = "Condition") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+   facet_grid(~Taxomony, space="free", scales="free")+
+  geom_text(
+    data = wilcox_results,
+    aes(x = Plecto_ID2, y = 0.090, label = P_label),
+    color = "black",
+    size = 3,
+    vjust = 0,
+    angle = 90,
+    na.rm = TRUE # ignores NA labels
+  ) +
+   geom_text(
+    data = replicates,
+    aes(x = Plecto_ID2, y = -0.014, label = label, angle = 90, hjust = 0), # slightly below 0
+    size = 3,
+    color = "black",
+    vjust = 1
+  ) +
+  scale_fill_manual(values = c("Plecto. mono" = "#FFD580", "B329_WT+Plecto." = "gray", "B329_WT mono" = "#56B4E9", "MgCl2" = "black" )) + 
+  ylim(-0.015, 0.1) +
+  base_theme
+
+Plot
+```
+## 2) Stats comparing F16 growth
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Subset data: remove B329_WT+Plecto.
+df_plot <- df_2 %>% 
+  filter(Condition != "B329_WT+Plecto.")
+
+#Comparison F16 versus other strains
+# Reference strain
+ref_id <- "P16"
+ref_values <- df_plot$OD600_corrected[df_plot$Plecto_ID2 == ref_id]
+
+# Wilcoxon test per Plecto_ID2 vs P16
+wilcox_results_F16 <- df_plot %>%
+  filter(Plecto_ID2 != ref_id) %>%  # exclude P16 itself
+  group_by(Plecto_ID2) %>%
+  summarise(
+    p_value = wilcox.test(
+      x = OD600_corrected,
+      y = ref_values,
+      alternative = "two.sided",
+      exact = FALSE
+    )$p.value,
+    .groups = "drop"
+  )
+
+# Adjust p-values (BH)
+wilcox_results_F16$adj_p_value <- p.adjust(wilcox_results_F16$p_value, method = "BH")
+
+# Create labels for plotting
+wilcox_results_F16 <- wilcox_results_F16 %>%
+  mutate(P_label = ifelse(adj_p_value < 0.05,
+                          paste0("P = ", sprintf("%.1E", adj_p_value)),
+                          NA))
+```
+
+No significance differences.   
+
+
+## 3) Plot for Origin
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Define gradient color palettes with different shades for host and continent
+host_palette <- c("#1b9e77", "#d95f02", "#7570b3", "#56a30d", "#754b1e", "#e7298a", "gray")  # Custom palette
+
+continent_palette <- colorRampPalette(c("#66c2a5", "#fc8d62", "#8da0cb"))(7)  # Different shades
+
+
+# Read the data
+metadata <- read.csv(file = "Plecuc_CC_metadat2.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(metadata)
+
+#Merge information
+metadata2 <- merge(df_order_color, metadata, by = "Plecto_ID2", all = TRUE)
+#Order 
+metadata2$Plecto_ID2 <- factor(metadata2$Plecto_ID2, levels = df_order_color$Plecto_ID2)
+
+# Create the plot
+Plot_Isolation <- ggplot(metadata2, aes(x = Plecto_ID2, y = 1, fill = Type)) +
+  geom_tile(color = "black", size = 0.5) + # Draw squares
+  scale_y_continuous(breaks = NULL) + # Remove y-axis breaks
+  theme_void() + # Remove all theme elements
+ scale_fill_manual(values = host_palette, name = "Host of Isolation") +
+# scale_fill_manual(values = c( "#FF5733", "#b38207", "#fff4d8",  "#339f1b","#7c5900",  "#efef8a",   "gray" )) + # Customize colors
+  labs(x = "Strain", fill = "Isolated from") +
+   theme(axis.text.x = element_blank()) +
+  facet_grid(~Taxomony, space = "free", scales = "free")
+
+Plot_Isolation
+
+```
+
+## 4) Plot for Continent
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Define custom palette for continent with 7 colors, where 7th is gray
+continent_palette <- c("#66c2a5", "#fc8d62", "#8da0cb", "#a6d854", "#ffd92f", "#e78ac3", "#808080")  # Last color is gray
+
+
+# Read the data
+
+metadata <- read.csv(file = "Plecuc_CC_metadat2.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(metadata)
+
+#Merge information
+metadata2 <- merge(df_order_color, metadata, by = "Plecto_ID2", all = TRUE)
+#Order 
+metadata2$Plecto_ID2 <- factor(metadata2$Plecto_ID2, levels = df_order_color$Plecto_ID2)
+
+# Create the plot
+Plot_Continent <- ggplot(metadata2, aes(x = Plecto_ID2, y = 1, fill = Continent)) +
+  geom_tile(color = "black", size = 0.5) + # Draw squares
+  scale_y_continuous(breaks = NULL) + # Remove y-axis breaks
+  theme_void() + # Remove all theme elements
+ scale_fill_manual(values = continent_palette, name = "Continents") +
+  labs(x = "Strain", fill = "Isolated from") +
+   theme(axis.text.x = element_blank()) +
+  facet_grid(~Taxomony, space = "free", scales = "free")
+
+Plot_Continent
+
+```
+
+
+# B] Final Figures
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Extract legend
+legend_Plot_Continent <- get_legend(Plot_Continent)
+legend_Plot_Isolation <- get_legend(Plot_Isolation)
+legend_Plot <- get_legend(Plot)
+
+# Remove the legend
+Plot_Continent <- Plot_Continent + theme(legend.position = "none")
+Plot_Isolation <- Plot_Isolation + theme(legend.position = "none")
+plot_Plot <- Plot + theme(legend.position = "none")
+
+
+#PLot legend
+Plot1 <- plot_grid(
+  Plot_Continent,
+  Plot_Isolation,
+  plot_Plot,
+  rel_heights = c(0.35,0.35, 1,0.5),
+  rel_widths  = c(1, 1, 1,1),
+  ncol = 1, nrow = 4,
+  align = "h",          # use "h" to align left-right
+  axis = "tb"           # align top/bottom axes (optional)
+)
+Plot1
+
+
+#PLot Continent/Isolation
+Plot1_2 <- plot_grid(
+  Plot_Continent,
+  Plot_Isolation,
+  rel_heights = c(1,1),
+  rel_widths  = c(1, 1),
+  ncol = 1, nrow = 2,
+  align = "h",          # use "h" to align left-right
+  axis = "tb"           # align top/bottom axes (optional)
+)
+Plot1_2
+
+#PLot Gorwth #Landscape 20X10
+Plot1_3 <- plot_grid(
+  plot_Plot,
+  Plot1_2,
+  rel_heights = c(1,0.5),
+  rel_widths  = c(1, 1),
+  ncol = 1, nrow = 2,
+  align = "h",          # use "h" to align left-right
+  axis = "tb"           # align top/bottom axes (optional)
+)
+Plot1_3
+```
+
+---
+END
+---

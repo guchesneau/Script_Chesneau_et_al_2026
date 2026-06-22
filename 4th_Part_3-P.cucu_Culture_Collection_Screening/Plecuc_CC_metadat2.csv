@@ -1,0 +1,74 @@
+Plecto_ID2,Field 12,P#,Source,Collaborator/contact person,Contact,Name,Type,Host,Order,Family,Genus,Isolation site,Continent,Continent2,Publication,Other name,,,,,,,,,1
+P1,P1 ,1,Parthenope University of Naples,Stefano Dumontet,stefano.dumontet@uniparthenope.it,08. Oct,Stalactite,damp tip of a calthemite straw stalactite,Stalactite,Stalactite,Stalactite,"Naples, Italy",Europe,Europe,https://doi.org/10.1016/j.ibiod.2019.03.005,,,,,,,,,,2
+P2,P2 ,2,Universite Clermont Auvergne,Isabelle Batisson,isabelle.batisson@uca.fr,AR1,Plant,submerged Alnus leaf ,Fagales,Betulaceae,Alnus,France,Europe,Europe,https://doi.org/10.3389/fmicb.2018.03167,,,,,,,,,,3
+P3,P3 ,3,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 286.64,Plant,Hair root of Nicotiana tabacum,Solanales,Solanaceae,Nicotiana,"Heverlee, Belgium",Europe,Europe,,,,,,,,,,,4
+P4,P4 ,4,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 101958,Plant,Endophyte in leaves and stems of Galium spurium,Gentianales,Rubiaceae,Galium,"Alberta, Canada",America,North-America,,,,,,,,,,,5
+P5,P5 ,5,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 400.58,Plant,Lycopersicon esculentum,Solanales,Solanaceae,Solanum,Canada,America,North-America,,,,,,,,,,,6
+P6,P6 ,6,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 367.73,Plant,Viola odorata,Malpighiales,Violaceae,Viola,Egypt,Africa,Africa,,,,,,,,,,,7
+P7,P7 ,7,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 131739,Plant,Collar of Cucumis melo,Cucurbitales,Cucurbitaceae,Cucumis,"Foggia, Italy  41.450000 N 15.533330 E",Europe,Western-Europe,,,,,,,,,,,8
+P8,P8 ,8,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 137.37,Paper,Paper,Paper,Paper,Paper,"Pisa, Italy",Europe,Western-Europe,,,,,,,,,,,9
+P9,P9 ,9,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 146211,Plant,Carica papaya,Brassicales,Caricaceae,Carica,Mexico,America,South-America,,CPC 15979,,,,,,,,,10
+P10,P10 ,10,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 146213,Plant,Begonia sp.,Cucurbitales,Begoniaceae,Begonia,Netherlands,Europe,Western-Europe,,CPC 34755,,,,,,,,,11
+P11,P11 ,11,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 146215,Plant,Carex,Commelinids,Poales,Cyperaceae,Netherlands,Europe,Western-Europe,,CPC 34096,,,,,,,,,12
+P12,P12 ,12,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 146214,Plant,Hebe sp.,Magnoliopsida,Scrophulariales,Veronica,Netherlands,Europe,Western-Europe,,CPC 35056,,,,,,,,,13
+P13,P13 ,13,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 146216,Plant,Hebe sp.,Magnoliopsida,Scrophulariales,Veronica,Netherlands,Europe,Western-Europe,,CPC 35054,,,,,,,,,14
+P14,P14 ,14,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,"
+CBS 146210",Plant,Petroselinum crispum,Apiales,Apiaceae,Petroselinum,Netherlands,Europe,Western-Europe,,CPC 35048,,,,,,,,,15
+P15,P15 ,15,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 355.36,Plant,Root of Viola tricolor,Violales,Violaceae,Viola,Netherlands,Europe,Western-Europe,,,,,,,,,,,16
+P16,P16 ,16,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-CAGE-AT-0016,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,"Cologne, Germany",Europe,Western-Europe,https://doi.org/10.1038/s41467-021-27479-y,,,,,,,,,,17
+P17,P17 ,17,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 567.78,fungus,Unknown fungus,fungus,fungus,fungus,USSR,Europe,Russia,,,,,,,,,,,18
+P18,P18 ,18,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 632.94,Plant,Arabidopsis sp.,Brassicales,Brassicaceae,Arabidopsis,Switzerland,Europe,Western-Europe,,,,,,,,,,,19
+P19,P19 ,19,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 101014,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,Switzerland,Europe,Western-Europe,,,,,,,,,,,20
+P20,P20 ,20,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 619.74,Plant,Leaf of Pyrus malus,Rosales,Rosaceae,Pyrus,"Basel, Switzerland",Europe,Western-Europe,,,,,,,,,,,21
+P21,P21 ,21,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 137.33,Plant,Nicotiana tabacum,Solanales,Solanaceae,Nicotiana,"Bristol, England",Europe,U-K,,,,,,,,,,,22
+P22,P22 ,22,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 146212,Plant,Rubus phoenicolasius,Rosales,Rosaceae,Rubus,USA,America,North-America,,CPC 25081,,,,,,,,,23
+P23,P23 ,23,Westerdijk Fungal Biodiversity Institute,Pedro Crous,p.crous@wi.knaw.nl,CBS 139.60,Unknown,Unknown,Unknown,Unknown,Unknown,USA,America,North-America,,,,,,,,,,,24
+P24,P24 ,24,Goethe University Frankfurt,Jose Macia-Vicente,MaciaVicente@em.uni-frankfurt.de,P1868,Plant,Microthlaspi perfoliatum,Brassicales,Brassicaceae,Microthlaspi,Bulgaria 42.57 N 22.69 E,Europe,Estern-Europe,https://doi.org/10.1111/1462-2920.13112,DSM 110859,,,,,,,,,25
+P25,P25 ,25,Goethe University Frankfurt,Jose Macia-Vicente,MaciaVicente@em.uni-frankfurt.de,P6208,Plant,Brassica napus,Capparales,Brassicaceae,Brassica,France 48.80 N 7.18 E,Europe,Western-Europe,https://doi.org/10.1080/17550874.2018.1504332,DSM 110857,,,,,,,,,26
+P26,P26 ,26,Goethe University Frankfurt,Jose Macia-Vicente,MaciaVicente@em.uni-frankfurt.de,P2062,Plant,Microthlaspi perfoliatum,Brassicales,Brassicaceae,Microthlaspi,France 47.20 N 5.43 E,Europe,Western-Europe,https://doi.org/10.1111/1462-2920.13112,DSM 110858,,,,,,,,,27
+P27,P27 ,27,Goethe University Frankfurt,Jose Macia-Vicente,MaciaVicente@em.uni-frankfurt.de,P6215,Plant,Brassica napus,Capparales,Brassicaceae,Brassica,Germany 49.52 N 9.40 E,Europe,Western-Europe,https://doi.org/10.1080/17550874.2018.1504332,DSM 110848,,,,,,,,,28
+P28,P28 ,28,Goethe University Frankfurt,Jose Macia-Vicente,MaciaVicente@em.uni-frankfurt.de,P1943,Plant,Microthlaspi perfoliatum,Brassicales,Brassicaceae,Microthlaspi,Germany 50.37 N 7.22 E,Europe,Western-Europe,https://doi.org/10.1111/1462-2920.13112,DSM 110850,,,,,,,,,29
+P29,P29 ,29,Goethe University Frankfurt,Jose Macia-Vicente,MaciaVicente@em.uni-frankfurt.de,P2540,Plant,Microthlaspi perfoliatum,Brassicales,Brassicaceae,Microthlaspi,Greece 38.91 N 21.83 E,Europe,Western-Europe,https://doi.org/10.1111/1462-2920.13112,DSM 110833,,,,,,,,,30
+P30,P30 ,30,University of Minnesota,Cara Santelli,santelli@umn.edu,DS2psM2a2,Plant,AMD passive treatment system,AMD,AMD,AMD,USA,America,North-America,,,,,,,,,,,31
+P31,P31 ,31,The Connecticut Agricultural Experiment Station,Wade Elmer,Wade.Elmer@ct.gov,PcCAES1,Plant,Heuchera sanguine,Rosales,Saxifragaceae,Heuchera,"New England, USA",America,North-America,https://doi.org/10.1111/jph.12867,,,,,,,,,,32
+P32,P32 ,32,Southern Illinois University Carbondale,Ahmad Fakhoury,amfakhou@siu.edu,MNSO1_2_1,Plant,Glycine max,Fabales,Fabaceae,Glycine,"Minnesota, USA",America,North-America,,,,,,,,,,,33
+P33,P33 ,33,Southern Illinois University Carbondale,Ahmad Fakhoury,amfakhou@siu.edu,W_ILSO2_5_4,Plant,Glycine max,Fabales,Fabaceae,Glycine,"Illinois, USA",America,North-America,,,,,,,,,,,34
+P34,P34 ,34,Southern Illinois University Carbondale,Ahmad Fakhoury,amfakhou@siu.edu,W_MNSO2_5_25,Plant,Glycine max,Fabales,Fabaceae,Glycine,"Minnesota, USA",America,North-America,,,,,,,,,,,35
+P35,P35 ,35,"Hermiston Agricultural Research & Extension Center, Oregon State University",Hannah Rivedal,rivedalh@oregonstate.edu,J55,Plant,Cucurbita moshata,Cucurbitaceae,Cucurbitoideae,Cucurbita,"Oregon, USA 44.529483 N -123.370432 E",America,North-America,https://doi.org/10.1094/PBIOMES-11-18-0056-R,,,,,,,,,,36
+P36,P36 ,36,"Hermiston Agricultural Research & Extension Center, Oregon State University",Hannah Rivedal,rivedalh@oregonstate.edu,I652,Plant,Cucurbita maxima,Cucurbitaceae,Cucurbitoideae,Cucurbita,"Oregon, USA 45.050674 N -122.803997 E",America,North-America,https://doi.org/10.1094/PBIOMES-11-18-0056-R,,,,,,,,,,37
+P38,P38 ,38,"Hermiston Agricultural Research & Extension Center, Oregon State University",Hannah Rivedal,rivedalh@oregonstate.edu,K107,Plant,Cucurbita pepo,Cucurbitaceae,Cucurbitoideae,Cucurbita,"Oregon, USA 44.477608 N -122.781642 E",America,North-America,https://doi.org/10.1094/PBIOMES-11-18-0056-R,,,,,,,,,,38
+P39,P39 ,39,"Hermiston Agricultural Research & Extension Center, Oregon State University",Hannah Rivedal,rivedalh@oregonstate.edu,M118,Plant,Cucurbita maxima,Cucurbitaceae,Cucurbitoideae,Cucurbita,"Oregon, USA 45.23516 N -122.916037 E",America,North-America,https://doi.org/10.1094/PBIOMES-11-18-0056-R,,,,,,,,,,39
+P40,P40 ,40,Institute of Biochemistry and Biophysisc Polish Academy of Sciences,Joanna Kruszewska ,jsk@ibb.waw.pl,IBBPKBobr2,Soil,soil,soil,soil,soil,"Kampinos Forest, Poland",Europe,Estern-Europe,https://doi.org/10.2166/wh.2020.096,,,,,,,,,,40
+P41,P41 ,41,Pavol Jozef _afárik University in Ko_ice,Jana Henzelyova,jana.henzelyova@upjs.sk,2SF1-3,Plant,Hypericum maculatum,Theales,Clusiaceae,Hypericum,"Botanical Garden UPJ_, Slovakia",Europe,Estern-Europe,https://doi.org/10.1055/a-1130-4703,,,,,,,,,,41
+P42,P42 ,42,Maastricht University,Jessoca Nelson,nelson.bryo@gmail.com,JN0335,Plant,Marchantia sp.,Marchantiales,Marchantiaceae,Marchantia,"Tenessee University Bryophytes garden 35.95713, -83.92493",America,North-America,https://doi.org/10.1111/nph.15012,,,,,,,,,,42
+P43,P43 ,43,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-PUGE-AT-0043,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,"Pulheim, Germany",America,North-America,,,,,,,,,,,43
+P44,P44 ,44,CABI,Helen Stewart,h.stewart@cabi.org,IMI312228,Plant,Dancus carota,Apiales,Apiaceae,Daucus,Denmark,America,North-America,,,,,,,,,,,44
+P45,P45 ,45,CABI,Helen Stewart,h.stewart@cabi.org,IMI312232,Plant,Hordeum,Poales,Poaceae,hordeum,Denmark,America,North-America,,,,,,,,,,,45
+P46,P46 ,46,CABI,Helen Stewart,h.stewart@cabi.org,IMI358508,Unknown,Unknown,Unknown,Unknown,Unknown,United Kingdom,Europe,U-K,,,,,,,,,,,46
+P47,P47 ,47,CABI,Helen Stewart,h.stewart@cabi.org,IMI506094b,Plant,Senecio vulgaris,Asterales,Asteraceae,senecio,United Kingdom,Europe,U-K,,,,,,,,,,,47
+P48,P48 ,48,ICMP – Landcare Research,Bevan Weir,WeirB@landcareresearch.co.nz,ICMP16464,Plant,Solanum tuberosum,Solanales,Solanaceae,Solanum,"Mid Canterbury, New Zealand",Oceania,Oceania,,,,,,,,,,,48
+P49,P49 ,49,ICMP – Landcare Research,Bevan Weir,WeirB@landcareresearch.co.nz,ICMP15226,Plant,Papaver nudicaule,Ranunculales,Papaveraceae,Papaver,"Auckland, New Zealand",Oceania,Oceania,,,,,,,,,,,49
+P50,P50 ,50,ICMP – Landcare Research,Bevan Weir,WeirB@landcareresearch.co.nz,ICMP10923,Plant,Anthurium,Alismatales,Araceae,Anthurium,Fiji Islands,Oceania,Oceania,,,,,,,,,,,50
+P51,P51 ,51,DSMZ,,contact@dsmz.de,DSM3048,Soil,soil,soil,soil,soil,unknown,unknown,unknown,,,,,,,,,,,51
+P52,P52 ,52,Universidad Politécnica de Madrid,Soledad Sacristan,soledad.sacristan@upm.es,DSM2127,Insect,wheat bulb fly,Insect,insect,insect,unknown,unknown,unknown,https://doi.org/10.1094/MPMI-03-20-0057-R,,,,,,,,,,52
+P54,P54 ,54,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF238632,Plant,Persian buttercup,Ranunculales,Ranunculaceae,Ranunculus,"Chiba, Japan",Asia,Asia,,,,,,,,,,,53
+P55,P55 ,55,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF306720,Plant,Cucumber,Cucurbitales,Cucurbitaceae,Cucumis,"Chiba, Japan",Asia,Asia,,,,,,,,,,,54
+P56,P56 ,56,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF238634,Plant,Bell pepper,Solanales,Solanaceae,Capsicum,"Ehime, Japan",Asia,Asia,,,,,,,,,,,55
+P57,P57 ,57,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF238969,Plant,Oriental pickling melon,Cucurbitales,Cucurbitaceae,Cucumis,"Ibaraki, Japan",Asia,Asia,,,,,,,,,,,56
+P58,P58 ,58,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF241235,Plant,Turnip rape,Brassicales,Brassicaceae,Brassica,"Ibaraki, Japan",Asia,Asia,,,,,,,,,,,57
+P59,P59 ,59,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF238964,Plant,Radish,Brassicales,Brassicaceae,Raphanus,"Kanagawa, Japan",Asia,Asia,,,,,,,,,,,58
+P60,P60 ,60,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF240260,Plant,Radish,Brassicales,Brassicaceae,Raphanus,"Kanagawa, Japan",Asia,Asia,,,,,,,,,,,59
+P61,P61 ,61,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF241233,Plant,Common plum,Rosales,Rosaceae,Prunus,"Kanagawa, Japan",Asia,Asia,,,,,,,,,,,60
+P62,P62 ,62,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF238968,Plant,Cucumber,Cucurbitales,Cucurbitaceae,Cucumis,"Mie, Japan",Asia,Asia,,,,,,,,,,,61
+P63,P63 ,63,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF238966,Plant,Radish,Brassicales,Brassicaceae,Raphanus,"Miyazaki, Japan",Asia,Asia,,,,,,,,,,,62
+P64,P64 ,64,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF238802,Plant,Curcuma,Cucurbitales,Cucurbitaceae,Cucumis,"Okinawa, Japan",Asia,Asia,,,,,,,,,,,63
+P65,P65 ,65,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF240789,Plant,Turnip,Brassicales,Brassicaceae,Brassica,"Okinawa, Japan",Asia,Asia,,,,,,,,,,,64
+P66,P66 ,66,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF243382,Plant,Potato,Solanales,Solanaceae,Solanum,"Okinawa, Japan",Asia,Asia,,,,,,,,,,,65
+P67,P67 ,67,NARO Genbank,Shoshi Kikuchi,skikuchi@affrc.go.jp,MAFF244724,Plant,"Bergamot mint, orange mint",Sapindales,Rutaceae,Citrus,"Tokyo, Japan",Asia,Asia,,,,,,,,,,,66
+P68,P68 ,68,Universidad Politécnica de Madrid,Soledad Sacristan,soledad.sacristan@upm.es,PcBMM,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,Switzerland,Europe,Western-Europe,https://doi.org/10.1094/MPMI-03-20-0057-R,,,,,,,,,,67
+P117,P117 ,117,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-SDFR-AT-0117,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,"Saint-Die, France",Europe,Western-Europe,https://doi.org/10.1038/s41467-021-27479-y,,,,,,,,,,68
+P143,P143 ,143,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-CAGE-AT-0143,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,"Cologne, Germany",Europe,Western-Europe,,,,,,,,,,,69
+P340,P340 ,340,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-FR1-AT-0340,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,"Toulouse, France",Europe,Western-Europe,,,,,,,,,,,70
+P421,P421 ,421,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-SP2-AT-0421,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,Spain,Europe,Western-Europe,,,,,,,,,,,71
+P455,P455 ,455,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-SP2-AT-0455,Plant,Arabidopsis thaliana,Brassicales,Brassicaceae,Arabidopsis,Spain,Europe,Western-Europe,,,,,,,,,,,72
+P612,P612 ,612,MPIPZ,Stephane Hacquard,hacquard@mpipz.mpg.de,MPI-SW4-AT-0612,Plant,Brassicales,Brassicaceae,Arabidopsis,Sweden,Europe,North-Europe,,,,,,,,,,,,

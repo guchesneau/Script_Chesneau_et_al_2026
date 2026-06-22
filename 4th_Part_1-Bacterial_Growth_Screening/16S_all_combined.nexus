@@ -1,0 +1,544 @@
+#NEXUS
+begin taxa;
+	dimensions ntax=442;
+	taxlabels
+	'Kemen_200.1B2_Frigoribacterium'
+	'Kemen_200.1B3_Aeromicrobium'
+	'Kemen_3.2_Pseudomonas'
+	Kemen_63_Bacillus
+	Kemen_ERG
+	Kemen_Leaf104_Methylobacterium
+	Kemen_24_Rhizobium
+	Kemen_35_Microbacterium
+	Kemen_53_Arthrobacter
+	Kemen_9_Flavobacterium
+	Kemen_Nocardioides_cavernae
+	Leaf1
+	Leaf10
+	Leaf100
+	Leaf102
+	Leaf104
+	Leaf106
+	Leaf108
+	Leaf11
+	Leaf111
+	Leaf112
+	Leaf113
+	Leaf117
+	Leaf119
+	Leaf121
+	Leaf122
+	Leaf123
+	Leaf125
+	Leaf126
+	Leaf127
+	Leaf129
+	Leaf13
+	Leaf130
+	Leaf131
+	Leaf137
+	Leaf139
+	Leaf141
+	Leaf145
+	Leaf148
+	Leaf15
+	Leaf151
+	Leaf154
+	Leaf155
+	Leaf159
+	Leaf16
+	Leaf160
+	Leaf161
+	Leaf164
+	Leaf168
+	Leaf17
+	Leaf171
+	Leaf172
+	Leaf176
+	Leaf177
+	Leaf179
+	Leaf180
+	Leaf182
+	Leaf183
+	Leaf185
+	Leaf186
+	Leaf187
+	Leaf189
+	Leaf191
+	Leaf194
+	Leaf196
+	Leaf198
+	Leaf2
+	Leaf20
+	Leaf201
+	Leaf202
+	Leaf203
+	Leaf208
+	Leaf210
+	Leaf216
+	Leaf22
+	Leaf220
+	Leaf222
+	Leaf225
+	Leaf226
+	Leaf23
+	Leaf230
+	Leaf231
+	Leaf233
+	Leaf234
+	Leaf24
+	Leaf242
+	Leaf244
+	Leaf245
+	Leaf247
+	Leaf25
+	Leaf254
+	Leaf257
+	Leaf258
+	Leaf26
+	Leaf261
+	Leaf262
+	Leaf263
+	Leaf264
+	Leaf265
+	Leaf267
+	Leaf272
+	Leaf274
+	Leaf278
+	Leaf28
+	Leaf280
+	Leaf283
+	Leaf285
+	Leaf288
+	Leaf289
+	Leaf29
+	Leaf291
+	Leaf294
+	Leaf296
+	Leaf299
+	Leaf3
+	Leaf30
+	Leaf304
+	Leaf306
+	Leaf307
+	Leaf311
+	Leaf314
+	Leaf32
+	Leaf320
+	Leaf321
+	Leaf324
+	Leaf325
+	Leaf326
+	Leaf33
+	Leaf334
+	Leaf335
+	Leaf336
+	Leaf337
+	Leaf339
+	Leaf34
+	Leaf341
+	Leaf343
+	Leaf344
+	Leaf347
+	Leaf351
+	Leaf354
+	Leaf357
+	Leaf359
+	Leaf361
+	Leaf363
+	Leaf369
+	Leaf371
+	Leaf38
+	Leaf380
+	Leaf383
+	Leaf384
+	Leaf386
+	Leaf391
+	Leaf394
+	Leaf395
+	Leaf396
+	Leaf399
+	Leaf400
+	Leaf404
+	Leaf405
+	Leaf406
+	Leaf407
+	Leaf41
+	Leaf412
+	Leaf414
+	Leaf415
+	Leaf416
+	Leaf42
+	Leaf420
+	Leaf427
+	Leaf434
+	Leaf436
+	Leaf44
+	Leaf443
+	Leaf446
+	Leaf453
+	Leaf454
+	Leaf456
+	Leaf459
+	Leaf460
+	Leaf465
+	Leaf466
+	Leaf469
+	Leaf48
+	Leaf49
+	Leaf5
+	Leaf50
+	Leaf51
+	Leaf53
+	Leaf58
+	Leaf61
+	Leaf62
+	Leaf64
+	Leaf67
+	Leaf68
+	Leaf69
+	Leaf7
+	Leaf70
+	Leaf72
+	Leaf75
+	Leaf76
+	Leaf78
+	Leaf8
+	Leaf82
+	Leaf83
+	Leaf84
+	Leaf85
+	Leaf86
+	Leaf87
+	Leaf88
+	Leaf89
+	Leaf9
+	Leaf90
+	Leaf91
+	Leaf92
+	Leaf93
+	Leaf94
+	Leaf99
+	Root100
+	Root101
+	Root102
+	Root105
+	Root107
+	Root11
+	Root112D2
+	Root1203
+	Root1204
+	Root1212
+	Root1217
+	Root122
+	Root1220
+	Root1221
+	Root1237
+	Root1238
+	Root123D2
+	Root1240
+	Root1252
+	Root1257
+	Root127
+	Root1272
+	Root1277
+	Root1279
+	Root1280
+	Root1290
+	Root1293
+	Root1294
+	Root1295
+	Root1298
+	Root1304
+	Root131
+	Root1310
+	Root1312
+	Root1319
+	Root133
+	Root1334
+	Root135
+	Root136
+	Root137
+	Root140
+	Root142
+	Root1423
+	Root1433D1
+	Root1444
+	Root1455
+	Root1462
+	Root1464
+	Root147
+	Root1471
+	Root1472
+	Root1480D1
+	Root1485
+	Root149
+	Root1497
+	Root151
+	Root154
+	Root157
+	Root166
+	Root16D2
+	Root170
+	Root172
+	Root179
+	Root180
+	Root181
+	Root186
+	Root187
+	Root189
+	Root190
+	Root198D2
+	Root209
+	Root214
+	Root217
+	Root219
+	Root22
+	Root224
+	Root227
+	Root231
+	Root236
+	Root239
+	Root240
+	Root241
+	Root258
+	Root264
+	Root265
+	Root267
+	Root268
+	Root274
+	Root275
+	Root278
+	Root280D1
+	Root29
+	Root31
+	Root318D1
+	Root322
+	Root329
+	Root332
+	Root335
+	Root336D2
+	Root342
+	Root343
+	Root344
+	Root351
+	Root369
+	Root381
+	Root4
+	Root401
+	Root402
+	Root404
+	Root405
+	Root411
+	Root413D1
+	Root418
+	Root420
+	Root423
+	Root434
+	Root436
+	Root444D2
+	Root456
+	Root472D3
+	Root473
+	Root480
+	Root482
+	Root483D1
+	Root483D2
+	Root485
+	Root487D2Y
+	Root491
+	Root494
+	Root495
+	Root50
+	Root52
+	Root53
+	Root55
+	Root552
+	Root553
+	Root554
+	Root558
+	Root559
+	Root561
+	Root562
+	Root563
+	Root564
+	Root565
+	Root568
+	Root569
+	Root60
+	Root604
+	Root608
+	Root61
+	Root614
+	Root627
+	Root63
+	Root630
+	Root635
+	Root65
+	Root651
+	Root655
+	Root656
+	Root662
+	Root667
+	Root66D1
+	Root670
+	Root672
+	Root68
+	Root682
+	Root685
+	Root690
+	Root695
+	Root70
+	Root700
+	Root708
+	Root71
+	Root710
+	Root720
+	Root73
+	Root74
+	Root76
+	Root77
+	Root79
+	Root81
+	Root83
+	Root85
+	Root9
+	Root901
+	Root916
+	Root918
+	Root920
+	Root930
+	Root935
+	Root954
+	Root96
+	Root983
+	Soil522
+	Soil531
+	Soil535
+	Soil538
+	Soil724D2
+	Soil728
+	Soil729
+	Soil736
+	Soil745
+	Soil748
+	Soil750
+	Soil756
+	Soil761
+	Soil762
+	Soil763
+	Soil764
+	Soil766
+	Soil768D1
+	Soil772
+	Soil773
+	Soil774
+	Soil777
+	Soil782
+	Soil787
+	Soil796
+	Soil797
+	Soil802
+	Soil803
+	Soil805
+	Soil809
+	Soil810
+	Soil811
+;
+end;
+
+begin trees;
+	tree tree_1 = [&R] ('Kemen_3.2_Pseudomonas':2.0E-6,(((Root329:2.0E-6,(Root401:0.009696,Root68:2.0E-6):2.0E-6):2.0E-6,((Leaf48:2.0E-6,Root71:2.0E-6):2.0E-6,(((Root569:2.0E-6,(Root9:2.0E-6,Leaf15:2.0E-6):0.009673):0.009689,(Leaf127:2.0E-6,((Leaf58:2.0E-6,(Leaf83:0.023621,((Root1280:0.013895,Leaf130:0.005577):0.108196,(((((((((((((((((((((((Kemen_24_Rhizobium:3.0E-6,Leaf311:0.004746):2.0E-6,Leaf262:0.00473):0.01451,(Root491:2.0E-6,Root651:3.0E-6):3.0E-6):0.019459,(Root564:0.004703,((Leaf155:2.0E-6,Leaf202:2.0E-6):2.0E-6,Leaf68:2.0E-6):2.0E-6):0.023268):0.058901,(Root1240:2.0E-6,Root274:2.0E-6):0.018206):0.073524,(Root1212:3.0E-6,Root268:2.0E-6):0.014213):0.016019,((((Root1204:2.0E-6,Root73:2.0E-6):2.0E-6,Root483D2:2.0E-6):2.0E-6,(Root482:2.0E-6,Root1334:2.0E-6):2.0E-6):3.0E-6,((Leaf386:3.0E-6,Leaf453:2.0E-6):2.0E-6,Leaf391:2.0E-6):0.025364):0.017339):0.04226,((((((Root278:2.0E-6,Root1298:2.0E-6):2.0E-6,Root1312:2.0E-6):2.0E-6,Root74:2.0E-6):2.0E-6,Root954:2.0E-6):2.0E-6,Root558:2.0E-6):3.0E-6,Root423:3.0E-6):3.0E-6):0.014365,(((Root1252:2.0E-6,((Root127:2.0E-6,Root142:2.0E-6):2.0E-6,Root258:2.0E-6):2.0E-6):2.0E-6,Root231:2.0E-6):3.0E-6,Root31:2.0E-6):2.0E-6):0.105608,(Root102:2.0E-6,Root695:2.0E-6):2.0E-6):0.010438,Root157:0.04754):3.0E-6,Root100:0.013403):0.014815,((Root1471:2.0E-6,Root554:2.0E-6):2.0E-6,Root172:0.00947):0.020346):2.0E-6,Root552:0.003507):0.104537,(((Root105:2.0E-6,Root413D1:2.0E-6):0.038691,Root685:0.016396):0.027635,Root635:3.0E-6):2.0E-6):0.035397,Root436:0.039478):3.0E-6,(Leaf420:2.0E-6,Leaf64:2.0E-6):0.022639):0.031979,((((((((((Kemen_ERG:2.0E-6,Leaf198:2.0E-6):2.0E-6,((Leaf20:2.0E-6,Leaf242:2.0E-6):2.0E-6,Leaf230:2.0E-6):2.0E-6):3.0E-6,(Leaf34:3.0E-6,Leaf38:2.0E-6):0.019113):0.014382,Leaf226:0.00469):3.0E-6,Leaf208:3.0E-6):3.0E-6,((((Leaf17:3.0E-6,Leaf33:0.045693):0.014686,Leaf30:0.014245):1.9E-5,(((((Root1294:2.0E-6,Root50:2.0E-6):2.0E-6,Root720:2.0E-6):2.0E-6,Root710:0.009211):0.010449,(Leaf26:0.025285,(((Root1497:2.0E-6,(Root154:2.0E-6,Root214:2.0E-6):0.004581):0.045175,Leaf2:0.049481):0.029823,Root672:0.059888):0.01312):0.066921):0.096087,Leaf357:0.038425):0.100094):3.0E-6,Leaf28:2.0E-6):0.009335):0.050875,(((Root241:0.014036,Leaf412:3.0E-6):0.009445,Leaf339:2.0E-6):0.004594,Leaf343:0.004705):2.0E-6):0.014396,Leaf231:0.010034):0.002278,Leaf257:0.039196):0.012674,((Leaf10:2.0E-6,((((Leaf11:2.0E-6,(((Leaf23:2.0E-6,Leaf25:2.0E-6):2.0E-6,Leaf9:2.0E-6):2.0E-6,Leaf407:2.0E-6):2.0E-6):2.0E-6,Leaf42:2.0E-6):3.0E-6,((Leaf22:2.0E-6,Leaf62:2.0E-6):2.0E-6,Leaf67:0.004723):0.004657):0.004663,(Leaf24:3.0E-6,Leaf5:2.0E-6):3.0E-6):0.004669):2.0E-6,((Leaf16:2.0E-6,Leaf29:2.0E-6):2.0E-6,Leaf32:2.0E-6):0.004658):0.008791):0.124712):0.070342,(Leaf324:0.024969,(((Leaf427:2.0E-6,Leaf460:2.0E-6):0.005575,Leaf454:0.004535):0.027846,Leaf443:0.084634):0.056282):0.064897):0.069531,((((((Root1462:0.09027,((Root381:2.0E-6,(Leaf344:3.0E-6,Root483D1:0.004803):0.009545):0.010205,Root670:0.004309):0.040529):0.077471,((((((((Kemen_Leaf104_Methylobacterium:2.0E-6,(((Leaf104:2.0E-6,(Leaf125:2.0E-6,Leaf88:2.0E-6):2.0E-6):2.0E-6,((Leaf113:2.0E-6,Leaf466:2.0E-6):2.0E-6,Leaf108:2.0E-6):2.0E-6):2.0E-6,(Leaf111:2.0E-6,Leaf99:2.0E-6):2.0E-6):2.0E-6):2.0E-6,Leaf465:2.0E-6):2.0E-6,Leaf89:2.0E-6):3.0E-6,Leaf117:2.0E-6):2.0E-6,Leaf399:2.0E-6):2.0E-6,Leaf94:2.0E-6):3.0E-6,(((((Leaf106:2.0E-6,Leaf86:2.0E-6):2.0E-6,Leaf93:2.0E-6):0.005051,Leaf91:2.0E-6):3.0E-6,Leaf85:2.0E-6):8.74E-4,(Leaf361:0.030533,(((Leaf119:3.0E-6,(Leaf121:2.0E-6,(Leaf123:2.0E-6,Leaf90:2.0E-6):2.0E-6):2.0E-6):2.0E-6,(Leaf122:2.0E-6,Leaf92:2.0E-6):0.00501):0.020624,Leaf456:0.017521):0.059881):0.005237):0.06658):2.0E-6,(((Leaf100:2.0E-6,Leaf102:2.0E-6):3.0E-6,Leaf112:2.0E-6):3.0E-6,(Leaf469:2.0E-6,Leaf87:2.0E-6):3.0E-6):0.015359):0.088111):0.022857,(Root123D2:2.0E-6,Leaf396:0.019705):0.151871):0.05346,(Leaf306:3.0E-6,Leaf321:3.0E-6):2.0E-6):0.01001,(((Root1203:0.005723,Root708:0.009951):0.036535,Root1220:2.0E-6):0.025616,(((Leaf341:2.0E-6,Leaf371:2.0E-6):2.0E-6,Leaf383:2.0E-6):2.0E-6,Leaf384:3.0E-6):0.010375):2.0E-6):0.057309,Root149:0.025328):0.011539):0.011383,(((((((((Root1277:2.0E-6,(Root77:2.0E-6,Root1290:2.0E-6):2.0E-6):2.0E-6,Root700:0.004955):0.025169,((Root1455:2.0E-6,Root487D2Y:2.0E-6):3.0E-6,Root655:0.020508):2.0E-6):0.012604,((Root656:2.0E-6,Root1472:2.0E-6):0.02577,(Root342:2.0E-6,Root343:2.0E-6):2.0E-6):0.019632):0.045309,(Leaf168:0.004924,Leaf280:3.0E-6):2.0E-6):0.014849,Root608:2.0E-6):0.004855,Root1279:3.0E-6):0.010027,Root1423:2.0E-6):0.019065,Leaf363:0.04348):0.082584):0.178258,(((Kemen_63_Bacillus:3.0E-6,(Root920:2.0E-6,Leaf49:2.0E-6):2.0E-6):3.0E-6,((((Root147:2.0E-6,Soil531:2.0E-6):2.0E-6,Root239:2.0E-6):3.0E-6,Leaf75:2.0E-6):0.017956,((((Leaf13:2.0E-6,Soil768D1:2.0E-6):2.0E-6,Soil745:3.0E-6):2.0E-6,(Root11:2.0E-6,Root131:2.0E-6):0.054386):0.008863,Leaf406:2.0E-6):2.0E-6):0.015014):0.063177,((Leaf187:2.0E-6,Leaf196:2.0E-6):0.076542,((((((Root444D2:2.0E-6,Soil724D2:2.0E-6):2.0E-6,(Soil787:0.090228,(Soil750:2.0E-6,Soil766:2.0E-6):0.030174):0.061596):0.157605,Soil522:3.0E-6):2.0E-6,Leaf72:0.057309):0.020488,Root52:0.033718):0.046273,(Leaf182:0.014036,((((((((Kemen_9_Flavobacterium:0.02979,((Root935:0.004718,Leaf82:2.0E-6):0.004699,(Root901:3.0E-6,Leaf359:0.221447):0.040097):2.0E-6):0.00488,Root186:2.0E-6):0.009579,Root420:2.0E-6):0.230867,((((Leaf180:0.068303,Leaf201:0.036569):0.024726,Leaf404:0.023782):2.0E-6,Leaf405:2.0E-6):0.009264,Leaf394:2.0E-6):0.398685):0.388221,Leaf216:2.0E-6):0.017957,(Leaf41:0.011876,Leaf189:0.678626):2.0E-6):0.058153,Leaf194:2.0E-6):0.046739,Leaf176:2.0E-6):1.351061):0.068291):0.108804):0.085781):0.198246):0.107353,((((((((((((((Root1217:2.0E-6,((Root405:2.0E-6,Root662:2.0E-6):2.0E-6,Root1444:0.025727):0.015368):3.0E-6,Root1237:0.01528):0.014742,((((Root1221:2.0E-6,Root404:2.0E-6):2.0E-6,Root29:2.0E-6):2.0E-6,(Root1238:2.0E-6,Root16D2:2.0E-6):2.0E-6):0.015063,Root1272:3.0E-6):0.173022):0.037368,(((((((((((((Root217:2.0E-6,Root568:2.0E-6):2.0E-6,Root219:2.0E-6):2.0E-6,Root402:3.0E-6):3.0E-6,Leaf160:0.014442):2.0E-6,(Root267:2.0E-6,Root275:2.0E-6):0.004742):0.042119,((Root411:2.0E-6,Root434:2.0E-6):2.0E-6,Root473:2.0E-6):2.0E-6):0.004783,(Root318D1:2.0E-6,Leaf78:2.0E-6):3.0E-6):0.014534,Leaf220:2.0E-6):3.0E-6,Leaf267:0.009632):0.036645,Root209:0.015484):3.0E-6,(Root70:2.0E-6,(Leaf265:0.009914,Leaf274:3.0E-6):0.01505):0.054811):0.010264,(Leaf191:2.0E-6,(Leaf76:2.0E-6,Leaf84:2.0E-6):2.0E-6):0.004444):0.040369,Leaf400:2.0E-6):0.092646):0.081058,(Root170:0.005012,(Root565:2.0E-6,Root83:2.0E-6):2.0E-6):0.073274):0.074228,Leaf177:0.128886):0.046572,Root189:3.0E-6):0.067423,((Root1480D1:3.0E-6,(Root198D2:2.0E-6,Root336D2:0.010378):0.043591):0.0208,Leaf61:0.015465):2.0E-6):0.010357,Leaf126:2.0E-6):3.0E-6,Root351:3.0E-6):0.024407,Root418:0.044165):0.034211,((Root133:2.0E-6,Root335:2.0E-6):2.0E-6,Root1485:2.0E-6):0.025669):2.0E-6,Leaf139:0.051022):0.364579,(Leaf414:2.0E-6,(Leaf416:2.0E-6,Leaf459:2.0E-6):2.0E-6):0.06017):0.256647):0.078765):0.087618):0.040963):0.018709,((((((((((Root480:2.0E-6,Root627:3.0E-6):0.009599,(Root179:2.0E-6,Root561:3.0E-6):0.034213):0.003627,Soil773:0.004597):0.024325,Soil772:2.0E-6):0.09794,Root494:0.066178):0.016966,Leaf70:2.0E-6):0.081878,((Root630:2.0E-6,Leaf148:2.0E-6):2.0E-6,(Root65:2.0E-6,Leaf131:2.0E-6):2.0E-6):0.002737):0.030281,((((Root559:2.0E-6,Root667:2.0E-6):2.0E-6,(Root76:2.0E-6,Root96:2.0E-6):2.0E-6):3.0E-6,((Root604:2.0E-6,Root916:2.0E-6):2.0E-6,Root983:2.0E-6):0.00435):2.0E-6,Root690:0.008752):3.0E-6):0.094755,Leaf326:0.31377):0.187627,(((Leaf50:2.0E-6,Leaf51:0.024478):0.023272,Leaf53:0.034642):0.216331,(((((((((((((((((Kemen_35_Microbacterium:2.0E-6,Leaf151:3.0E-6):0.048435,((((((Root112D2:0.00852,Root61:0.013595):0.008531,(((Leaf210:2.0E-6,Leaf244:2.0E-6):2.0E-6,Leaf335:2.0E-6):3.0E-6,Leaf283:2.0E-6):2.0E-6):0.017377,Root4:0.00428):0.004246,(((Root1293:2.0E-6,Leaf264:2.0E-6):2.0E-6,Root60:2.0E-6):2.0E-6,Leaf325:3.0E-6):3.0E-6):0.00307,((Root227:2.0E-6,(((Leaf171:2.0E-6,Leaf314:2.0E-6):3.0E-6,Leaf1:2.0E-6):2.0E-6,(Root1464:3.0E-6,((Root81:3.0E-6,Leaf222:0.004237):3.0E-6,Soil535:0.022217):0.031952):0.028245):0.012839):3.0E-6,Leaf336:0.042027):0.037337):0.009753,((Leaf179:2.0E-6,Leaf436:2.0E-6):3.0E-6,Leaf203:2.0E-6):2.0E-6):2.0E-6):0.022679,((((Root1433D1:2.0E-6,((Root322:2.0E-6,Leaf159:2.0E-6):2.0E-6,Leaf320:2.0E-6):2.0E-6):2.0E-6,Root280D1:2.0E-6):2.0E-6,Leaf161:2.0E-6):2.0E-6,Root553:2.0E-6):3.0E-6):0.022337,Leaf288:0.020375):0.010968,(Root166:2.0E-6,Root180:2.0E-6):2.0E-6):0.068665,((Root101:2.0E-6,Root563:3.0E-6):2.0E-6,(Soil748:2.0E-6,(Soil802:2.0E-6,Soil803:2.0E-6):0.01777):0.012681):0.035707):0.017639,((Root181:2.0E-6,(Root85:2.0E-6,Soil810:2.0E-6):2.0E-6):2.0E-6,Soil811:2.0E-6):0.020125):0.034773,((Root190:0.026117,((Root614:2.0E-6,Root682:2.0E-6):2.0E-6,(Root240:3.0E-6,Root79:2.0E-6):0.017225):3.0E-6):0.055781,Leaf446:0.018796):0.078402):3.0E-6,Leaf3:0.007241):0.041951,((((((Kemen_53_Arthrobacter:2.0E-6,Leaf337:3.0E-6):0.011577,Leaf141:0.054246):0.025224,(((Leaf137:0.008668,Soil764:0.004368):0.013104,((Leaf69:2.0E-6,Soil762:2.0E-6):3.0E-6,Leaf145:0.013276):2.0E-6):0.026798,Soil763:0.004927):0.016372):0.028213,(Leaf234:0.021993,Soil782:2.0E-6):0.007703):0.016609,Soil736:0.002739):0.042221,Soil761:2.0E-6):0.100619):3.0E-6,Root456:0.072709):0.059258,((((((('Kemen_200.1B3_Aeromicrobium':3.0E-6,Root472D3:2.0E-6):3.0E-6,(Root236:3.0E-6,(Root344:2.0E-6,(Root495:0.008924,(((Leaf245:2.0E-6,Leaf291:2.0E-6):3.0E-6,Leaf289:2.0E-6):2.0E-6,Leaf272:2.0E-6):3.0E-6):3.0E-6):3.0E-6):0.004642):0.058561,(Root1257:3.0E-6,Root224:2.0E-6):0.033598):0.014049,(((Kemen_Nocardioides_cavernae:2.0E-6,Root122:3.0E-6):2.0E-6,Soil774:3.0E-6):0.063572,((Soil777:2.0E-6,Soil805:2.0E-6):2.0E-6,((((Root135:0.052397,(Root265:0.004321,Soil538:0.01722):0.011049):0.06757,Root136:0.064291):0.073036,((((Leaf225:2.0E-6,Leaf258:2.0E-6):2.0E-6,Leaf7:2.0E-6):2.0E-6,Leaf247:2.0E-6):3.0E-6,Leaf354:0.116252):0.037806):0.008754,(Leaf233:2.0E-6,Leaf278:2.0E-6):2.0E-6):0.096373):0.015747):0.022612):2.0E-6,((((Root140:2.0E-6,Soil796:2.0E-6):3.0E-6,Root151:2.0E-6):2.0E-6,Soil797:0.004224):0.026329,(Leaf285:2.0E-6,Leaf307:2.0E-6):0.03051):0.019601):0.030417,(Leaf369:0.007891,Leaf380:0.009437):0.169479):0.01072,((Leaf154:2.0E-6,Leaf183:2.0E-6):3.0E-6,Leaf261:0.013007):0.111224):0.041124):2.0E-6,(((Root137:2.0E-6,((Root930:2.0E-6,Leaf334:3.0E-6):2.0E-6,Leaf395:2.0E-6):2.0E-6):2.0E-6,Root485:2.0E-6):0.021851,(Root22:2.0E-6,Root918:2.0E-6):2.0E-6):0.004704):0.031974,(((((('Kemen_200.1B2_Frigoribacterium':2.0E-6,(Leaf263:2.0E-6,Leaf254:2.0E-6):2.0E-6):2.0E-6,((Leaf172:2.0E-6,Leaf8:2.0E-6):2.0E-6,Leaf415:2.0E-6):2.0E-6):2.0E-6,Leaf44:2.0E-6):2.0E-6,Leaf186:2.0E-6):2.0E-6,Leaf304:0.013056):2.0E-6,(Leaf164:0.008897,(((Leaf185:3.0E-6,Leaf294:2.0E-6):0.004252,(Leaf296:3.0E-6,Leaf299:2.0E-6):2.0E-6):0.00878,((Root332:2.0E-6,Soil809:3.0E-6):0.038188,(Root53:0.00923,(Leaf347:2.0E-6,Leaf351:2.0E-6):0.028396):0.028191):0.014561):2.0E-6):0.022196):0.05528):0.004762,(Soil729:0.002911,Soil756:0.028491):0.023667):0.015028,Soil728:3.0E-6):0.148848,(((((((Root107:2.0E-6,Root187:2.0E-6):0.008953,Root1310:0.023254):0.008231,Root264:3.0E-6):0.027066,Root369:0.013343):0.012939,(Root66D1:3.0E-6,Root1304:3.0E-6):0.012713):3.0E-6,Root55:2.0E-6):3.0E-6,((Root1295:2.0E-6,Root1319:2.0E-6):2.0E-6,Root63:2.0E-6):3.0E-6):0.062459):0.986692):0.073788):0.042648):0.018017):0.014783):2.0E-6,Leaf129:0.00973):2.0E-6):2.0E-6):2.0E-6,Leaf434:2.0E-6):2.0E-6,Root562:2.0E-6);
+end;
+
+begin figtree;
+	set appearance.backgroundColorAttribute="Default";
+	set appearance.backgroundColour=#ffffff;
+	set appearance.branchColorAttribute="User selection";
+	set appearance.branchColorGradient=false;
+	set appearance.branchLineWidth=1.0;
+	set appearance.branchMinLineWidth=0.0;
+	set appearance.branchWidthAttribute="Fixed";
+	set appearance.foregroundColour=#000000;
+	set appearance.hilightingGradient=false;
+	set appearance.selectionColour=#2d3680;
+	set branchLabels.colorAttribute="User selection";
+	set branchLabels.displayAttribute="Branch times";
+	set branchLabels.fontName="sansserif";
+	set branchLabels.fontSize=8;
+	set branchLabels.fontStyle=0;
+	set branchLabels.isShown=false;
+	set branchLabels.significantDigits=4;
+	set layout.expansion=218;
+	set layout.layoutType="RECTILINEAR";
+	set layout.zoom=20;
+	set legend.attribute=null;
+	set legend.fontSize=10.0;
+	set legend.isShown=false;
+	set legend.significantDigits=4;
+	set nodeBars.barWidth=4.0;
+	set nodeBars.displayAttribute=null;
+	set nodeBars.isShown=false;
+	set nodeLabels.colorAttribute="User selection";
+	set nodeLabels.displayAttribute="Node ages";
+	set nodeLabels.fontName="sansserif";
+	set nodeLabels.fontSize=8;
+	set nodeLabels.fontStyle=0;
+	set nodeLabels.isShown=false;
+	set nodeLabels.significantDigits=4;
+	set nodeShapeExternal.colourAttribute=null;
+	set nodeShapeExternal.isShown=false;
+	set nodeShapeExternal.minSize=10.0;
+	set nodeShapeExternal.scaleType=Width;
+	set nodeShapeExternal.shapeType=Circle;
+	set nodeShapeExternal.size=4.0;
+	set nodeShapeExternal.sizeAttribute=null;
+	set nodeShapeInternal.colourAttribute=null;
+	set nodeShapeInternal.isShown=false;
+	set nodeShapeInternal.minSize=10.0;
+	set nodeShapeInternal.scaleType=Width;
+	set nodeShapeInternal.shapeType=Circle;
+	set nodeShapeInternal.size=4.0;
+	set nodeShapeInternal.sizeAttribute=null;
+	set polarLayout.alignTipLabels=false;
+	set polarLayout.angularRange=0;
+	set polarLayout.rootAngle=0;
+	set polarLayout.rootLength=100;
+	set polarLayout.showRoot=true;
+	set radialLayout.spread=0.0;
+	set rectilinearLayout.alignTipLabels=false;
+	set rectilinearLayout.curvature=0;
+	set rectilinearLayout.rootLength=100;
+	set scale.offsetAge=0.0;
+	set scale.rootAge=1.0;
+	set scale.scaleFactor=1.0;
+	set scale.scaleRoot=false;
+	set scaleAxis.automaticScale=true;
+	set scaleAxis.fontSize=8.0;
+	set scaleAxis.isShown=false;
+	set scaleAxis.lineWidth=1.0;
+	set scaleAxis.majorTicks=1.0;
+	set scaleAxis.minorTicks=0.5;
+	set scaleAxis.origin=0.0;
+	set scaleAxis.reverseAxis=false;
+	set scaleAxis.showGrid=true;
+	set scaleBar.automaticScale=true;
+	set scaleBar.fontSize=10.0;
+	set scaleBar.isShown=true;
+	set scaleBar.lineWidth=1.0;
+	set scaleBar.scaleRange=0.0;
+	set tipLabels.colorAttribute="User selection";
+	set tipLabels.displayAttribute="Names";
+	set tipLabels.fontName="sansserif";
+	set tipLabels.fontSize=8;
+	set tipLabels.fontStyle=0;
+	set tipLabels.isShown=true;
+	set tipLabels.significantDigits=4;
+	set trees.order=true;
+	set trees.orderType="increasing";
+	set trees.rooting=true;
+	set trees.rootingType="User Selection";
+	set trees.transform=false;
+	set trees.transformType="cladogram";
+end;
+

@@ -1,0 +1,708 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+#Load theme set
+theme_set(theme_bw())
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load libraries
+library(ggplot2)
+library(PMCMRplus)
+library(dunn.test)
+library(rcompanion)
+library(cowplot)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+
+# Define color vector
+colors <- c(
+  "B329 mTn5_1" = "#7570B3",
+  "B329 mTn5_2" = "#4B3C80",
+  "B329 mTn5::pqqF_1" = "#FFCCCC",
+  "B329 mTn5::pqqF_2" = "#FF9999",
+  "B329 mTn5::pqqDH_1" = "#CC0000",
+  "B329 mTn5::pqqDH_2" = "#990000",
+  "B329 mTn5::Gpml" = "#330000",
+  "MgCl2" = "lightgray",
+  "B329_WT" = "#2780F5"
+)
+
+colors2 <- c(
+  "B329mTn5_1" = "#7570B3",
+  "B329mTn5_2" = "#4B3C80",
+  "B329mTn5::pqqF_1" = "#FFCCCC",
+  "B329mTn5::pqqF_2" = "#FF9999",
+  "B329mTn5::pqqDH_1" = "#CC0000",
+  "B329mTn5::pqqDH_2" = "#990000",
+  "B329mTn5::Gpml" = "#330000",
+  "MgCl2" = "lightgray",
+  "B329_WT" = "#2780F5"
+)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+
+
+```
+
+# A] Pre-Processing
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare tables
+df <- read.table("pqq-supplementation.txt", sep="\t", header= TRUE, row.names = 1)
+
+#Put good names for mutants
+df <- df %>%
+  mutate(Strain2 = recode(Strain2,
+    "R329_pqqf_1" = "B329 mTn5::pqqF_1",
+    "R329_pqqf_2" = "B329 mTn5::pqqF_2",
+    "R329_pqqDH_1" = "B329 mTn5::pqqDH_1",
+    "R329_pqqDH_2" = "B329 mTn5::pqqDH_2",
+    "R329_gpml" = "B329 mTn5::Gpml",
+    "R329_Wt" = "B329_WT",
+    "R329Wt_like_mutant" = "B329 mTn5_1",  # or adjust if it corresponds to another strain
+    "MgCl2" = "MgCl2"
+  ))
+```
+
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Subset
+
+df <- subset(df, !Strain2 %in% c("Control_Fungi", "Empty") & !is.na(Strain2))
+df_F16 <- subset(df, Media %in% c(" M9_3OMG_F16 "))
+df_C <- subset(df, !Media %in% c(" M9_3OMG_F16 ") & !is.na(Strain2))
+```
+
+# B] Analysis bacteria + F16
+
+## 1) Fluorescens
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Statistics inside panels
+#Load dataset Change accordingle (Table_f_S or Table_f_C)
+df <- df_F16
+
+#Remove empty
+df <- subset(df, !Strain2 %in% c("Empty"))
+
+# Get unique conditions
+unique_conditions <- unique(df$Strain2)
+
+# Create empty data frames to store the results
+kruskal_results <- data.frame()
+dunn_results <- data.frame()
+
+# Loop over unique conditions and perform tests
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- df[df$Strain2 == condition, ]
+  
+  # Perform Kruskal-Wallis test
+  kruskal_result <- kruskal.test(Fluorescens ~ Pqq, data = subset_data)
+  
+  # Perform Dunn's test for post hoc comparisons
+  dunn_result <- dunn.test(subset_data$Fluorescens, g = subset_data$Pqq, method = "bh")
+  
+  # Store the results in data frames
+  kruskal_results <- rbind(kruskal_results, c(Condition = condition, kruskal_result$P.adjusted))
+  dunn_results <- rbind(dunn_results, data.frame(dunn_result$comparison, dunn_result$P.adjusted, condition))
+}
+
+# Print Kruskal-Wallis results
+print(kruskal_results)
+
+# Print Dunn test results
+print(dunn_results)
+
+#Create groups letters
+# Create empty data frames to store the results
+groups_results2 <- data.frame()
+
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- dunn_results[dunn_results$condition == condition, ]
+   
+  group <- cldList(comparison = subset_data$dunn_result.comparison, 
+                    p.value    = subset_data$dunn_result.P.adjusted,
+                    threshold  = 0.01, remove.zero = FALSE)
+  # Create a data frame for the results of the current condition
+  condition_results <- data.frame(Condition = condition,
+                                  Group = group$Group,
+                                  Letter = group$Letter,
+                                  MonoLetter = group$MonoLetter)
+  
+# Append the results to the groups_results data frame
+  groups_results2 <- rbind(groups_results2, condition_results)
+
+}
+
+groups_results2
+
+colnames(groups_results2) <- c("Strain2", "Pqq", "Letter", "MonoLetter" )
+```
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Open file
+df_F16_2 <- df_F16
+groups_results3 <- groups_results2
+
+# Calculate the normalized fluorescens
+df_F16_3 <- df_F16_2 %>%
+  group_by(Pqq) %>%
+  mutate(
+    MgCl2_median = median(Fluorescens[Strain2 == "MgCl2"]),
+    Fluorescens_diff = Fluorescens - MgCl2_median,
+    Fluorescens_diff = ifelse(Fluorescens_diff < 0, 0, Fluorescens_diff)
+  ) %>%
+  ungroup()
+
+df_F16_3
+
+# Calculate the median Fluorescens_diff for Pqq == 0 and Strain2 == "B329_WT"
+median_value <- df_F16_3 %>%
+  filter(Pqq == 0, Strain2 == "B329_WT") %>%
+  summarise(median_diff = median(Fluorescens_diff, na.rm = TRUE)) %>%
+  pull(median_diff)
+
+# Specify the desired order of the levels
+df_F16_3$Strain2 <- factor(df_F16_3$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+groups_results3$Strain2 <- factor(groups_results3$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+
+#Count replciates
+n_df <- df_F16_3 %>%
+   group_by(Pqq, Strain2) %>%
+   summarise(n = n(), .groups = "drop")
+  
+#Plot
+Plot_F16_fluo <- ggplot(df_F16_3, aes(x = factor(Pqq), y = Fluorescens_diff)) +  # Use factor(Pqq) to separate each Pqq concentration on the x-axis
+  geom_jitter(aes(shape = Rep), size = 2, color = "black", alpha = 0.5) +  # Jitter for individual data points
+  geom_boxplot(aes(fill = Strain2), alpha = 0.7, outlier.shape = NA) +  # Boxplots with fill according to Pqq
+  facet_grid(. ~ Strain2) +  # Faceting by Strain2
+   scale_fill_manual(values = colors) +
+  labs(x = "", y = "Fungal growth (Fluorescens)", fill = "Pqq Concentration (uM)") +  # Updated labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels if needed
+     geom_text( data= groups_results3, mapping = aes(x = factor(Pqq), y = 650, label = Letter), size = 4)+
+  ggtitle("Supplemented with Fungi") +
+   theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 8, color = "black"),
+    strip.text.y = element_text(size = 8, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  # Add horizontal line for median value
+ geom_hline(
+    yintercept = median_value,
+    linetype = "dashed",
+    color = "#2780F5",
+    size = 0.5, alpha = 1
+  ) +
+   geom_text(
+    data = n_df, 
+    aes(x = factor(Pqq), y = min(df_F16_3$Fluorescens_diff) - 50, label = paste0("n=", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  base_theme
+
+Plot_F16_fluo
+```
+
+## 2) OD600
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Statistics inside panels
+#Load dataset Change accordingle (Table_f_S or Table_f_C)
+df <- df_F16
+
+#Remove empty
+df <- subset(df, !Strain2 %in% c("Empty"))
+
+# Get unique conditions
+unique_conditions <- unique(df$Strain2)
+
+# Create empty data frames to store the results
+kruskal_results <- data.frame()
+dunn_results <- data.frame()
+
+# Loop over unique conditions and perform tests
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- df[df$Strain2 == condition, ]
+  
+  # Perform Kruskal-Wallis test
+  kruskal_result <- kruskal.test(OD600 ~ Pqq, data = subset_data)
+  
+  # Perform Dunn's test for post hoc comparisons
+  dunn_result <- dunn.test(subset_data$OD600, g = subset_data$Pqq, method = "bh")
+  
+  # Store the results in data frames
+  kruskal_results <- rbind(kruskal_results, c(Condition = condition, kruskal_result$P.adjusted))
+  dunn_results <- rbind(dunn_results, data.frame(dunn_result$comparison, dunn_result$P.adjusted, condition))
+}
+
+# Print Kruskal-Wallis results
+print(kruskal_results)
+
+# Print Dunn test results
+print(dunn_results)
+
+#Create groups letters
+# Create empty data frames to store the results
+groups_results2 <- data.frame()
+
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- dunn_results[dunn_results$condition == condition, ]
+   
+  group <- cldList(comparison = subset_data$dunn_result.comparison, 
+                    p.value    = subset_data$dunn_result.P.adjusted,
+                    threshold  = 0.05, remove.zero = FALSE)
+  # Create a data frame for the results of the current condition
+  condition_results <- data.frame(Condition = condition,
+                                  Group = group$Group,
+                                  Letter = group$Letter,
+                                  MonoLetter = group$MonoLetter)
+  
+# Append the results to the groups_results data frame
+  groups_results2 <- rbind(groups_results2, condition_results)
+
+}
+
+groups_results2
+
+colnames(groups_results2) <- c("Strain2", "Pqq", "Letter", "MonoLetter" )
+
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Plot + Stats with between everything
+# Specify the desired order of the levels
+df_F16$Strain2 <- factor(df_F16$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+groups_results2$Strain2 <- factor(groups_results2$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+
+
+# Calculate the median Fluorescens_diff for Pqq == 0 and Strain2 == "B329_WT"
+median_value2 <- df_F16 %>%
+  filter(Pqq == 0, Strain2 == "B329_WT") %>%
+  summarise(median_diff = median(OD600, na.rm = TRUE)) %>%
+  pull(median_diff)
+
+#Count replciates
+n_df <- df_F16 %>%
+   group_by(Pqq, Strain2) %>%
+   summarise(n = n(), .groups = "drop")
+
+#Plot
+Plot_F16_OD600 <- ggplot(df_F16, aes(x = factor(Pqq), y = OD600)) +  # Use factor(Pqq) to separate each Pqq concentration on the x-axis
+  geom_jitter(aes(shape = Rep), size = 2, color = "black", alpha = 0.5) +  # Jitter for individual data points
+  geom_boxplot(aes(fill = Strain2), alpha = 0.7, outlier.shape = NA) +  # Boxplots with fill according to Pqq
+  facet_grid(. ~ Strain2) +  # Faceting by Strain2
+   scale_fill_manual(values = colors) +
+  labs(x = "", y = "Fungal growth (OD600)", fill = "Pqq Concentration (uM)") +  # Updated labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels if needed
+     geom_text( data= groups_results2, mapping = aes(x = factor(Pqq), y = 0.195, label = Letter), size = 4)+
+  ggtitle("Supplemented with Fungi") +
+   theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 8, color = "black"),
+    strip.text.y = element_text(size = 8, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  # Add horizontal line for median value
+ geom_hline(
+    yintercept = median_value2,
+    linetype = "dashed",
+    color = "#2780F5",
+    size = 0.5, alpha = 0.5
+  )+
+   geom_text(
+    data = n_df, 
+    aes(x = factor(Pqq), y = min(df_F16_3$OD600) - 0.015, label = paste0("n=", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  base_theme
+
+Plot_F16_OD600
+```
+
+
+# C] Analysis bacteria alone
+
+## 1) Fluorescens
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Statistics inside panels
+#Remove NA
+df_C <- subset(df_C, !is.na(Strain2))
+
+#Remove empty
+df <- subset(df, !Strain2 %in% c("Empty"))
+
+# Get unique conditions
+unique_conditions <- unique(df$Strain2)
+
+# Create empty data frames to store the results
+kruskal_results <- data.frame()
+dunn_results <- data.frame()
+
+# Loop over unique conditions and perform tests
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- df[df$Strain2 == condition, ]
+  
+  # Perform Kruskal-Wallis test
+  kruskal_result <- kruskal.test(Fluorescens ~ Pqq, data = subset_data)
+  
+  # Perform Dunn's test for post hoc comparisons
+  dunn_result <- dunn.test(subset_data$Fluorescens, g = subset_data$Pqq, method = "bh")
+  
+  # Store the results in data frames
+  kruskal_results <- rbind(kruskal_results, c(Condition = condition, kruskal_result$P.adjusted))
+  dunn_results <- rbind(dunn_results, data.frame(dunn_result$comparison, dunn_result$P.adjusted, condition))
+}
+
+# Print Kruskal-Wallis results
+print(kruskal_results)
+
+# Print Dunn test results
+print(dunn_results)
+
+#Create groups letters
+library(rcompanion)
+
+# Create empty data frames to store the results
+groups_results2 <- data.frame()
+
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- dunn_results[dunn_results$condition == condition, ]
+   
+  group <- cldList(comparison = subset_data$dunn_result.comparison, 
+                    p.value    = subset_data$dunn_result.P.adjusted,
+                    threshold  = 0.01, remove.zero = FALSE)
+  # Create a data frame for the results of the current condition
+  condition_results <- data.frame(Condition = condition,
+                                  Group = group$Group,
+                                  Letter = group$Letter,
+                                  MonoLetter = group$MonoLetter)
+  
+# Append the results to the groups_results data frame
+  groups_results2 <- rbind(groups_results2, condition_results)
+
+}
+
+groups_results2
+
+colnames(groups_results2) <- c("Strain2", "Pqq", "Letter", "MonoLetter" )
+
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+#Open file
+groups_results3 <- groups_results2
+
+# Calculate the normalized fluorescens
+df_C_3 <- df_C %>%
+  group_by(Pqq) %>%
+  mutate(
+    MgCl2_median = median(Fluorescens[Strain2 == "MgCl2"]),
+    Fluorescens_diff = Fluorescens - MgCl2_median,
+    Fluorescens_diff = ifelse(Fluorescens_diff < 0, 0, Fluorescens_diff)
+  ) %>%
+  ungroup()
+
+# Calculate the median Fluorescens_diff for Pqq == 0 and Strain2 == "B329_WT"
+median_value <- df_C_3 %>%
+  filter(Pqq == 0, Strain2 == "B329_WT") %>%
+  summarise(median_diff = median(Fluorescens_diff, na.rm = TRUE)) %>%
+  pull(median_diff)
+
+#Remove Control Fungi and empty cell
+df_C_3 <- subset(df_C_3, !Strain %in% c("Control_no_fungi", "") )
+
+# Specify the desired order of the levels
+df_C_3$Strain2 <- factor(df_C_3$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+groups_results3$Strain2 <- factor(groups_results3$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+
+#Count replciates
+n_df <- df_C_3 %>%
+   group_by(Pqq, Strain2) %>%
+   summarise(n = n(), .groups = "drop")
+
+#Plot
+Plot_Fluo <- ggplot(df_C_3, aes(x = factor(Pqq), y = Fluorescens_diff)) +  # Use factor(Pqq) to separate each Pqq concentration on the x-axis
+  geom_jitter(aes(shape = Rep), size = 2, color = "black", alpha = 0.5) +  # Jitter for individual data points
+  geom_boxplot(aes(fill = Strain2), alpha = 0.7, outlier.shape = NA) +  # Boxplots with fill according to Pqq
+  facet_grid(. ~ Strain2) +  # Faceting by Strain2
+   scale_fill_manual(values = colors) +
+  labs(x = "", y = "Fungal growth (Fluorescens)", fill = "Pqq Concentration (uM)") +  # Updated labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels if needed
+     geom_text( data= groups_results3, mapping = aes(x = factor(Pqq), y = 650, label = Letter), size = 4)+
+  ggtitle("Bacteria Alone") +
+   theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 8, color = "black"),
+    strip.text.y = element_text(size = 8, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  # Add horizontal line for median value
+ geom_hline(
+    yintercept = median_value,
+    linetype = "dashed",
+    color = "#2780F5",
+    size = 0.5, alpha = 0.5
+  ) +
+   geom_text(
+    data = n_df, 
+    aes(x = factor(Pqq), y = min(df_F16_3$Fluorescens_diff) - 50, label = paste0("n=", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  base_theme
+
+Plot_Fluo
+```
+
+
+## 2) OD600
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Statistics inside panels
+#Load dataset Change accordingle (Table_f_S or Table_f_C)
+df <- df_C
+
+#Remove empty
+df <- subset(df, !Strain2 %in% c("", "Control_no_fungi"))
+
+# Get unique conditions
+unique_conditions <- unique(df$Strain2)
+
+# Create empty data frames to store the results
+kruskal_results <- data.frame()
+dunn_results <- data.frame()
+
+# Loop over unique conditions and perform tests
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- df[df$Strain2 == condition, ]
+  
+  # Perform Kruskal-Wallis test
+  kruskal_result <- kruskal.test(OD600 ~ Pqq, data = subset_data)
+  
+  # Perform Dunn's test for post hoc comparisons
+  dunn_result <- dunn.test(subset_data$OD600, g = subset_data$Pqq, method = "bh")
+  
+  # Store the results in data frames
+  kruskal_results <- rbind(kruskal_results, c(Condition = condition, kruskal_result$P.adjusted))
+  dunn_results <- rbind(dunn_results, data.frame(dunn_result$comparison, dunn_result$P.adjusted, condition))
+}
+
+# Print Kruskal-Wallis results
+print(kruskal_results)
+
+# Print Dunn test results
+print(dunn_results)
+
+#Create groups letters
+# Create empty data frames to store the results
+groups_results2 <- data.frame()
+
+for (condition in unique_conditions) {
+  # Subset the data for the current condition
+  subset_data <- dunn_results[dunn_results$condition == condition, ]
+   
+  group <- cldList(comparison = subset_data$dunn_result.comparison, 
+                    p.value    = subset_data$dunn_result.P.adjusted,
+                    threshold  = 0.05, remove.zero = FALSE)
+  # Create a data frame for the results of the current condition
+  condition_results <- data.frame(Condition = condition,
+                                  Group = group$Group,
+                                  Letter = group$Letter,
+                                  MonoLetter = group$MonoLetter)
+  
+# Append the results to the groups_results data frame
+  groups_results2 <- rbind(groups_results2, condition_results)
+
+}
+
+groups_results2
+
+colnames(groups_results2) <- c("Strain2", "Pqq", "Letter", "MonoLetter" )
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Plot + Stats with between everything
+# Specify the desired order of the levels
+df_C$Strain2 <- factor(df_C$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+groups_results2$Strain2 <- factor(groups_results2$Strain2, levels =  c("MgCl2", "B329_WT", "B329 mTn5_1", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2", "B329 mTn5::pqqDH_1", "B329 mTn5::pqqDH_2", "B329 mTn5::Gpml"))
+
+
+# Calculate the median Fluorescens_diff for Pqq == 0 and Strain2 == "B329_WT"
+median_value2 <- df_C %>%
+  filter(Pqq == 0, Strain2 == "B329_WT") %>%
+  summarise(median_diff = median(OD600, na.rm = TRUE)) %>%
+  pull(median_diff)
+
+#Remove Control Fungi and empty cell
+df_C <- subset(df_C, !Strain %in% c("Control_no_fungi", "") )
+
+#Count replciates
+n_df <- df_C %>%
+   group_by(Pqq, Strain2) %>%
+   summarise(n = n(), .groups = "drop")
+
+#Plot
+Plot_OD600 <- ggplot(df_C, aes(x = factor(Pqq), y = OD600)) +  # Use factor(Pqq) to separate each Pqq concentration on the x-axis
+  geom_jitter(aes(shape = Rep), size = 2, color = "black", alpha = 0.5) +  # Jitter for individual data points
+  geom_boxplot(aes(fill = Strain2), alpha = 0.7, outlier.shape = NA) +  # Boxplots with fill according to Pqq
+  facet_grid(. ~ Strain2) +  # Faceting by Strain2
+   scale_fill_manual(values = colors) +
+  labs(x = "", y = "Bacterial growth (OD600)", fill = "Pqq Concentration (uM)") +  # Updated labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels if needed
+     geom_text( data= groups_results2, mapping = aes(x = factor(Pqq), y = 0.195, label = Letter), size = 4)+
+  ggtitle("Bacteria Alone") +
+   theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 8, color = "black"),
+    strip.text.y = element_text(size = 8, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  # Add horizontal line for median value
+ geom_hline(
+    yintercept = median_value2,
+    linetype = "dashed",
+    color = "#2780F5",
+    size = 0.5, alpha = 0.5
+  ) +
+   geom_text(
+    data = n_df, 
+    aes(x = factor(Pqq), y = min(df_F16_3$OD600) - 0.015, label = paste0("n=", n)),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  base_theme
+
+Plot_OD600
+```
+
+
+# D] Final Plot
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+Plot_Comb1 <- plot_grid(Plot_F16_fluo, Plot_F16_OD600, Plot_Fluo, Plot_OD600, rel_heights = c(1,1,1,1), rel_widths = c(1,1,1,1), nrow=4,   align="hv",  axis = "tb")
+Plot_Comb1
+
+
+Plot_Comb_FLuorescens <- plot_grid(Plot_F16_fluo, Plot_Fluo, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="hv",  axis = "tb")
+Plot_Comb_FLuorescens
+
+Plot_Comb_OD <- plot_grid(Plot_F16_OD600, Plot_OD600, rel_heights = c(1,1), rel_widths = c(1,1), nrow=2,   align="hv",  axis = "tb")
+Plot_Comb_OD
+```
+
+# E] Plot presentation
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+df_pres <- subset(df_F16_3, Pqq %in% c(0,3000))
+groups_pres <- subset(groups_results3, Pqq %in% c(0,3000))
+n_df_pres <- subset(n_df, Pqq %in% c(0,3000))
+
+# Define your comparisons (Wilcoxon between Pqq levels within each facet)
+# Example: adjust according to the actual Pqq groups you have
+conditions <- c("MgCl2", "B329 mTn5::Gpml", "B329 mTn5::pqqDH_1",
+                "B329 mTn5::pqqDH_2", "B329 mTn5::pqqF_1", "B329 mTn5::pqqF_2",
+                "B329_WT", "B329 mTn5_1")
+
+#Stats B329 mutants versus others
+stat_df <- df_pres %>%
+  group_by(Pqq) %>%                      # per facet
+  pairwise_wilcox_test(
+    Fluorescens_diff ~ Strain2,
+    ref.group = "MgCl2",                  # ALWAYS compare to B329 or MgCL2
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    label = sprintf("P = %.2e", p.adj)
+  )
+
+#Add stars to label
+stat_df$labelf <- paste0(stat_df$p.adj.signif," (",stat_df$label,")")
+
+#change facet title label
+df_pres <- df_pres %>%
+  mutate(
+    Pqq = case_when(
+      Pqq == 0    ~ "3OMG + pqq (0μM)",
+      Pqq == 3000 ~ "3OMG + pqq (3μM)",
+      TRUE            ~ as.character(Pqq)))
+
+stat_df <- stat_df %>%
+  mutate(
+    Pqq = case_when(
+      Pqq == 0    ~ "3OMG + pqq (0μM)",
+      Pqq == 3000 ~ "3OMG + pqq (3μM)",
+      TRUE            ~ as.character(Pqq)))
+
+
+#Plot
+Plot_F16_fluo_pres <- ggplot(df_pres, aes(x =  Fluorescens_diff , y =  Strain2)) +
+  geom_jitter(aes(shape = Rep), size = 2, color = "black", alpha = 0.5) +
+  geom_boxplot(aes(fill = Strain2), alpha = 0.7, outlier.shape = NA) +
+  facet_grid(. ~ factor(Pqq)) +
+  scale_fill_manual(values = colors) +
+  labs(y = "", x = "Fungal growth (Fluorescens)", fill = "Microbial strains") +
+  ggtitle("") +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1),
+    strip.text.x = element_text(size = 8, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  geom_text(data = stat_df, aes(x = 600, y = group2, label = labelf), inherit.aes = FALSE, size = 3) +
+  xlim(-30,750) +
+  base_theme
+
+Plot_F16_fluo_pres
+
+#Get median
+median <- df_pres %>%
+  group_by(Pqq, Strain2) %>%
+  summarise(
+    median_area = median(Fluorescens_diff, na.rm = TRUE),
+    .groups = "drop"
+  )
+median
+```
+
+
+---
+END
+---

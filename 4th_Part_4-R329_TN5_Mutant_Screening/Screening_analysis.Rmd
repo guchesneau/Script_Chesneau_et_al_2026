@@ -1,0 +1,328 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+
+```{r R version}
+R.version
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Load libraries
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggplot2)
+library(ggrepel)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+```
+
+# A] TN5 screening
+
+## 1) Pre-processing
+
+```{r}
+read.csv(file = "Measurements.csv",header = TRUE,sep=";")->df1
+rbind(df1)->df_parsed
+plate<-unique(df_parsed$Plate)
+```
+
+
+```{r}
+#spread all measurements into different cols
+spread(df_parsed, Measurement_wavelength, Value)->df_parsed
+(df_parsed)
+
+#split wells into rows and cols
+substr(df_parsed$Well, 1, 1)->df_parsed$row
+substr(df_parsed$Well, 2, 3)->df_parsed$col
+
+```
+
+```{r}
+#take snapshot of df for plotting
+df_parsed->df_plot
+#fuse plate and well info
+df_parsed %>% 
+  unite(Plate_Well, Plate, Well, sep = "_", remove = FALSE)->df_parsed
+
+df_parsed <- df_parsed %>%
+  dplyr::select(Plate, dplyr::everything())
+
+#add boarder labeling
+arrange(df_parsed, Plate)->df_parsed
+rep(c("y", "y", "y", "y", "y", "y", "y", "y", "y", "y", "y", "y", "y", "n", "n", "y", "n", "n", "n", "n", "n", "n", "n", "n", "y", "n", "n", "y", "n", "n", "n", "n", "n", "n", "n", "n", "y", "n", "n", "y", "n", "n", "n", "n", "n", "n", "n", "n", "y", "n", "n", "y", "n", "n", "n", "n", "n", "n", "n", "n", "y", "n", "n", "y", "n", "n", "n", "n", "n", "n", "n", "n", "y", "n", "n", "y", "n", "n", "n", "n", "n", "n", "n", "n", "y", "y", "y", "y", "y", "y", "y", "y", "y", "y", "y", "y"), length(plate))->borders
+as.data.frame(borders)->borders
+cbind(df_parsed, borders)->df_parsed
+#generate df for borders
+filter(df_parsed, borders=="y")->df_borders
+
+#generate df for central wells
+filter(df_parsed, borders=="n")->df_center
+#join both df back together
+bind_rows(df_center, df_borders)->df_parsed
+
+```
+
+<!-- Extract control and no growth conditions -->
+```{r}
+df_filtered <- df_parsed %>% 
+  filter(Condition!= 'Mg_F16') %>% 
+  filter(Condition!= 'WT_noF16') %>% 
+  filter(!grepl("29_H1", Plate_Well)) %>% 
+  filter(!grepl("41_H", Plate_Well)) %>% 
+  filter(!grepl("73_H", Plate_Well)) %>% 
+  filter(!grepl("71_H12", Plate_Well)) %>% 
+  filter(!grepl("87_H", Plate_Well))
+
+```
+
+<!-- Extracting outliers using 3x absolute deviation around median (https://www.sciencedirect.com/science/article/pii/S0022103113000668#f0005) -->
+```{r}
+# Calculate median per plate
+df_median <- df_filtered %>%
+  group_by(Plate) %>%
+  summarise(median_475nm_510nm = median(`475nm/510nm`, na.rm = TRUE))
+
+# Calculate MAD per plate
+df_mad <- df_filtered %>%
+  group_by(Plate) %>%
+  summarise(mad_475nm_510nm = mad(`475nm/510nm`, na.rm = TRUE))
+
+# Calculate threshold values
+df_threshold <- df_median %>%
+  mutate(
+    TH_low = median_475nm_510nm - 2.5 * df_mad$mad_475nm_510nm,
+    TH_high = median_475nm_510nm + 11 * df_mad$mad_475nm_510nm
+  )
+
+# Join threshold values with original data
+df_filtered <- left_join(df_filtered, df_threshold, by = "Plate")
+
+# Extract values that exceed threshold (low)
+df_interest_low <- filter(df_filtered, `475nm/510nm` < TH_low)
+
+# Extract values that exceed threshold (high)
+df_interest_high <- filter(df_filtered, `475nm/510nm` > TH_high)
+
+```
+
+<!-- Filter data with representable conditions -->
+```{r}
+# Filter and prepare data for plotting
+df_plotWTF16 <- df_parsed %>% filter(Condition == 'WT_F16')
+df_plotWTF16$Condition <- rep("B329_WT+F16", nrow(df_plotWTF16))
+
+df_plotWTnoF16 <- df_parsed %>% filter(Condition == 'WT_noF16')
+df_plotWTnoF16$Condition <- rep("B329_WT", nrow(df_plotWTnoF16))
+
+df_plotF16 <- df_parsed %>% filter(Condition == 'Mg_F16')
+df_plotF16$Condition <- rep("F16", nrow(df_plotF16))
+
+df_plot <- bind_rows(df_plotWTF16, df_plotWTnoF16, df_plotF16) %>%
+  left_join(df_mad) %>%
+  left_join(df_median)
+
+# Prepare Mu data
+df_plotMu <- df_parsed %>% filter(Condition == 'Mu')
+df_plotMu$Condition <- rep("B329_LIKE+F16", nrow(df_plotMu))
+df_plotMu <- df_plotMu %>%
+  left_join(df_mad) %>%
+  left_join(df_median)
+
+# Prepare interest data
+df_interest_low <- df_interest_low %>% filter(!grepl("H", Plate_Well))
+df_interest_low$Condition <- rep("B329_LIKE+F16_low", nrow(df_interest_low))
+df_interest_low <- df_interest_low %>%
+  left_join(df_median)
+
+df_interest_high <- df_interest_high %>% filter(!grepl("H", Plate_Well))
+df_interest_high$Condition <- rep("B329_LIKE+F16_high", nrow(df_interest_high))
+df_interest_high <- df_interest_high %>%
+  left_join(df_median)
+
+# Remove unwanted plates from Mu data
+low <- df_interest_low$Plate_Well
+high <- df_interest_high$Plate_Well
+df_plotMu <- df_plotMu %>%
+  filter(!(Plate_Well %in% c(low, high)))
+
+# Bind all data together
+df_plot <- bind_rows(df_plot, df_plotMu, df_interest_high, df_interest_low)
+
+# Remove unwanted plates
+df_plot <- df_plot %>%
+  filter(!grepl("29_H1", Plate_Well)) %>%
+  filter(!grepl("41_H", Plate_Well)) %>%
+  filter(!grepl("63_A1", Plate_Well)) %>%
+  filter(!grepl("73_H", Plate_Well)) %>%
+  filter(!grepl("71_H12", Plate_Well)) %>%
+  filter(!grepl("87_H", Plate_Well)) %>%
+  filter(!grepl("75_A6", Plate_Well))
+
+# Calculate adjusted 475nm/510nm values
+df_plot$`adj475nm/510nm` <- df_plot$`475nm/510nm` / df_plot$median_475nm_510nm
+
+# Create Interest column
+df_plot$Interest[(df_plot$Condition!= "B329_LIKE+F16_low" & df_plot$Condition!= "B329_LIKE+F16_high")] <- 'No'
+df_plot$Interest[is.na(df_plot$Interest)] <- 'Yes'
+
+# Filter interest data
+df_interest <- df_plot %>% filter(Interest == 'Yes')
+
+# Write output to CSV file
+write.table(df_plot, "df_plot.csv", sep = ";", col.names = TRUE, row.names = FALSE)
+```
+
+## 2) Plot
+
+```{r}
+# Convert factors and character columns
+df_plot$Condition <- factor(df_plot$Condition, levels = c("F16", "B329_WT", "B329_LIKE+F16", "B329_WT+F16", "B329_LIKE+F16_low", "B329_LIKE+F16_high"))
+
+df_plot$col <- factor(df_plot$col, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+df_plot$Plate <- as.character(df_plot$Plate)
+
+# Arrange data by Condition
+df_plot <- arrange(df_plot, Condition)
+
+# Define color palette and size values
+color_palette <- c("#949494", "#56B4E9", "#7570B3", "#66A61E", "darkred", "#E6AB02")
+size_values <- c(0.5, 1.2)
+
+# Create ggplot object
+plot <- ggplot(df_plot, aes(x = log(`600nm`), y = log(`adj475nm/510nm`), color = Condition, size = Interest)) + 
+  geom_point(alpha = 1) + 
+  scale_color_manual(values = color_palette, name = 'Microbes') + 
+  scale_size_manual(values = size_values, name = "Mutant of interest") + 
+  theme_bw() + 
+  ylab("log (Relative fluorescence (475nm/510nm))") + 
+  xlab("log(OD600)") +
+  base_theme
+
+# Print plot
+plot
+```
+
+```{r}
+
+# Define the condition
+final_candidates <- c("99_D2", "57_D8", "38_E3", "49_B7", "27_B10")
+final_candidates_names <- c("PQQ-dependent dehydrogenase_1", "ppqF_1", "pqqF_2", "PQQ-dependent dehydrogenase_2", "Gpml")
+
+df_final_candidates_names <- data.frame(final_candidates,final_candidates_names)
+colnames(df_final_candidates_names)[1] <- c("Plate_Well")
+
+# Add the new column for 3 times confirmed candidates
+df_plot2 <- df_plot %>%
+  mutate(final_candidates = ifelse(Plate_Well %in% final_candidates, "Yes", "No"))
+
+# Add names for the candidate of interest
+df_plot3 <- merge(df_plot2, df_final_candidates_names, by = c("Plate_Well"), all.x = TRUE)
+
+df_plot3$col <- factor(df_plot3$col, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+df_plot3$Plate <- as.character(df_plot3$Plate)
+
+# Arrange data by Condition
+df_plot3 <- df_plot3 %>%
+  mutate(Condition = case_when(
+    Condition == "B329_LIKE+F16_low" ~ "B329_LIKE+F16",
+    Condition == "B329_LIKE+F16_high" ~ "B329_LIKE+F16",
+    TRUE ~ Condition
+  ))
+
+#Add 3X times checked candidates
+df_plot4 <- df_plot3 %>%
+  mutate(Final_Conditions = ifelse(final_candidates == "Yes", "Candidate mutants", Condition))
+
+
+# Convert factors and character columns
+df_plot4$Final_Conditions <- factor(df_plot4$Final_Conditions, levels = c("F16", "B329_WT", "B329_LIKE+F16", "B329_WT+F16", "Candidate mutants"))
+
+# Define color palette and size values
+color_palette <- c("B329_WT" = "#2780F5", "F16" = "#F7C956", "B329_WT+F16" = "darkgray","B329_LIKE+F16" = "#7570B3", "Candidate mutants" = "#EC0400")
+size_values <- c(0.5, 1.2)
+
+
+# Create ggplot object
+plot_Screening_TN5 <- ggplot(df_plot4, aes(x = log(`600nm`), y = log(`adj475nm/510nm`))) + 
+  geom_point(aes(color = Final_Conditions, size = final_candidates), data = df_plot4[df_plot4$Final_Conditions != "Candidate mutants", ], alpha = 1) +
+  geom_point(aes(color = Final_Conditions, size = final_candidates), data = df_plot4[df_plot4$Final_Conditions == "B329_WT+F16", ], alpha = 1) + 
+  geom_point(aes(color = Final_Conditions, size = final_candidates), data = df_plot4[df_plot4$Final_Conditions == "Candidate mutants", ], alpha = 1) + 
+  geom_text_repel(data = df_plot4,
+                  aes(label = final_candidates_names, fontface = "bold"), # Set fontface to bold
+                  size = 3, # Adjust text size
+                  color = "#EC0400", # Adjust text color
+                  max.overlaps = Inf, # Allow more overlaps for better spread
+                  segment.color = "black", # Line color connecting text to points
+                  box.padding = 1, # Increase padding around text
+                  point.padding = 1, # Increase padding around points
+                  force = 500) + # Increase repulsion force
+  scale_color_manual(values = color_palette, name = 'Microbes') + 
+  scale_size_manual(values = size_values, name = "Mutant of interest") + 
+  theme_bw() + 
+  ylab("log (Relative fluorescence (475nm/510nm))") + 
+  xlab("log(OD600)") +
+  base_theme
+
+# Print plot
+print(plot_Screening_TN5)
+
+
+# Create ggplot object with x and y axes swapped
+plot_Screening_TN5_T <- ggplot(df_plot4, aes(y = log(`600nm`), x = log(`adj475nm/510nm`))) +  
+  geom_point(aes(color = Final_Conditions, size = final_candidates),
+             data = df_plot4[df_plot4$Final_Conditions != "Candidate mutants", ], alpha = 1) +
+  geom_point(aes(color = Final_Conditions, size = final_candidates),
+             data = df_plot4[df_plot4$Final_Conditions == "B329_WT+F16", ], alpha = 1) +
+  geom_point(aes(color = Final_Conditions, size = final_candidates),
+             data = df_plot4[df_plot4$Final_Conditions == "Candidate mutants", ], alpha = 1) +
+  geom_text_repel(data = df_plot4,
+                  aes(label = final_candidates_names, fontface = "bold"),
+                  size = 3,
+                  color = "#EC0400",
+                  max.overlaps = Inf,
+                  segment.color = "black",
+                  box.padding = 1,
+                  point.padding = 1,
+                  force = 500) +
+  scale_color_manual(values = color_palette, name = 'Microbes') +
+  scale_size_manual(values = size_values, name = "Mutant of interest") +
+  theme_bw() +
+  xlab("Fungi abundance log(Rel. fluo. (475nm/510nm))") +
+  ylab("Microbial abundance (log(OD600))") +
+  base_theme
+
+# Print plot
+print(plot_Screening_TN5_T)
+```
+
+---
+END
+---
+

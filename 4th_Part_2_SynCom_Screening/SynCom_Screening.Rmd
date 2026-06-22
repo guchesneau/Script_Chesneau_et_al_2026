@@ -1,0 +1,1302 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+
+# Before you start
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+```
+
+```{r}
+#load libraries
+library(rstatix) 
+library(ggpubr)  
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+library(Biostrings)
+library(DECIPHER)
+library(scales)
+library(ape)
+library(ggtree)
+library(cowplot)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF","F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free",
+  'F16' = "*Plectosphaerella*<br>*cucumerina*",
+  'MS_agar' = "Agar 1/2 MS",
+  'Arabidopsis_thaliana' = "A. thaliana"
+)
+```
+
+# A] Analysis growth qPCR
+
+## 1) Pre-processing
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+df_qPCR <- read.table(file="qPCR_Drop_out_vf.txt",sep="\t",dec=".",header=TRUE)
+df_qPCR <- subset(df_qPCR, !Expe %in% c("Control", "SynCom"))
+df_qPCR_SC <- subset(df_qPCR, Expe %in% c("SynCom"))
+
+
+#Put non detected Microbial primers as a value of max
+maxITS <- max(df_qPCR$CtITS, na.rm = TRUE)
+df_qPCR$CtITS[is.na(df_qPCR$CtITS)] <- maxITS
+df_qPCR$CtITS <- as.numeric (df_qPCR$CtITS)
+
+max16S <- max(df_qPCR$Ct16S, na.rm = TRUE)
+df_qPCR$Ct16S[is.na(df_qPCR$Ct16S)] <- max16S
+df_qPCR$Ct16S <- as.numeric (df_qPCR$Ct16S)
+
+#Remove empty rowspty
+df_qPCR <- df_qPCR %>% filter(Strains != "")
+
+#Remove empty rowspty
+df_qPCR_init <- df_qPCR %>% filter(Strains != "")
+```
+
+## 2) Statistics Raw Data
+
+### a) Mono culture based on BFSC comparison
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Just monoculture
+df_qPCR_mono <- subset(df_qPCR_init, Expe2 %in% c("mono"))
+
+# Function to convert p-values to stars
+pval_to_stars <- function(p) {
+  ifelse(p <= 0.001, "***",
+  ifelse(p <= 0.01,  "**",
+  ifelse(p <= 0.05,  "*", "ns")))
+}
+
+
+# Overall Comp values (control)
+Comp_CtITS <- df_qPCR_mono$CtITS[df_qPCR_mono$Strains == "BFSC"]
+Comp_Ct16S <- df_qPCR_mono$Ct16S[df_qPCR_mono$Strains == "BFSC"]
+
+# Get all unique experiments
+experiments <- unique(df_qPCR_mono$Expe2)
+
+# Initialize empty results lists
+results_ITS <- list()
+results_16S <- list()
+
+# Loop over each experiment
+for (exp in experiments) {
+  
+  df_exp <- df_qPCR_mono[df_qPCR_mono$Expe2 == exp, ]
+  
+  # Strains to compare (exclude Comp)
+  other_strains <- setdiff(unique(df_exp$Strains), "Comp")
+  
+  for (strain in other_strains) {
+    
+    # CtITS
+    strain_vals_ITS <- df_exp$CtITS[df_exp$Strains == strain]
+    test_ITS <- wilcox.test(strain_vals_ITS, Comp_CtITS, alternative = "greater")
+    
+    results_ITS[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_ITS$statistic,
+      p_value = test_ITS$p.value,
+      n_strain = length(strain_vals_ITS),
+      n_Comp = length(Comp_CtITS),
+      stars = pval_to_stars(test_ITS$p.value)
+    )
+    
+    # Ct16S
+    strain_vals_16S <- df_exp$Ct16S[df_exp$Strains == strain]
+    test_16S <- wilcox.test(strain_vals_16S, Comp_Ct16S, alternative = "greater")
+    
+    results_16S[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_16S$statistic,
+      p_value = test_16S$p.value,
+      n_strain = length(strain_vals_16S),
+      n_Comp = length(Comp_Ct16S),
+      stars = pval_to_stars(test_16S$p.value)
+    )
+    
+  }
+}
+
+# Combine results into dataframes
+results_ITS_MONO <- do.call(rbind, results_ITS)
+results_16S_MONO <- do.call(rbind, results_16S)
+
+#Adjust p-value
+results_ITS_MONO$p_adj <- p.adjust(results_ITS_MONO$p_value, method = "BH")
+results_16S_MONO$p_adj <- p.adjust(results_16S_MONO$p_value, method = "BH")
+
+#Add stars
+results_ITS_MONO$stars_adj <- pval_to_stars(results_ITS_MONO$p_adj)
+results_16S_MONO$stars_adj <- pval_to_stars(results_16S_MONO$p_adj)
+
+# View results
+results_ITS_MONO
+results_16S_MONO
+```
+
+### b) Pairwise culture based on BFSC comparison
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Just monoculture
+df_qPCR_pair <- subset(df_qPCR_init, Expe2 %in% c("Pairwise"))
+
+# Function to convert p-values to stars
+pval_to_stars <- function(p) {
+  ifelse(p <= 0.001, "***",
+  ifelse(p <= 0.01,  "**",
+  ifelse(p <= 0.05,  "*", "ns")))
+}
+
+# Overall Comp values (control)
+Comp_CtITS <- df_qPCR_pair$CtITS[df_qPCR_pair$Strains == "BFSC"]
+Comp_Ct16S <- df_qPCR_pair$Ct16S[df_qPCR_pair$Strains == "BFSC"]
+
+# Get all unique experiments
+experiments <- unique(df_qPCR_pair$Expe2)
+
+# Initialize empty results lists
+results_ITS <- list()
+results_16S <- list()
+
+# Loop over each experiment
+for (exp in experiments) {
+  
+  df_exp <- df_qPCR_pair[df_qPCR_pair$Expe2 == exp, ]
+  
+  # Strains to compare (exclude Comp)
+  other_strains <- setdiff(unique(df_exp$Strains), "Comp")
+  
+  for (strain in other_strains) {
+    
+    # CtITS
+    strain_vals_ITS <- df_exp$CtITS[df_exp$Strains == strain]
+    test_ITS <- wilcox.test(strain_vals_ITS, Comp_CtITS, alternative = "greater")
+    
+    results_ITS[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_ITS$statistic,
+      p_value = test_ITS$p.value,
+      n_strain = length(strain_vals_ITS),
+      n_Comp = length(Comp_CtITS),
+      stars = pval_to_stars(test_ITS$p.value)
+    )
+    
+    # Ct16S
+    strain_vals_16S <- df_exp$Ct16S[df_exp$Strains == strain]
+    test_16S <- wilcox.test(strain_vals_16S, Comp_Ct16S, alternative = "greater")
+    
+    results_16S[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_16S$statistic,
+      p_value = test_16S$p.value,
+      n_strain = length(strain_vals_16S),
+      n_Comp = length(Comp_Ct16S),
+      stars = pval_to_stars(test_16S$p.value)
+    )
+    
+  }
+}
+
+# Combine results into dataframes
+results_ITS_PAIR <- do.call(rbind, results_ITS)
+results_16S_PAIR <- do.call(rbind, results_16S)
+
+#Adjust p-value
+results_ITS_PAIR$p_adj <- p.adjust(results_ITS_PAIR$p_value, method = "BH")
+results_16S_PAIR$p_adj <- p.adjust(results_16S_PAIR$p_value, method = "BH")
+
+#Add stars
+results_ITS_PAIR$stars_adj <- pval_to_stars(results_ITS_PAIR$p_adj)
+results_16S_PAIR$stars_adj <- pval_to_stars(results_16S_PAIR$p_adj)
+
+# View results
+results_ITS_PAIR
+results_16S_PAIR
+```
+
+### c) Pseudomonas culture based on F16+R329 comparison
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Just monoculture
+df_qPCR_pseudo <- subset(df_qPCR_init, Expe2 %in% c("Pseudomonas"))
+
+# Function to convert p-values to stars
+pval_to_stars <- function(p) {
+  ifelse(p <= 0.001, "***",
+  ifelse(p <= 0.01,  "**",
+  ifelse(p <= 0.05,  "*", "ns")))
+}
+
+
+# Overall Comp values (control)
+Comp_CtITS <- df_qPCR_pseudo$CtITS[df_qPCR_pseudo$Strains == "R329_2"]
+Comp_Ct16S <- df_qPCR_pseudo$Ct16S[df_qPCR_pseudo$Strains == "R329_2"]
+
+# Get all unique experiments
+experiments <- unique(df_qPCR_pseudo$Expe2)
+
+# Initialize empty results lists
+results_ITS <- list()
+results_16S <- list()
+
+# Loop over each experiment
+for (exp in experiments) {
+  
+  df_exp <- df_qPCR_pseudo[df_qPCR_pseudo$Expe2 == exp, ]
+  
+  # Strains to compare (exclude Comp)
+  other_strains <- setdiff(unique(df_exp$Strains), "Comp")
+  
+  for (strain in other_strains) {
+    
+    # CtITS
+    strain_vals_ITS <- df_exp$CtITS[df_exp$Strains == strain]
+    test_ITS <- wilcox.test(strain_vals_ITS, Comp_CtITS, alternative = "greater")
+    
+    results_ITS[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_ITS$statistic,
+      p_value = test_ITS$p.value,
+      n_strain = length(strain_vals_ITS),
+      n_Comp = length(Comp_CtITS),
+      stars = pval_to_stars(test_ITS$p.value)
+    )
+    
+    # Ct16S
+    strain_vals_16S <- df_exp$Ct16S[df_exp$Strains == strain]
+    test_16S <- wilcox.test(strain_vals_16S, Comp_Ct16S, alternative = "greater")
+    
+    results_16S[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_16S$statistic,
+      p_value = test_16S$p.value,
+      n_strain = length(strain_vals_16S),
+      n_Comp = length(Comp_Ct16S),
+      stars = pval_to_stars(test_16S$p.value)
+    )
+    
+  }
+}
+
+# Combine results into dataframes
+results_ITS_PSEUDO <- do.call(rbind, results_ITS)
+results_16S_PSEUDO <- do.call(rbind, results_16S)
+
+#Adjust p-value
+results_ITS_PSEUDO$p_adj <- p.adjust(results_ITS_PSEUDO$p_value, method = "BH")
+results_16S_PSEUDO$p_adj <- p.adjust(results_16S_PSEUDO$p_value, method = "BH")
+
+#Add stars
+results_ITS_PSEUDO$stars_adj <- pval_to_stars(results_ITS_PSEUDO$p_adj)
+results_16S_PSEUDO$stars_adj <- pval_to_stars(results_16S_PSEUDO$p_adj)
+
+# View results
+results_ITS_PSEUDO
+results_16S_PSEUDO
+```
+
+
+## 2) Plot Mono + SynCom
+
+Normalize data per F16 values for ITS, and for bacteria by no-growing 16SrRNA 
+
+### a) Normalize data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Keep for latter plot
+df_qPCR <- df_qPCR_init
+
+#Plot 1, mono + pairwise
+df_qPCR <- subset(df_qPCR, Expe2 %in% c("mono", "Pairwise"))
+
+#For ITS
+# Compute median CtITS for FSC strains in Expe == "Mono", F16 never show significant growth.
+median_F16_mono <- median(df_qPCR$CtITS[df_qPCR$Strains == c("F16")], na.rm = TRUE)
+
+# Add this median as a new column to all rows
+df_qPCR <- df_qPCR %>%
+  mutate(Median_CtITS_F16_Mono = median_F16_mono)
+
+# Compute overall median Ct16S for the selected strains per Expe (based on signficiance for OD600 values P <0.001)
+median_F16 <- median(df_qPCR$Ct16S[df_qPCR$Expe == "F16" & df_qPCR$Strains %in% c( "R09","R16", "R147",  "R420", "R431", "R565", "R568", "R695")], na.rm = TRUE)
+median_mono <- median(df_qPCR$Ct16S[df_qPCR$Expe == "mono" & df_qPCR$Strains %in% c("R09","R16", "R147",  "R431", "R565", "R568", "R695")], na.rm = TRUE)
+
+# Create a new column with the median for each Expe
+df_qPCR <- df_qPCR %>%
+  mutate(Median_Ct16S = case_when(
+    Expe == "F16" ~ median_mono,
+    Expe == "mono" ~ median_mono,
+    TRUE ~ NA_real_  # Ensure other conditions get NA
+  ))
+
+#Normalize data (strains which has not grown based on OD600, where used to calculate the CT value for absence of growth, data were normalized accordingly)
+#ITS
+df_qPCR <- df_qPCR %>%
+  mutate(CtITS_norm = ifelse(CtITS > Median_CtITS_F16_Mono, Median_CtITS_F16_Mono, CtITS))
+
+
+#16SrRNA
+df_qPCR <- df_qPCR %>%
+  mutate(Ct16S_norm = ifelse(Ct16S > median_mono, median_mono, Ct16S))
+```
+
+
+### b) Plot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Replace specific values in Expe column with "Communities"
+df_qPCR <- df_qPCR %>%
+  mutate(Expe = ifelse(Strains %in% c("BFSC", "BSC", "FSC", "F16_BSC"), "Communities", Expe))
+
+# Calculate medians using raw -Ct values (not transformed), grouping by Strains and Expe (now with Communities)
+medians <- df_qPCR %>%
+  group_by(Strains, Expe, Expe2, Size, Kingdom) %>%
+  summarise(
+    med_x = median(-CtITS_norm, na.rm = TRUE),
+    med_y = median(-Ct16S_norm, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Create jittered median coordinates to spread median dots and labels
+set.seed(123)  # reproducibility
+medians_jittered <- medians %>%
+  mutate(
+    med_x_jitter = med_x + runif(n(), -0.15, 0.15),
+    med_y_jitter = med_y + runif(n(), -0.15, 0.15)
+  )
+
+# Change Expe label names in both dataframes to keep consistent
+df_qPCR <- df_qPCR %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+medians <- medians %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+medians_jittered <- medians_jittered %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+
+# Custom colors
+Kingdom_colors <- c("Bacteria" = "#2780F5", "Fungi" = "#FFD580", "Bacteria.Fungi" = "darkgray", "NA" = "black")
+
+# Reorder factor levels
+#df_qPCR$Expe <- factor(df_qPCR$Expe, levels = c("Monoculture","Pairwise F16", "Communities"))
+#medians$Expe <- factor(medians$Expe, levels = c("Monoculture","Pairwise F16", "Communities"))
+#medians_jittered$Expe <- factor(medians_jittered$Expe, levels = c("Monoculture","Pairwise F16", "Communities"))
+
+# Remove NA in Kingdom
+df_qPCR <- df_qPCR %>% filter(!is.na(Kingdom))
+medians <- medians %>% filter(!is.na(Kingdom))
+medians_jittered <- medians_jittered %>% filter(!is.na(Kingdom))
+
+#Change label
+Culture_names <- c(
+  'mono' = "Monoculture",
+  'Pairwise' = "Pairwise (B+F16)",
+  'Pseudomonas' = "Pseudomonas only")
+
+#Plot
+PlotScatterRaw <- ggplot(df_qPCR, aes(x = -CtITS_norm, y = -Ct16S_norm, size = Size)) +
+  # big white outline (halo)
+  geom_point(aes(color= Kingdom), size = 4, color = "white", alpha = 1,
+             position = position_jitter(width = 0.15, height = 0.15)) +
+  # actual jittered points
+  geom_point(aes(color= Kingdom, shape = Rep), size = 2, alpha = 0.2,
+             position = position_jitter(width = 0.15, height = 0.15)) +
+  
+  # median dots with outline
+  geom_point(data = medians_jittered,
+             aes(x = med_x_jitter, y = med_y_jitter, size = Size, fill = Kingdom),
+            stroke = 1, shape = 21, color = "black") +
+  # labels
+geom_text_repel(
+  data = subset(
+    medians_jittered,
+    Size == "SynCom" | 
+      med_y_jitter > -26 | 
+      med_x_jitter > -26.2 | 
+      Strains %in% c("R569_2m", "R9_2m")
+  ),
+  aes(x = med_x_jitter, y = med_y_jitter, label = Strains),
+  inherit.aes = FALSE,
+  size = 2.5,
+  max.overlaps = Inf,
+  segment.color = "grey50",
+  segment.size = 0.3) +
+  labs(x = "Fungi abundance (-Ct ITS_norm)",
+       y = "Bacteria abundance (-Ct 16S_norm)",
+       color = "Experiment",
+       shape = "Experiment") +
+facet_grid( Expe2 ~ ., labeller = as_labeller(Culture_names)) +
+  scale_color_manual(values = Kingdom_colors) +
+  scale_fill_manual(values = Kingdom_colors) +
+  theme(strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+        strip.text.x = element_text(size = 12, color = "black"),
+        strip.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  geom_hline(yintercept = -median_mono, color = "black", linetype = "dashed", alpha = 0.2) +
+  geom_vline(xintercept = -median_F16_mono, color = "black", linetype = "dashed", alpha = 0.2) +
+  base_theme
+
+
+PlotScatterRaw
+```
+## 3) Plot Pseudomonas
+
+Normalize data per F16 values for ITS, and for bacteria by no-growing 16SrRNA 
+
+### a) Normalize data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Plot 1, mono + pairwise
+df_qPCR2 <- subset(df_qPCR_init, !Expe2 %in% c("mono", "Pairwise", "SynCom"))
+
+#For ITS
+# Compute median CtITS for FSC strains in Expe == "Mono", F16 never show significant growth.
+median_F16_mono <- median(df_qPCR$CtITS[df_qPCR$Strains == c("F16")], na.rm = TRUE)
+
+# Add this median as a new column to all rows
+df_qPCR2 <- df_qPCR2 %>%
+  mutate(Median_CtITS_F16_Mono = median_F16_mono)
+
+# Compute overall median Ct16S for the selected strains per Expe (based on signficiance for OD600 values P <0.001)
+median_mono <- median(df_qPCR2$Ct16S[df_qPCR2$Expe2 == "Pseudomonas" & df_qPCR2$Strains %in% c("R9_2m")], na.rm = TRUE)
+
+# Create a new column with the median for each Expe
+df_qPCR2 <- df_qPCR2 %>%
+  mutate(Median_Ct16S = case_when(
+    Expe == "F16" ~ median_mono,
+    Expe == "mono" ~ median_mono,
+    TRUE ~ NA_real_  # Ensure other conditions get NA
+  ))
+
+#Normalize data (strains which has not grown based on OD600, where used to calculate the CT value for absence of growth, data were normalized accordingly)
+#ITS
+df_qPCR2 <- df_qPCR2 %>%
+  mutate(CtITS_norm = ifelse(CtITS > Median_CtITS_F16_Mono, Median_CtITS_F16_Mono, CtITS))
+
+#16SrRNA
+df_qPCR2 <- df_qPCR2 %>%
+  mutate(Ct16S_norm = ifelse(Ct16S > median_mono, median_mono, Ct16S))
+```
+
+
+### b) Plot
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Replace specific values in Expe column with "Communities"
+df_qPCR2 <- df_qPCR2 %>%
+  mutate(Expe = ifelse(Strains %in% c("BFSC", "BSC", "FSC", "F16_BSC"), "Communities", Expe))
+
+# Calculate medians using raw -Ct values (not transformed), grouping by Strains and Expe (now with Communities)
+medians <- df_qPCR2 %>%
+  group_by(Strains, Expe, Expe2, Size, Kingdom) %>%
+  summarise(
+    med_x = median(-CtITS_norm, na.rm = TRUE),
+    med_y = median(-Ct16S_norm, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Create jittered median coordinates to spread median dots and labels
+set.seed(123)  # reproducibility
+medians_jittered <- medians %>%
+  mutate(
+    med_x_jitter = med_x + runif(n(), -0.15, 0.15),
+    med_y_jitter = med_y + runif(n(), -0.15, 0.15)
+  )
+
+# Change Expe label names in both dataframes to keep consistent
+df_qPCR2 <- df_qPCR2 %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+medians <- medians %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+medians_jittered <- medians_jittered %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+
+# Custom colors
+Kingdom_colors <- c("Bacteria" = "#2780F5", "Fungi" = "#FFD580", "Bacteria.Fungi" = "darkgray", "NA" = "black")
+
+# Reorder factor levels
+#df_qPCR2$Expe <- factor(df_qPCR2$Expe, levels = c("Monoculture","Pairwise F16", "Communities"))
+#medians$Expe <- factor(medians$Expe, levels = c("Monoculture","Pairwise F16", "Communities"))
+#medians_jittered$Expe <- factor(medians_jittered$Expe, levels = c("Monoculture","Pairwise F16", "Communities"))
+
+# Remove NA in Kingdom
+df_qPCR2 <- df_qPCR2 %>% filter(!is.na(Kingdom))
+medians <- medians %>% filter(!is.na(Kingdom))
+medians_jittered <- medians_jittered %>% filter(!is.na(Kingdom))
+
+#Change label
+Culture_names <- c(
+  'mono' = "Monoculture",
+  'Pairwise' = "Pairwise (B+F16)",
+  'Pseudomonas' = "Pseudomonas only")
+
+#Plot
+PlotScatterRaw <- ggplot(df_qPCR2, aes(x = -CtITS_norm, y = -Ct16S_norm, size = Size)) +
+  # big white outline (halo)
+  geom_point(aes(color= Kingdom), size = 4, color = "white", alpha = 1,
+             position = position_jitter(width = 0.15, height = 0.15)) +
+  # actual jittered points
+  geom_point(aes(color= Kingdom, shape = Rep), size = 2, alpha = 0.2,
+             position = position_jitter(width = 0.15, height = 0.15)) +
+  
+  # median dots with outline
+  geom_point(data = medians_jittered,
+             aes(x = med_x_jitter, y = med_y_jitter, size = Size, fill = Kingdom),
+            stroke = 1, shape = 21, color = "black") +
+  # labels
+geom_text_repel(
+  data = subset(
+    medians_jittered,
+    Size == "SynCom" | 
+      med_y_jitter > -26 | 
+      med_x_jitter > -26.2 | 
+      Strains %in% c("R569_2m", "R9_2m")
+  ),
+  aes(x = med_x_jitter, y = med_y_jitter, label = Strains),
+  inherit.aes = FALSE,
+  size = 2.5,
+  max.overlaps = Inf,
+  segment.color = "grey50",
+  segment.size = 0.3) +
+  labs(x = "Fungi abundance (-Ct ITS_norm)",
+       y = "Bacteria abundance (-Ct 16S_norm)",
+       color = "Experiment",
+       shape = "Experiment") +
+facet_grid( Expe2 ~ ., labeller = as_labeller(Culture_names)) +
+  scale_color_manual(values = Kingdom_colors) +
+  scale_fill_manual(values = Kingdom_colors) +
+  theme(strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+        strip.text.x = element_text(size = 12, color = "black"),
+        strip.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  geom_hline(yintercept = -median_mono, color = "black", linetype = "dashed", alpha = 0.2) +
+  geom_vline(xintercept = -median_F16_mono, color = "black", linetype = "dashed", alpha = 0.2) +
+  base_theme
+
+
+PlotScatterRaw
+```
+
+# B] Analysis growth Fluorescens/OD600
+
+## 1) With jitter
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+df <- read.table(file="Fluorescens-SynCom-3OMG.txt",sep="\t",dec=".",header=TRUE)
+
+# Calculate medians grouping by relevant factors (adjust if necessary)
+medians <- df %>%
+  group_by(Strains, Expe, Expe2, Size, Kingdom) %>%
+  summarise(
+    med_x = median(Fluorescens, na.rm = TRUE),
+    med_y = median(OD600, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Create jittered median coordinates
+set.seed(123)
+medians_jittered <- medians %>%
+  mutate(
+    med_x_jitter = med_x + runif(n(), -0.05, 0.05),
+    med_y_jitter = med_y + runif(n(), -0.05, 0.05)
+  )
+
+# Update Expe labels if you want consistency
+df <- df %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+medians <- medians %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+medians_jittered <- medians_jittered %>%
+  mutate(
+    Expe = case_when(
+      Expe == "F16" ~ "Pairwise F16",
+      Expe == "mono" ~ "Monoculture",
+      TRUE ~ Expe
+    )
+  )
+
+# Merge medians with main data
+df <- left_join(df, medians, by = c("Strains", "Expe2", "Size", "Kingdom"))
+
+# Join jittered median coords
+df <- df %>%
+  left_join(
+    medians_jittered %>%
+      dplyr::select(Strains, Expe2, med_x_jitter, med_y_jitter, Size, Kingdom),
+    by = c("Strains", "Expe2", "Size", "Kingdom")
+  )
+
+# Custom colors
+Kingdom_colors <- c("Bacteria" = "#2780F5", "Fungi" = "#FFD580", "Bacteria.Fungi" = "darkgray", "NA" = "black")
+
+# Remove NA in Kingdom
+df <- df %>% filter(!is.na(Kingdom))
+medians <- medians %>% filter(!is.na(Kingdom))
+medians_jittered <- medians_jittered %>% filter(!is.na(Kingdom))
+
+#Change label
+Culture_names <- c(
+  'mono' = "Monoculture",
+  'Pairwise' = "Pairwise (B+F16)",
+  'Pseudomonas' = "Pseudomonas only",
+  'SynCom' = "SynCom")
+
+#Caclualte median MgCl2 for lines
+median_table_MgCl2 <- df %>%
+  filter(Strains == "MgCl2") %>%
+  summarise(
+    median_OD600 = median(OD600, na.rm = TRUE),
+    median_FLUO  = median(Fluorescens,  na.rm = TRUE)
+  )
+
+#Highlith signifciantly growing strains based on OD600
+# Vector of strains to highlight
+highlight_strains <- c("BFSC", "BSC", "FSC", "R329", "R318", "R651")
+
+# Plot using ggrepel for smart label placement
+PlotScatterOD <- ggplot(df, aes(x = Fluorescens, y = OD600, color = Kingdom, size = Size)) +
+  # raw points
+  geom_point(size = 2, alpha = 0.2) +
+  # median points
+  geom_point(data = medians, aes(x = med_x, y = med_y, size = Size),
+             fill = "white", stroke = 1) +
+  # median points with outline
+  geom_point(data = medians, aes(x = med_x, y = med_y, size = Size, fill = Kingdom),
+             shape = 21, color = "black", stroke = 1) +
+  # labels with automatic placement and connecting lines
+  geom_text_repel(
+  data = subset(medians, Strains %in% highlight_strains),
+  aes(x = med_x, y = med_y, label = Strains),
+  inherit.aes = FALSE,
+  size = 2.5,
+  max.overlaps = Inf,
+  segment.color = "grey50",
+  segment.size = 0.3
+) +
+  labs(
+    x = "Fungal growth (Fluorescens)",
+    y = "Microbial growth (OD600)",
+    color = "Kingdom",
+    shape = "Experiment"
+  ) +
+facet_grid( ~ Expe2, labeller = as_labeller(Culture_names)) +
+  scale_color_manual(values = Kingdom_colors) +
+  scale_fill_manual(values = Kingdom_colors) +
+   theme(strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  base_theme +
+ geom_hline(yintercept = 0.0835, color = "black", linetype = "dashed", alpha = 0.2) +
+ geom_vline(xintercept = 132.5, color = "black", linetype = "dashed", alpha = 0.2)
+ 
+
+PlotScatterOD
+```
+
+
+## 2) Statistics on raw data
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Function to convert p-values to stars
+pval_to_stars <- function(p) {
+  ifelse(p <= 0.001, "***",
+  ifelse(p <= 0.01,  "**",
+  ifelse(p <= 0.05,  "*", "ns")))
+}
+
+#Load table
+df <- read.table(file="Fluorescens-SynCom-3OMG.txt",sep="\t",dec=".",header=TRUE)
+
+#Remove Controls
+df <- subset(df, !Strains %in%  c("Control") & Expe2 %in% c("mono", "Pairwise"))
+
+#Remove NA strains
+df <- df[!is.na(df$Strain), ]
+df <- df[!is.na(df$Expe2), ]
+
+#Calculate MgCl2 control
+mgcl2_CtFLUO <- df$Fluorescens[df$Strains == "MgCl2"]
+mgcl2_CtFLUO <- mgcl2_CtFLUO[!is.na(mgcl2_CtFLUO)]
+  
+mgcl2_CtOD <- df$OD600[df$Strains == "MgCl2"]
+mgcl2_CtOD <- mgcl2_CtOD[!is.na(mgcl2_CtOD)]
+  
+# Get all unique experiments
+experiments <- unique(df$Expe2)
+
+# Initialize empty results lists
+results_FLUO <- list()
+results_OD <- list()
+
+# Loop over each experiment
+for (exp in experiments) {
+  
+  df_exp <- df[df$Expe2 == exp, ]
+
+  # Strains to compare (exclude MgCl2)
+  other_strains <- setdiff(unique(df_exp$Strains), "MgCl2")
+  
+  for (strain in other_strains) {
+    
+    # Fluorescens
+    strain_vals_FLUO <- df_exp$Fluorescens[df_exp$Strains == strain]
+    test_FLUO <- wilcox.test(strain_vals_FLUO, mgcl2_CtFLUO, alternative = "two.sided")
+    
+    results_FLUO[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_FLUO$statistic,
+      p_value = test_FLUO$p.value,
+      n_strain = length(strain_vals_FLUO),
+      n_MgCl2 = length(mgcl2_CtFLUO),
+      stars = pval_to_stars(test_FLUO$p.value)
+    )
+    
+    # OD600
+    strain_vals_OD <- df_exp$OD600[df_exp$Strains == strain]
+    test_OD <- wilcox.test(strain_vals_OD, mgcl2_CtOD, alternative = "two.sided")
+    
+    results_OD[[paste(exp, strain, sep="_")]] <- data.frame(
+      Expe2 = exp,
+      Strain = strain,
+      W = test_OD$statistic,
+      p_value = test_OD$p.value,
+      n_strain = length(strain_vals_OD),
+      n_MgCl2 = length(mgcl2_CtOD),
+      stars = pval_to_stars(test_OD$p.value)
+    )
+    
+  }
+}
+
+# Combine results into dataframes
+results_FLUO_df <- do.call(rbind, results_FLUO)
+results_OD_df <- do.call(rbind, results_OD)
+
+#Adjust p-value
+results_FLUO_df$p_adj <- p.adjust(results_FLUO_df$p_value, method = "BH")
+results_OD_df$p_adj <- p.adjust(results_OD_df$p_value, method = "BH")
+
+#Add stars
+results_FLUO_df$stars_adj <- pval_to_stars(results_FLUO_df$p_adj)
+results_OD_df$stars_adj <- pval_to_stars(results_OD_df$p_adj)
+
+# View results
+results_FLUO_df
+results_OD_df
+```
+### a) Plot Mono / OD600
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load table
+df <- read.table(file="Fluorescens-SynCom-3OMG.txt",
+                 sep="\t", dec=".", header=TRUE)
+
+#Subset NA
+df <- subset(df, !is.na(Strains))
+
+# Prepare table
+df_mono <- subset(df, Expe2 %in% c("mono"))
+
+#Normalization, substract MgCl2
+df_mono <- df_mono %>%
+  # Step 1: calculate median OD600 of MgCl2 per Expe2
+  group_by(Expe2) %>%
+  mutate(median_MgCl2_OD600 = median(OD600[Strains == "MgCl2"], na.rm = TRUE)) %>%
+  # Step 2: subtract median from OD600
+  ungroup() %>%
+  mutate(OD600 = OD600 - median_MgCl2_OD600)
+
+#Prepare stats table 
+results_OD_df$Strains <- results_OD_df$Strain
+results_OD_df <- subset(results_OD_df, Expe2 %in% c("mono"))
+
+#Preapre y position for stats labels
+library(dplyr)
+label_positions <- df_mono %>%
+  group_by(Expe2, Strains) %>%
+  summarise(y_pos = max(OD600, na.rm = TRUE) * 1.05)
+
+results_plot_df <- left_join(results_OD_df, label_positions,
+                             by = c("Expe2", "Strains"))
+
+#Calcualte median MgCl2 for line
+median_MgCl2_df <- df_mono %>%
+  filter(Strains == "MgCl2") %>%
+  group_by(Expe2) %>%
+  summarise(median_OD = median(OD600, na.rm = TRUE))
+
+library(dplyr)
+
+# Calculate number of replicates per strain and experiment
+n_reps_df <- df_mono %>%
+  group_by(Strains) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  # Position at the bottom of the plot
+  mutate(y_pos_n = min(df_mono$OD600, na.rm = TRUE) * 0.95)  # slightly below min OD600
+
+
+#Reorder plot
+df_mono$Strains <- factor(df_mono$Strains, levels = c("MgCl2" ,"BFSC", "F16_BSC",  "BSC","FSC" , "R09", "R16","R147","R318","R329","R420","R431", "R565","R568","R651","R695", "F16", "F147","F212","F243"))
+
+# Boxplot with OD600 on Y-axis
+PlotBoxOD_mono <- ggplot(df_mono, aes(x = Strains, y = OD600, fill = Kingdom)) +
+  
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  
+  # optional: add raw data points
+  geom_jitter(width = 0.2, alpha = 1, size = 1) +
+  
+  labs(
+    x = "",
+    y = "Microbial growth (OD600)",
+    fill = "Kingdom"
+  ) +
+  facet_grid(~ Expe2, labeller = as_labeller(Culture_names)) +
+  
+  scale_fill_manual(values = Kingdom_colors) +
+  
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1),
+    strip.text.x = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  geom_hline(data = median_MgCl2_df,
+             aes(yintercept = median_OD),
+             color = "black",
+             linetype = "dashed",
+             alpha = 0.4)  +
+  base_theme +
+  geom_text(data = results_plot_df,
+            aes(x = Strains, y = y_pos, label = stars_adj),
+            inherit.aes = FALSE,
+            size = 4) +
+geom_text(data = n_reps_df,
+            aes(x = Strains, y = y_pos_n, label = paste0("n=", n)),
+            inherit.aes = FALSE,
+            size = 2,
+            color = "black") 
+
+PlotBoxOD_mono
+
+#Get median
+median_OD_df <- df_mono %>%
+  group_by(Expe2, Strains) %>%
+  summarise(median_OD600 = median(OD600, na.rm = TRUE), .groups = "drop")
+
+median_OD_df
+```
+
+### b) Plot Pairwise / Fluoresence
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Load table
+df <- read.table(file="Fluorescens-SynCom-3OMG.txt",
+                 sep="\t", dec=".", header=TRUE)
+
+#Subset NA
+df <- subset(df, !is.na(Strains))
+
+# Prepare table
+df_pair <- subset(df, Expe2 %in% c("Pairwise"))
+
+#Normalization, substract MgCl2
+df_pair <- df_pair %>%
+  # Step 1: calculate median OD600 of MgCl2 per Expe2
+  group_by(Expe2) %>%
+  mutate(median_MgCl2_Fluorescens = median(Fluorescens[Strains == "MgCl2"], na.rm = TRUE)) %>%
+  # Step 2: subtract median from Fluorescens
+  ungroup() %>%
+  mutate(Fluorescens = Fluorescens - median_MgCl2_Fluorescens)
+
+#Prepare stats table 
+results_FLUO_df$Strains <- results_FLUO_df$Strain
+results_FLUO_df <- subset(results_FLUO_df, Expe2 %in% c("Pairwise"))
+
+#Preapre y position for stats labels
+library(dplyr)
+label_positions <- df_pair %>%
+  group_by(Expe2, Strains) %>%
+  summarise(y_pos = max(Fluorescens, na.rm = TRUE) * 1.05)
+
+results_plot_df <- left_join(results_FLUO_df, label_positions,
+                             by = c("Expe2", "Strains"))
+
+#Calcualte median MgCl2 for line
+median_MgCl2_df <- df_pair %>%
+  filter(Strains == "MgCl2") %>%
+  group_by(Expe2) %>%
+  summarise(median_Fluo = median(Fluorescens, na.rm = TRUE))
+
+# Calculate number of replicates per strain and experiment
+n_reps_df <- df_pair %>%
+  group_by(Strains) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  # Position at the bottom of the plot
+  mutate(y_pos_n = min(df_pair$Fluorescens, na.rm = TRUE) * 0.95)  # slightly below min OD600
+
+#Reorder plot
+df_pair$Strains <- factor(df_pair$Strains, levels = c("MgCl2" ,"BFSC", "F16_BSC",  "BSC","FSC" , "R09", "R16","R147","R318","R329","R420","R431", "R565","R568","R651","R695", "F16", "F147","F212","F243"))
+
+# Boxplot with Fluorescens on Y-axis
+PlotBoxfluo_pair <- ggplot(df_pair, aes(x = Strains, y = Fluorescens, fill = Kingdom)) +
+  geom_boxplot(alpha = 1, outlier.shape = NA) +
+  # optional: add raw data points
+  geom_jitter(width = 1, alpha = 0.3, size = 1) +
+  
+  labs(
+    x = "",
+    y = "Microbial growth (Fluorescens)",
+    fill = "Kingdom"
+  ) +
+  facet_grid(~ Expe2, labeller = as_labeller(Culture_names)) +
+  scale_fill_manual(values = Kingdom_colors) +
+  theme(
+    strip.background = element_rect(color = "black", fill = "white", size = 1),
+    strip.text.x = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  geom_hline(data = median_MgCl2_df,
+             aes(yintercept = median_Fluo),
+             color = "black",
+             linetype = "dashed",
+             alpha = 0.4)  +
+  base_theme +
+  geom_text(data = results_plot_df,
+            aes(x = Strains, y = y_pos, label = stars_adj),
+            inherit.aes = FALSE,
+            size = 4) +
+geom_text(data = n_reps_df,
+            aes(x = Strains, y = y_pos_n, label = paste0("n=", n)),
+            inherit.aes = FALSE,
+            size = 2,
+            color = "black") 
+
+PlotBoxfluo_pair
+```
+
+### c) Plot just Pseudomonas
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Prepare table
+df_Pseudomonas <- subset(df, Expe2 %in% c("Pseudomonas"))
+medians_Pseudeomonas <- subset(medians, Expe2 %in% c("Pseudomonas"))
+
+# Plot using ggrepel for smart label placement
+PlotScatterOD_Pseudomonas <- ggplot(df_Pseudomonas, aes(x = Fluorescens, y = OD600, color = Kingdom, size = Size)) +
+  # raw points
+  geom_point(size = 2, alpha = 0.2) +
+  # median points
+  geom_point(data = medians_Pseudeomonas, aes(x = med_x, y = med_y, size = Size),
+             fill = "white", stroke = 1) +
+  # median points with outline
+  geom_point(data = medians_Pseudeomonas, aes(x = med_x, y = med_y, size = Size, fill = Kingdom),
+             shape = 21, color = "black", stroke = 1) +
+  # labels with automatic placement and connecting lines
+  geom_text_repel(
+  data = subset(medians_Pseudeomonas, med_y > 0.10 | med_x > 150),
+  aes(x = med_x, y = med_y, label = Strains),
+  inherit.aes = FALSE,
+  size = 2.5,
+  max.overlaps = Inf,
+  segment.color = "grey50",
+  segment.size = 0.3) +
+  labs(
+    x = "Fungal growth (Fluorescens)",
+    y = "Microbial growth (OD600)",
+    color = "Kingdom",
+    shape = "Experiment"
+  ) +
+facet_grid( ~ Expe2, labeller = as_labeller(Culture_names)) +
+  scale_color_manual(values = Kingdom_colors) +
+  scale_fill_manual(values = Kingdom_colors) +
+   theme(strip.background = element_rect(color = "black", fill = "white", size = 1, linetype = "solid"),
+    strip.text.x = element_text(size = 12, color = "black"),
+    strip.text.y = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  ) +
+  geom_hline(yintercept = 0.10, color = "black", linetype = "dashed", alpha = 0.2) +
+  geom_vline(xintercept = 150, color = "black", linetype = "dashed", alpha = 0.2) +
+  base_theme
+
+PlotScatterOD_Pseudomonas
+```
+# C] Identity pqqDH
+
+## 1) Prepare data
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+alignment <- readAAStringSet("Pseudo_pqqDH.al.fasta")
+
+IdMatrix <- DistanceMatrix(alignment, includeTerminalGaps=FALSE)
+percent_identity <- data.frame(100*(1-IdMatrix))
+
+#Prepare table
+percent_identity$Strains2 <- colnames(percent_identity)
+percent_identity$Strains2 <- percent_identity$Strains2 |> 
+  sub("_gene.*", "", x = _) |> 
+  sub("^Root", "R", x = _)
+
+# Compute median CtITS_norm per Strain
+median_per_strain <- df_qPCR2 %>%
+  group_by(Strains) %>%
+  summarise(median_CtITS_norm = median(CtITS_norm, na.rm = TRUE),
+            .groups = "drop")
+
+# Compute median Ct16S_norm per Strain
+median_Ct16S_per_strain <- df_qPCR2 %>%
+  group_by(Strains) %>%
+  summarise(median_Ct16S_norm = median(Ct16S_norm, na.rm = TRUE),
+            .groups = "drop")
+
+# Combine ITS and 16S per strain
+strain_stats <- median_per_strain %>%
+  left_join(median_Ct16S_per_strain, by = "Strains")
+
+# Separate Strains into Strains2 and Expe2
+strain_stats <- strain_stats %>%
+  separate(Strains, into = c("Strains2", "Expe2"), sep = "_", remove = FALSE)
+
+# Merge with percent_identity metadata
+df_merged <- left_join(strain_stats, percent_identity, by = "Strains2")
+```
+## 2) Plot
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+
+df_expe2 <- df_merged %>% 
+  filter(Expe2 == "2")
+
+glm_expe2 <- glm(
+  Root329_gene_5511 ~ I(-median_CtITS_norm),
+  data = df_expe2,
+  family = gaussian()
+)
+
+glm_summary_expe2 <- summary(glm_expe2)
+
+p_value_expe2 <- coef(glm_summary_expe2)[2, 4]
+r2_expe2 <- 1 - (glm_expe2$deviance / glm_expe2$null.deviance)
+
+glm_label_expe2 <- data.frame(
+  x_pos = min(-df_expe2$median_CtITS_norm + 2, na.rm = TRUE),
+  y_pos = max(df_expe2$Root329_gene_5511, na.rm = TRUE),
+  label = paste0("R² = ", round(r2_expe2, 2),
+                 ", P = ", signif(p_value_expe2, 2))
+)
+
+Plot_corr_ITS <- ggplot(df_expe2, 
+                        aes(x = -median_CtITS_norm, 
+                            y = Root329_gene_5511)) +
+  geom_point(color = "darkgray", size = 2, alpha = 0.8) +
+  geom_smooth(method = "glm",
+              method.args = list(family = "gaussian"),
+              se = FALSE,
+              color = "black",
+              linewidth = 1) +
+  labs(
+    x = "Fungal growth (median_CtITS_norm)",
+    y = "pqqDH Identity to R329 (%)",
+    title = ""
+  ) +
+  geom_text(
+    data = glm_label_expe2,
+    aes(x = x_pos, y = y_pos, label = label),
+    hjust = 1, vjust = 1,
+    size = 4,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+  geom_text_repel(
+    aes(label = Strains),
+    size = 3,
+    max.overlaps = 20
+  ) +
+  theme(legend.position = "right") +
+  base_theme
+
+
+df_expe2m <- df_merged %>% 
+  filter(Expe2 == "2m")
+
+glm_expe2m <- glm(
+  Root329_gene_5511 ~ I(-median_Ct16S_norm),
+  data = df_expe2m,
+  family = gaussian()
+)
+
+glm_summary_expe2m <- summary(glm_expe2m)
+
+p_value_expe2m <- coef(glm_summary_expe2m)[2, 4]
+r2_expe2m <- 1 - (glm_expe2m$deviance / glm_expe2m$null.deviance)
+
+glm_label_expe2m <- data.frame(
+  x_pos = min(-df_expe2m$median_Ct16S_norm + 2, na.rm = TRUE),
+  y_pos = max(df_expe2m$Root329_gene_5511, na.rm = TRUE),
+  label = paste0("R² = ", round(r2_expe2m, 2),
+                 ", P = ", signif(p_value_expe2m, 2))
+)
+
+Plot_corr_16S <- ggplot(df_expe2m, 
+                        aes(x = -median_Ct16S_norm, 
+                            y = Root329_gene_5511)) +
+  geom_point(color = "#2780F5", size = 2, alpha = 0.8) +
+  geom_smooth(method = "glm",
+              method.args = list(family = "gaussian"),
+              se = FALSE,
+              color = "black",
+              linewidth = 1) +
+  labs(
+    x = "median_Ct16S_norm",
+    y = "Root329_gene_5511",
+    title = "Expe2 = 2m"
+  ) +
+  geom_text(
+    data = glm_label_expe2m,
+    aes(x = x_pos, y = y_pos, label = label),
+    hjust = 1, vjust = 1,
+    size = 4,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+  geom_text_repel(
+    aes(label = Strains),
+    size = 3,
+    max.overlaps = 20
+  ) +
+  theme(legend.position = "right") +
+  base_theme
+
+Plot_corr_ITS
+Plot_corr_16S
+```
+
+## 3) Tree
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+# Read the tree
+tree <- read.tree("Pseudo_pqqDH.al.fasta.treefile")
+
+# Replace "TipName" with the exact name of the tip you want to root on
+tree_rooted <- root(tree, outgroup = "Root1280_gene_4128", resolve.root = TRUE)
+
+# Plot tree
+p_tree <- ggtree(tree_rooted, layout = "rectangular") +
+  geom_tiplab(size = 3) +  # align tips, slight offset
+  theme_tree2() +                                     # aligns tips with x-axis
+  ggtitle("Pseudo_pqqDH Phylogenetic Tree") +
+  theme(plot.title = element_text(hjust = 0.5))      # center title
+
+p_tree
+```
+
+# D] Final plots
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+
+Final_plot_jitter <- plot_grid(PlotScatterRaw, PlotScatterOD, rel_heights = c(2,2), rel_widths = c(1,1), ncol=2, nrow=1, align = 'hv')
+Final_plot_jitter
+
+Final_plot_supp_S10 <- plot_grid(PlotBoxOD_mono, PlotBoxfluo_pair, rel_heights = c(2,2), rel_widths = c(1,1), ncol=2, nrow=1, align = 'hv')
+Final_plot_supp_S10
+```
+
+---
+END
+---

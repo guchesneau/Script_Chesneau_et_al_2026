@@ -1,0 +1,556 @@
+---
+title: "Phenotype Arabidopsis"
+author: "Guillaume Chesneau"
+date: "2025-10-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+```{r}
+R.version
+```
+
+```{r}
+#Load libraries
+library(ggplot2)
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(dplyr)
+library(FSA)
+library(multcompView)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+
+# Plotting
+box_fill <- c("#949494", "#D2F0E3", "#C7E7D0", "#B3DAC0",
+              "#A0D2AF", "#98C7A5", "#7FC29B", "darkgreen")
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF", "F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free"
+)
+```
+
+# A] Plasmopara. viticola - 
+
+## 1) Barplot stacked
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+#Load data
+data_3OMG <- read.csv("df_PvEn.csv", sep=",",h=T)
+
+# Filter only P.viticola
+pv_data <- subset(data_3OMG, Pathogens %in% c("P.viticola"))
+
+# Summarize mean sporulation per Foliar.Disk and Treatment
+#pv_disk_summary <- pv_data %>%
+#  group_by(Treatment, Foliar.Disk, Experiment) %>%
+#  summarise(Mean_Sporulation = mean(Sporulation, na.rm = TRUE),
+#            .groups = 'drop')
+
+#Normality test
+normality_tests <- pv_data %>%
+  group_by(Treatment) %>%
+  shapiro_test(Sporulation) # nothing normal
+normality_tests
+
+#Kruskal Wallis
+kruskal_test <- kruskal_test(data = pv_data, Sporulation ~ Treatment) 
+kruskal_test#Not significatif
+
+# Now calculate mean, SD, and count per Treatment from the disk-level summary
+pv_summary <- pv_data %>%
+  group_by(Treatment) %>%
+  summarise(
+    Mean_Sporulation = mean(Sporulation, na.rm = TRUE),
+    SD_Sporulation   = sd(Sporulation, na.rm = TRUE),
+    N                = n(),   # Number of Foliar.Disk per Treatment
+    .groups = 'drop'
+  )
+
+# Reorder the Treatment factor for the desired plot order
+pv_summary$Treatment <- factor(pv_summary$Treatment,
+                               levels = c("TNT", "1.9mM", "3.75mM", "7.5mM", "15mM", "30mM", "75mM"))
+
+# Bar plot using the summary data
+Plot_SUPP_PV <- ggplot(pv_summary, aes(x = Treatment, y = Mean_Sporulation, fill = Treatment)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  geom_errorbar(aes(ymin = Mean_Sporulation - SD_Sporulation,
+                    ymax = Mean_Sporulation + SD_Sporulation),
+                width = 0.2) +
+  geom_jitter(data = pv_data, 
+             aes(x = Treatment, y = Sporulation, shape = Experiment),
+             position = position_jitter(width = 0.15), size = 2, color = "black") +
+  geom_text(aes(y = 0, label = paste0("n=", N)), vjust = 1.5, size = 3) +
+  labs(y = "Sporulation of P.viticola (%)", x = "", title = "3OMG protection against P. viticola") +
+  base_theme +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = box_fill) +
+  ylim(-2,115)
+
+Plot_SUPP_PV
+```
+
+
+
+## 2) Reduced plot
+
+### a) Boxplot
+
+```{r}
+#Load data
+data_3OMG <- read.csv("df_PvEn.csv", sep=",",h=T)
+
+# Filter only P.viticola
+pv_data <- subset(data_3OMG, Pathogens %in% c("P.viticola"))
+pv_data2 <- subset(pv_data, (Treatment %in% c("TNT", "7.5mM", "75mM")))
+```
+
+```{r}
+#Boxplot
+# Pairwise comparisons
+comparisons <- list(
+  c("TNT", "7.5mM"),
+  c("TNT", "75mM"),
+  c("7.5mM", "75mM")
+)
+
+#T.test assumptions
+library(dplyr)
+library(rstatix)   # for outlier detection, normality, variance tests
+library(ggplot2)
+
+# Check for outliers per Treatment
+outliers_table <- pv_data2 %>%
+  group_by(Treatment) %>%
+  identify_outliers(Sporulation)
+
+outliers_table #No outliers
+
+# Check normality per Treatment
+normality_table <- pv_data2 %>%
+  group_by(Treatment) %>%
+  summarise(
+    Shapiro_p = shapiro.test(Sporulation)$p.value,
+    Normal = ifelse(Shapiro_p > 0.05, "Yes", "No"),
+    .groups = "drop"
+  )
+
+normality_table #Not normal
+
+
+# Compute p-values for each comparison using Wilcoxon test
+pvals <- sapply(comparisons, function(comp) {
+  data_sub <- pv_data2 %>% filter(Treatment %in% comp)
+  test <- wilcox.test(Sporulation ~ Treatment, data = data_sub)
+  p <- test$p.value
+  if (p < 0.001) {
+    "P < 0.001"
+  } else if (p >= 0.05) {
+    "ns"
+  } else {
+    paste0("P = ", signif(p, 2))
+  }
+})
+
+pvals
+
+# Define y positions for the bars
+y_positions <- c(120, 130, 115)
+
+# Count number of replicates per Treatment
+n_reps <- pv_data2 %>%
+  group_by(Treatment) %>%
+  summarise(n = n()) %>%
+  mutate(label = paste0("n=", n))
+
+#Order the conditions
+pv_data2$Treatment <- factor(pv_data2$Treatment, levels = c("TNT","7.5mM", "75mM"))
+
+
+# Create the boxplot with Wilcoxon stats
+boxp <- ggplot(pv_data2, aes(x =Treatment , y =  Sporulation, fill = Treatment)) +
+  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
+  geom_jitter(width = 0.2, height = 0, size = 2, alpha = 0.7) +
+  theme_bw() +
+  labs(
+    x = "Treatment",
+    y = "Sporulation (%)",
+    fill = "Treatment") +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4) +
+    scale_fill_manual(values = c("TNT" = "darkgray", "7.5mM" = "#7FC29B", "75mM" = "#7FC29B")) +
+  geom_text(data = n_reps, aes(x = Treatment, y = 3.5, label = label), size = 3)
+
+boxp
+```
+
+### b) Barplot
+
+```{r}
+#sumarize
+pv_sum <- pv_data2 %>%
+  group_by(Treatment, Disease.2) %>%
+  summarise(
+    mean_spo = mean(Sporulation, na.rm = TRUE),
+    sd_spo   = sd(Sporulation, na.rm = TRUE),
+    n        = n(),
+    .groups = "drop"
+  )
+
+#Plot
+barp_Main_FIG_PV <- ggplot(pv_sum, aes(x = Treatment, y = mean_spo, fill = Treatment)) +
+  geom_bar(stat = "identity", width = 0.7, alpha = 0.8) +
+  geom_errorbar(
+    aes(
+      ymin = mean_spo - sd_spo,
+      ymax = mean_spo + sd_spo),
+    width = 0.2) +
+  # Raw data points
+  geom_jitter(
+    data = pv_data2,
+    aes(x = Treatment, y = Sporulation),
+    width = 0.15,
+    size = 2,
+    alpha = 0.7,
+    inherit.aes = FALSE) +
+  theme_bw() +
+  labs(
+    x = "Treatment",
+    y = "Sporulation (%)",
+    fill = "Treatment") +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4) +
+  scale_fill_manual(values = c("TNT" = "darkgray", "7.5mM" = "#7FC29B", "75mM" = "#7FC29B"),
+          labels = c("TNT"  = "Control (P. viticola)", "7.5mM"   = "3OMG (P. viticola)", "75mM"   = "3OMG (P. viticola)")) +
+  geom_text(data = pv_sum, aes(x = Treatment, y = -2,label = paste0("n=", n)),
+    size = 3,
+    inherit.aes = FALSE) +
+  facet_grid (~  Disease.2) +
+  scale_x_discrete(labels = c("TNT"  = "Control (P. viticola)", "7.5mM"   = "3OMG (P. viticola)", "75mM"   = "3OMG (P. viticola)")) +
+    ylim(-2,145)
+
+barp_Main_FIG_PV
+```
+
+
+
+# B] Erysiphe necator
+
+## 1) Barplot stacked
+```{r}
+library(dplyr)
+library(ggplot2)
+
+#Load data
+data_3OMG <- read.csv("df_PvEn.csv", sep=",",h=T)
+
+# Filter only P.viticola
+en_data <- subset(data_3OMG, Pathogens %in% c("E.necator"))
+#en_data <- subset(en_data, !Experiment %in% c("R1"))
+
+# Summarize mean sporulation per Foliar.Disk and Treatment
+#pv_disk_summary <- en_data %>%
+#  group_by(Treatment, Foliar.Disk, Experiment) %>%
+#  summarise(Mean_Sporulation = mean(Sporulation, na.rm = TRUE),
+#            .groups = 'drop')
+
+#Normality test
+normality_tests <- en_data %>%
+  group_by(Treatment) %>%
+  shapiro_test(Sporulation) # nothing normal
+normality_tests #25% significatif
+
+#Kruskal Wallis
+kruskal_test <- kruskal_test(data = en_data, Sporulation ~ Treatment) 
+kruskal_test #Significatif
+
+#Dunn-test
+dunn_test <- dunnTest(Sporulation ~ Treatment, data = en_data, method = "bh")
+dunn_res <- dunn_test$res
+dunn_res
+
+# Clean Comparison names (remove spaces)
+dunn_res <- dunn_res %>%
+  mutate(Comparison_clean = gsub(" ", "", Comparison))
+
+#Create letters
+letters_tbl <- dunn_res %>%
+  do({
+    cld <- multcompLetters(
+      setNames(.$P.adj, paste(.$Comparison_clean))
+    )
+    tibble(
+      Treatment = names(cld$Letters),
+      Letters   = cld$Letters
+    )
+  })
+
+# Convert Dunn results to named p-value vector
+pvals <- dunn_res$P.adj
+names(pvals) <- paste(dunn_res$Comparison)
+# Generate letters
+letters <- multcompLetters(pvals)$Letters
+# Convert to dataframe
+letters_df <- data.frame(Treatment = names(letters), Letters = letters)
+# Merge with summary stats
+pv_summary <- pv_summary %>%
+  left_join(letters_df, by = "Treatment")
+
+
+
+# Now calculate mean, SD, and count per Treatment from the disk-level summary
+pv_summary <- en_data %>%
+  group_by(Treatment) %>%
+  summarise(
+    Mean_Sporulation = mean(Sporulation, na.rm = TRUE),
+    SD_Sporulation   = sd(Sporulation, na.rm = TRUE),
+    N                = n(),   # Number of Foliar.Disk per Treatment
+    .groups = 'drop'
+  )
+
+# Join letters to summary data
+pv_summary <- pv_summary %>%
+  left_join(letters_tbl, by = "Treatment")
+
+# Reorder the Treatment factor for the desired plot order
+pv_summary$Treatment <- factor(pv_summary$Treatment,
+                               levels = c("TNT", "1.9mM", "3.75mM", "7.5mM", "15mM", "30mM", "75mM"))
+
+
+# Bar plot using the summary data
+Plot_SUPP_EN <- ggplot(pv_summary, aes(x = Treatment, y = Mean_Sporulation, fill = Treatment)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  geom_errorbar(aes(ymin = Mean_Sporulation - SD_Sporulation,
+                    ymax = Mean_Sporulation + SD_Sporulation),
+                width = 0.2) +
+  geom_jitter(data = en_data, 
+             aes(x = Treatment, y = Sporulation, shape = Experiment),
+             position = position_jitter(width = 0.15), size = 2, color = "black") +
+  geom_text(aes(y = 110, label = Letters), size = 5) +
+  geom_text(aes(y = 0, label = paste0("n=", N)), vjust = 1.5, size = 3) +
+  labs(y = "Sporulation of E. necator (%)", x = "", title = "3OMG protection against E. necator") +
+  base_theme +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = box_fill) +
+  ylim(-2,110)
+
+Plot_SUPP_EN
+```
+## 2) Reduced plot
+
+### a) Boxplot
+
+```{r}
+#Load data
+data_3OMG <- read.csv("df_PvEn.csv", sep=",",h=T)
+
+# Filter only E.necator
+en_data <- subset(data_3OMG, Pathogens %in% c("E.necator"))
+en_data2 <- subset(en_data, (Treatment %in% c("TNT", "7.5mM", "75mM")))
+```
+
+```{r}
+#Boxplot
+library(ggplot2)
+library(ggsignif)
+library(dplyr)
+
+# Example: pairwise comparisons
+comparisons <- list(
+  c("TNT", "7.5mM"),
+  c("TNT", "75mM"),
+  c("7.5mM", "75mM")
+)
+
+#T.test assumptions
+library(dplyr)
+library(rstatix)   # for outlier detection, normality, variance tests
+library(ggplot2)
+
+# Check for outliers per Treatment
+outliers_table <- en_data2 %>%
+  group_by(Treatment) %>%
+  identify_outliers(Sporulation)
+
+outliers_table #No outliers
+
+# Check normality per Treatment
+normality_table <- en_data2 %>%
+  group_by(Treatment) %>%
+  summarise(
+    Shapiro_p = shapiro.test(Sporulation)$p.value,
+    Normal = ifelse(Shapiro_p > 0.05, "Yes", "No"),
+    .groups = "drop"
+  )
+
+normality_table #Not normal
+
+
+# Compute p-values for each comparison using Wilcoxon test
+pvals <- sapply(comparisons, function(comp) {
+  data_sub <- en_data2 %>% filter(Treatment %in% comp)
+  test <- wilcox.test(Sporulation ~ Treatment, data = data_sub, method = "BH")
+  p <- test$p.value
+  if (p < 0.001) {
+    paste0("P = ", signif(p, 2))
+  } else if (p >= 0.05) {
+    "ns"
+  } else {
+    paste0("P = ", signif(p, 2))
+  }
+})
+
+pvals
+
+# Define y positions for the bars
+y_positions <- c(120, 130, 115)
+
+# Count number of replicates per Treatment
+n_reps <- en_data2 %>%
+  group_by(Treatment) %>%
+  summarise(n = n()) %>%
+  mutate(label = paste0("n=", n))
+
+#Order the conditions
+en_data2$Treatment <- factor(en_data2$Treatment, levels = c("TNT","7.5mM", "75mM"))
+
+
+# Create the boxplot with Wilcoxon stats
+boxp <- ggplot(en_data2, aes(x =Treatment , y =  Sporulation, fill = Treatment)) +
+  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
+  geom_jitter(width = 0.2, height = 0, size = 2, alpha = 0.7) +
+  theme_bw() +
+  labs(
+    x = "Treatment",
+    y = "Sporulation (%)",
+    fill = "Treatment"
+  ) +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4
+  ) +
+    scale_fill_manual(values = c("TNT" = "darkgray", "7.5mM" = "#7FC29B", "75mM" = "#7FC29B")) +
+  geom_text(data = n_reps, aes(x = Treatment, y = 3.5, label = label), size = 3) +
+  ylim(-2,145)
+
+boxp
+```
+
+### b) Barplot
+
+```{r}
+#sumarize
+en_sum <- en_data2 %>%
+  group_by(Treatment, Disease.2) %>%
+  summarise(
+    mean_spo = mean(Sporulation, na.rm = TRUE),
+    sd_spo   = sd(Sporulation, na.rm = TRUE),
+    n        = n(),
+    .groups = "drop"
+  )
+
+#Plot
+barp_Main_FIG_EN <- ggplot(en_sum, aes(x = Treatment, y = mean_spo, fill = Treatment)) +
+  geom_bar(stat = "identity", width = 0.7, alpha = 0.8) +
+  geom_errorbar(
+    aes(
+      ymin = mean_spo - sd_spo,
+      ymax = mean_spo + sd_spo),
+    width = 0.2) +
+  # Raw data points
+  geom_jitter(
+    data = en_data2,
+    aes(x = Treatment, y = Sporulation),
+    width = 0.15,
+    size = 2,
+    alpha = 0.7,
+    inherit.aes = FALSE) +
+  theme_bw() +
+  labs(
+    x = "Treatment",
+    y = "Sporulation (%)",
+    fill = "Treatment") +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4) +
+  scale_fill_manual(values = c("TNT" = "darkgray", "7.5mM" = "#7FC29B", "75mM" = "#7FC29B"),
+                     labels = c("TNT"  = "Control (E. necator)", "7.5mM"   = "3OMG (E. necator)", "75mM"   = "3OMG (E. necator)")) +
+  geom_text(data = en_sum, aes(x = Treatment, y = -2,label = paste0("n=", n)),
+    size = 3,
+    inherit.aes = FALSE) +
+  facet_grid (~  Disease.2)  +
+  scale_x_discrete(labels = c("TNT"  = "Control (E. necator)", "7.5mM"   = "3OMG (E. necator)", "75mM"   = "3OMG (E. necator)")) +
+  ylim(-2,145)
+
+
+barp_Main_FIG_EN
+```
+
+
+
+
+# C] Final plot
+```{r}
+#Figures supp
+library(cowplot)
+combined_plot_SUPP <- plot_grid(Plot_SUPP_PV, Plot_SUPP_EN, rel_heights = c(1,1), rel_widths = c(1,1),ncol=1, nrow=2,   align="hv",  axis = "tb")
+combined_plot_SUPP
+
+#Main Figures
+combined_plot_Main <- plot_grid(barp_Main_FIG_PV, barp_Main_FIG_EN, rel_heights = c(1,1), rel_widths = c(1,1),ncol=2, nrow=1,   align="hv",  axis = "tb")
+combined_plot_Main
+```

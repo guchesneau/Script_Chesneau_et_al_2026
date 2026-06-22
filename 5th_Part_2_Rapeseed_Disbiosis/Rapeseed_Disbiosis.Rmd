@@ -1,0 +1,385 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+
+```{r R version}
+R.version
+```
+
+```{r}
+#Load libraries
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B")
+theme_set(theme_bw())
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF", "F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free"
+)
+```
+
+# A] Barplot stacked
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+library(ggplot2)
+library(dplyr)
+#Load data
+data_3OMG=read.csv("Experiments_on_plants_with_germination.csv", sep=";",h=T)
+
+# Compute counts per Experiment, Treatment, and Disease.index
+counts <- data_3OMG %>%
+  group_by(Experiment, Treatment, Disease.index) %>%
+  summarise(n = n(), .groups = "drop")
+
+#Stats if needed
+# Make sure your data has columns: Treatment, Disease.index
+
+# Create a contingency table: rows = Treatment, columns = Disease.index
+table_data <- table(data_3OMG$Treatment, data_3OMG$Disease.index)
+
+# View the table
+print(table_data)
+
+# Run Chi-squared test
+chi_result <- chisq.test(table_data)
+
+# View results
+chi_result
+
+# Extract p-value
+chi_result$p.value
+
+# Optional: view expected counts to check if Chi-sq assumptions are OK
+chi_result$expected
+
+# Fisher test with simulated p-value
+fisher_result <- fisher.test(table_data, simulate.p.value = TRUE, B = 10000)
+fisher_result
+fisher_result$p.value
+
+# Get all treatment combinations
+treatments <- unique(data_3OMG$Treatment)
+pairwise_results <- combn(treatments, 2, function(x) {
+  # Subset data for the two treatments
+  subset_table <- table(data_3OMG$Treatment[data_3OMG$Treatment %in% x],
+                        data_3OMG$Disease.index[data_3OMG$Treatment %in% x])
+  
+  # Chi-squared test
+  test <- chisq.test(subset_table)
+  
+  # Return results as a data frame
+  data.frame(Treatment1 = x[1], 
+             Treatment2 = x[2], 
+             chi_stat = test$statistic, 
+             p_value = test$p.value)
+}, simplify = FALSE)
+
+pairwise_results <- do.call(rbind, pairwise_results)
+pairwise_results
+
+
+#Order the conditions
+data_3OMG$Treatment <- factor(data_3OMG$Treatment, levels = c("Control","Rhizoctonia", "Rhizoctonia+3-OMG"))
+
+# Stacked bar plot
+stacked_bar <- ggplot(data_3OMG, aes(x = Experiment, fill = factor(Disease.index))) +
+  geom_bar(position = "stack", color = "black") +  # stacked bars
+  geom_text(data = counts,
+            aes(x = Experiment, y = n, label = n, group = Disease.index),
+            position = position_stack(vjust = 0.5),  # middle of segments
+            color = "black",
+            size = 3) +
+  facet_wrap(~Treatment) +  # facet by Treatment
+  scale_fill_manual(values = c("mediumseagreen", "goldenrod1","orange2",
+                               "darkorange3","orangered3","red4")) +
+  theme_bw() +
+  labs(
+    x = "Biological replicates",
+    y = "Count",
+    fill = "Disease index"
+  ) +
+  base_theme 
+
+stacked_bar
+```
+
+# B] Histogramm
+
+```{r}
+library(ggpubr)
+library (car)
+library (ordinal)
+library (RVAideMemoire)
+library (emmeans)
+library(ggplot2)
+library(lme4)
+library(gridExtra)
+library(multcomp)
+
+data_3OMG=read.csv("Experiments_on_plants_with_germination.csv", sep=";",h=T)
+data_3OMG$Experiment<-as.factor(data_3OMG$Experiment)
+
+library(ggplot2)
+
+library(dplyr)
+library(ggplot2)
+
+# Compute counts per Disease.index and Treatment
+counts <- data_3OMG %>%
+  group_by(Treatment, Disease.index) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Plot histogram with counts on top
+histo <- ggplot(data_3OMG, aes(x = factor(Disease.index), fill = factor(Disease.index))) +
+  geom_histogram(alpha = 0.8,
+                 position = "identity",
+                 stat = "count",  # count each occurrence
+                 color = NA) +
+  facet_grid(Treatment ~ .) +
+  scale_fill_manual(values = c("mediumseagreen", "goldenrod1","orange2",
+                               "darkorange3","orangered3","red4")) +
+  # Add count labels
+  geom_text(data = counts,
+            aes(x = factor(Disease.index), y = n, label = n),
+            vjust = -0.5,
+            inherit.aes = FALSE) +
+  theme_bw() +
+  labs(
+    x = "Disease index",
+    y = "Count",
+    fill = "Disease index"
+  ) +
+  base_theme +
+  ylim(0,190)
+
+histo
+
+```
+
+# C] Reduced plots
+
+## 1) Boxplot
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Calculate mean disease index per Experiment × Treatment
+overall <- data_3OMG %>%
+  group_by(Experiment, Treatment) %>%
+  summarise(OverallDisease = mean(Disease.index), .groups = "drop")
+
+library(ggpubr)
+
+#Boxplot
+library(ggplot2)
+library(ggsignif)
+library(dplyr)
+
+# Example: pairwise comparisons
+comparisons <- list(
+  c("Control", "Rhizoctonia"),
+  c("Control", "Rhizoctonia+3-OMG"),
+  c("Rhizoctonia", "Rhizoctonia+3-OMG")
+)
+
+
+#T.test assumptions
+library(dplyr)
+library(rstatix)   # for outlier detection, normality, variance tests
+library(ggplot2)
+
+# Check for outliers per Treatment
+outliers_table <- overall %>%
+  group_by(Treatment) %>%
+  identify_outliers(OverallDisease)
+
+outliers_table #No outliers
+
+# Check normality per Treatment
+normality_table <- overall %>%
+  group_by(Treatment) %>%
+  summarise(
+    Shapiro_p = shapiro.test(OverallDisease)$p.value,
+    Normal = ifelse(Shapiro_p > 0.05, "Yes", "No"),
+    .groups = "drop"
+  )
+
+normality_table #Two out of three normal
+
+# Optional: Q-Q plots per treatment
+qqplot <- ggplot(overall, aes(sample = OverallDisease)) +
+  stat_qq() +
+  stat_qq_line() +
+  facet_wrap(~Treatment) +
+  theme_bw() #ok exept control
+
+# Check equality of variance (homoscedasticity) using Levene's test
+levene_test <- overall %>%
+  levene_test(OverallDisease ~ Treatment)
+
+levene_test # no difference of variance
+
+
+# Compute p-values for each comparison. I do a wilcoxon test because just 3 samples
+pvals <- sapply(comparisons, function(comp) {
+  data_sub <- overall %>% filter(Treatment %in% comp)
+  test <- t.test(OverallDisease ~ Treatment, data = data_sub)
+  p <- test$p.value
+  if (p < 0.001) {
+    "P < 0.001"
+  } else if (p >= 0.05) {
+    "ns"
+  } else {
+    paste0("P = ", signif(p, 2))
+  }
+})
+
+# Define y positions for the bars
+y_positions <- c(1.5, 2.5, 2)
+
+# Count number of replicates per Treatment
+n_reps <- overall %>%
+  group_by(Treatment) %>%
+  summarise(n = n()) %>%
+  mutate(label = paste0("n=", n))
+
+#Order the conditions
+overall$Treatment <- factor(overall$Treatment, levels = c("Control","Rhizoctonia", "Rhizoctonia+3-OMG"))
+
+
+# Create the boxplot with Wilcoxon stats
+boxp <- ggplot(overall, aes(x =Treatment , y =  OverallDisease, fill = Treatment)) +
+  geom_boxplot(alpha = 0.8, outlier.alpha = 0.5) +
+  geom_jitter(width = 0.2, height = 0, size = 2, alpha = 0.7) +
+  theme_bw() +
+  labs(
+    x = "Treatment",
+    y = "Overall Disease Index (mean per Experiment)",
+    fill = "Treatment"
+  ) +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4
+  ) +
+  ylim(-0.2, 5) +
+    scale_fill_manual(values = c("Control" = "darkgray", "Rhizoctonia" = "red4", "Rhizoctonia+3-OMG" = "#7FC29B")) +
+  geom_text(data = n_reps, aes(x = Treatment, y = 3.5, label = label), size = 3) +
+  scale_y_reverse() +
+  scale_x_discrete(labels = c("Control"   = "Control (MF)", "Water_FSC"  = "Control (FSC)", "3OMG_FSC"   = "3OMG (FSC)"))
+
+
+boxp
+```
+
+## 2) Barplot
+```{r}
+#Summarize data
+overall_sum <- overall %>%
+  group_by(Treatment) %>%
+  summarise(
+    mean_OD = mean(OverallDisease, na.rm = TRUE),
+    sd_OD   = sd(OverallDisease, na.rm = TRUE),
+    n       = n(),
+    .groups = "drop"
+  )
+
+# Define y positions for the bars
+y_positions <- c(3.5, 4.5, 4)
+
+#Add column for facet title
+overall_sum$Disease.2 <- c("R. solani (Root rot, damping-off)")    
+
+#Plot
+barp_Sol <- ggplot(overall_sum, aes(x = Treatment, y = mean_OD, fill = Treatment)) +
+  geom_bar(stat = "identity", width = 0.7, alpha = 0.8) +
+  geom_errorbar(aes(ymin = mean_OD - sd_OD,ymax = mean_OD + sd_OD),width = 0.2) +
+  # Raw data points
+  geom_jitter(data = overall,aes(x = Treatment, y = OverallDisease), width = 0.15, size = 2, alpha = 0.7, inherit.aes = FALSE) +
+  theme_bw() +
+  labs(
+    x = "Treatment",
+    y = "Disease Index",
+    fill = "Treatment") +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4) +
+  scale_fill_manual(values = c("Control" = "darkgray", "Rhizoctonia" = "darkgray", "Rhizoctonia+3-OMG" = "#7FC29B"),
+                    labels = c("Control"  = "Control (Water)", "Rhizoctonia" = "Control (FSC)", "Rhizoctonia+3-OMG"  = "3OMG (FSC)")) +
+  geom_text(
+    data = overall_sum,
+    aes(x = Treatment, y = -0.2, label = paste0("n=", n)),
+    size = 3,
+    inherit.aes = FALSE) +
+  facet_grid (~  Disease.2)+
+  scale_x_discrete(labels = c("Control"   = "Control (Water)", "Rhizoctonia"  = "Control (R. solani)", "Rhizoctonia+3-OMG"   = "3OMG (R. solani)")) +
+  
+  ylim(-0.2,5)
+
+
+barp_Sol
+
+```
+
+
+# Final plot
+```{r}
+library(cowplot)
+combined_plot <- plot_grid(stacked_bar, boxp, rel_heights = c(1,1), rel_widths = c(1,0.7),ncol=2, nrow=1,   align="hv",  axis = "tb")
+combined_plot
+
+Main_figure_Sol <- barp_Sol
+```
+
+
+---
+END
+---

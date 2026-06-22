@@ -1,0 +1,497 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r}
+R.version
+```
+
+```{r}
+#Load libraies
+library(ggplot2)
+library(rstatix)
+library(ggpubr)
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+library(dplyr)
+
+#Colors
+color_palette <- c("Water" = "#949494", "3OMG" = "#7FC29B", "Glucose" = "#817E9F" )
+
+# Plotting
+box_fill <- c("#949494", "#D2F0E3", "#C7E7D0", "#B3DAC0",
+              "#A0D2AF", "#98C7A5", "#7FC29B", "darkgreen")
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+#Set the levels of the experiment
+Microbes_levels<-c("MF", "F16")
+
+Treatment_levels<-c ("Water","3OMG")
+labels <- c(
+  'MF' = "Microbe free"
+)
+```
+
+# A] Barplot stacked
+
+```{r}
+#Load data
+data_3OMG <- read.csv("df.csv", sep = ",", header = TRUE, row.names = 1)
+```
+
+## 1) Full plot stats
+
+```{r}
+my_order <- c("Water_MF","Glucose_MF","3OMG_MF",
+              "Water_FSC","Glucose_FSC","3OMG_FSC")
+
+# Summarize by Microbes + Treatment
+summary_tbl <- data_3OMG %>%
+  group_by(Microbes, Treatment) %>%
+  summarise(
+    Mean_SFW = mean(SFW, na.rm = TRUE),
+    SD_SFW   = sd(SFW, na.rm = TRUE),
+    N        = n(),
+    .groups  = "drop"
+  )
+
+summary_tbl$concat <- paste0(summary_tbl$Treatment, "_", summary_tbl$Microbes)
+summary_tbl$concat <- factor(summary_tbl$concat, levels = my_order)
+
+data_3OMG$concat <- paste0(data_3OMG$Treatment, "_", data_3OMG$Microbes)
+data_3OMG$concat <- factor(data_3OMG$concat, levels = my_order)
+
+# Summarize by replicate (one dot per replicate)
+replicate_jitter <- data_3OMG %>%
+  group_by(concat, Pots) %>%  
+  summarise(SFW_rep = mean(SFW, na.rm = TRUE),
+            .groups = "drop")
+
+results <- data_3OMG %>%
+  wilcox_test(SFW ~ concat, p.adjust.method = "BH") %>%
+  filter(p.adj < 0.05) %>%
+  mutate(
+    xmin = as.numeric(factor(group1, levels = my_order)),
+    xmax = as.numeric(factor(group2, levels = my_order)),
+    xmid = (xmin + xmax) / 2,
+    label = paste0("P = ", formatC(p.adj, format = "e", digits = 1))
+  )
+
+y_position <- seq(30, 30 + 3*(nrow(results)-1), by = 3)
+results$y_position <- y_position
+
+plot <- ggplot(summary_tbl, aes(x = concat, y = Mean_SFW, fill = concat)) +
+  geom_col(width = 0.7) +
+  geom_jitter(data = replicate_jitter, 
+              aes(x = concat, y = SFW_rep), 
+              width = 0.15, size = 1, alpha = 1, inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean_SFW - SD_SFW, ymax = Mean_SFW + SD_SFW),
+                width = 0.2) +
+  geom_segment(data = results,
+               aes(x = xmin, xend = xmax,
+                   y = y_position, yend = y_position),
+               inherit.aes = FALSE) +
+  geom_segment(data = results,
+               aes(x = xmin, xend = xmin,
+                   y = y_position, yend = y_position - 0.8),
+               inherit.aes = FALSE) +
+  geom_segment(data = results,
+               aes(x = xmax, xend = xmax,
+                   y = y_position, yend = y_position - 0.8),
+               inherit.aes = FALSE) +
+  geom_text(data = results,
+            aes(x = xmid,
+                y = y_position + 1.4,
+                label = label),
+            inherit.aes = FALSE,
+            size = 4) +
+  geom_text(data = summary_tbl,
+            aes(x = concat,
+                y = -2,
+                label = paste0("n = ", N)),
+            inherit.aes = FALSE,
+            size = 4) +
+  labs(x = "Treatment + Microbes", y = "SFW") +
+  scale_fill_manual(values = c(
+    "Water_MF"   = "darkgray",
+    "Water_FSC"  = "darkgray",
+    "Glucose_MF" = "#817E9F",
+    "Glucose_FSC"= "#817E9F",
+    "3OMG_FSC"   = "#7FC29B",
+    "3OMG_MF"    = "#7FC29B"
+  )) +
+  base_theme
+
+plot
+```
+## 2) Plots MF 
+```{r}
+library(dplyr)
+library(ggplot2)
+library(rstatix)
+
+my_order <- c("Water_MF","Glucose_MF","3OMG_MF")
+
+# Keep only Microbe-free
+data_MF <- data_3OMG %>%
+  filter(Microbes == "MF") %>%
+  mutate(concat = paste0(Treatment, "_", Microbes),
+         concat = factor(concat, levels = my_order))
+
+summary_tbl <- data_MF %>%
+  group_by(Microbes, Treatment) %>%
+  summarise(
+    Mean_SFW = mean(SFW, na.rm = TRUE),
+    SD_SFW   = sd(SFW, na.rm = TRUE),
+    N        = n(),
+    .groups  = "drop"
+  ) %>%
+  mutate(concat = paste0(Treatment, "_", Microbes),
+         concat = factor(concat, levels = my_order))
+
+# Summarize by replicate (one dot per replicate)
+replicate_jitter <- data_MF %>%
+  group_by(concat, Pots) %>%  
+  summarise(SFW_rep = mean(SFW, na.rm = TRUE),
+            .groups = "drop")
+
+# Wilcoxon test
+results <- data_MF %>%
+  wilcox_test(SFW ~ concat, p.adjust.method = "BH") %>%
+  mutate(
+    xmin = as.numeric(factor(group1, levels = my_order)),
+    xmax = as.numeric(factor(group2, levels = my_order)),
+    xmid = (xmin + xmax) / 2,
+    label = paste0("P = ", formatC(p.adj, format = "e", digits = 1))
+  )
+
+# Keep same y_position logic as previous plot
+y_position <- seq(30, 30 + 3*(nrow(results)-1), by = 3)
+results$y_position <- y_position
+
+plot <- ggplot(summary_tbl, aes(x = concat, y = Mean_SFW, fill = concat)) +
+  geom_col(width = 0.7) +
+  geom_jitter(data = replicate_jitter, 
+              aes(x = concat, y = SFW_rep), 
+              width = 0.15, size = 1, alpha = 1, inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean_SFW - SD_SFW, ymax = Mean_SFW + SD_SFW),
+                width = 0.2) +
+  geom_segment(data = results,
+               aes(x = xmin, xend = xmax,
+                   y = y_position, yend = y_position),
+               inherit.aes = FALSE) +
+  geom_segment(data = results,
+               aes(x = xmin, xend = xmin,
+                   y = y_position, yend = y_position - 0.8),
+               inherit.aes = FALSE) +
+  geom_segment(data = results,
+               aes(x = xmax, xend = xmax,
+                   y = y_position, yend = y_position - 0.8),
+               inherit.aes = FALSE) +
+  geom_text(data = results,
+            aes(x = xmid,
+                y = y_position + 1.4,
+                label = p.adj.signif),
+            inherit.aes = FALSE,
+            size = 4) +
+  geom_text(data = replicate_jitter,
+            aes(x = concat,
+                y = -2,
+                label = paste0("n = ", 4)),
+            inherit.aes = FALSE,
+            size = 4) +
+  labs(x = "Treatment (Microbe-free)", y = "SFW") +
+  scale_fill_manual(values = c(
+    "Water_MF"   = "darkgray",
+    "Glucose_MF" = "#817E9F",
+    "3OMG_MF"    = "#7FC29B"
+  )) +
+  base_theme
+
+plot
+```
+
+## 3) Plots FSC
+```{r}
+library(dplyr)
+library(ggplot2)
+library(rstatix)
+
+my_order <- c("Water_FSC","Glucose_FSC","3OMG_FSC")
+
+# Keep only Microbe-free
+data_FSC <- data_3OMG %>%
+  filter(Microbes == "FSC") %>%
+  mutate(concat = paste0(Treatment, "_", Microbes),
+         concat = factor(concat, levels = my_order))
+
+summary_tbl <- data_FSC %>%
+  group_by(Microbes, Treatment) %>%
+  summarise(
+    Mean_SFW = mean(SFW, na.rm = TRUE),
+    SD_SFW   = sd(SFW, na.rm = TRUE),
+    N        = n(),
+    .groups  = "drop"
+  ) %>%
+  mutate(concat = paste0(Treatment, "_", Microbes),
+         concat = factor(concat, levels = my_order))
+
+# Summarize by replicate (one dot per replicate)
+replicate_jitter <- data_FSC %>%
+  group_by(concat, Pots) %>%  
+  summarise(SFW_rep = mean(SFW, na.rm = TRUE),
+            .groups = "drop")
+
+# Wilcoxon test
+results <- data_FSC %>%
+  wilcox_test(SFW ~ concat, p.adjust.method = "BH") %>%
+  mutate(
+    xmin = as.numeric(factor(group1, levels = my_order)),
+    xmax = as.numeric(factor(group2, levels = my_order)),
+    xmid = (xmin + xmax) / 2,
+    label = paste0("P = ", formatC(p.adj, format = "e", digits = 1))
+  )
+
+# Keep same y_position logic as previous plot
+y_position <- seq(30, 30 + 3*(nrow(results)-1), by = 3)
+results$y_position <- y_position
+
+plot <- ggplot(summary_tbl, aes(x = concat, y = Mean_SFW, fill = concat)) +
+  geom_col(width = 0.7) +
+  geom_jitter(data = replicate_jitter, 
+              aes(x = concat, y = SFW_rep), 
+              width = 0.15, size = 1, alpha = 1, inherit.aes = FALSE) +
+  geom_errorbar(aes(ymin = Mean_SFW - SD_SFW, ymax = Mean_SFW + SD_SFW),
+                width = 0.2) +
+  geom_segment(data = results,
+               aes(x = xmin, xend = xmax,
+                   y = y_position, yend = y_position),
+               inherit.aes = FALSE) +
+  geom_segment(data = results,
+               aes(x = xmin, xend = xmin,
+                   y = y_position, yend = y_position - 0.8),
+               inherit.aes = FALSE) +
+  geom_segment(data = results,
+               aes(x = xmax, xend = xmax,
+                   y = y_position, yend = y_position - 0.8),
+               inherit.aes = FALSE) +
+  geom_text(data = results,
+            aes(x = xmid,
+                y = y_position + 1.4,
+                label = label),
+            inherit.aes = FALSE,
+            size = 4) +
+  geom_text(data = replicate_jitter,
+            aes(x = concat,
+                y = -2,
+                label = paste0("n = ", 4)),
+            inherit.aes = FALSE,
+            size = 4) +
+  labs(x = "Treatment (Microbe-free)", y = "SFW") +
+  scale_fill_manual(values = c(
+    "Water_FSC"   = "darkgray",
+    "Glucose_FSC" = "#817E9F",
+    "3OMG_FSC"    = "#7FC29B"
+  )) +
+  base_theme
+
+plot
+```
+
+
+#  B] Reduced plot
+
+## 1) Boxplot
+```{r}
+#Load data
+data_3OMG <- read.csv("df.csv", sep = ",", header = TRUE, row.names = 1)
+
+#Subset what we need
+data_3OMG2 <- subset(data_3OMG, !(Microbes == "MF" & Treatment %in% c("3OMG", "Glucose")))
+data_3OMG2 <- subset(data_3OMG2, !(Treatment %in% c("Glucose")))
+
+#Concat comparisons
+data_3OMG2$Conditions <- paste0(data_3OMG2$Treatment, "_", data_3OMG2$Microbes)
+```
+
+```{r}
+# Calculate mean disease index per Experiment × Treatment
+data_3OMG2 <- data_3OMG2 %>%
+  group_by(Pots, Conditions) %>%
+  summarise(OverallSFW = mean(SFW), .groups = "drop")
+
+# Example: pairwise comparisons
+comparisons <- list(
+  c("Water_MF", "Water_FSC"),
+  c("Water_MF", "3OMG_FSC"),
+  c("Water_FSC", "3OMG_FSC")
+)
+
+
+#T.test assumptions
+library(dplyr)
+library(rstatix)   # for outlier detection, normality, variance tests
+library(ggplot2)
+
+# Check normality per Treatment
+normality_table <- data_3OMG2 %>%
+  group_by(Conditions) %>%
+  summarise(
+    Shapiro_p = shapiro.test(OverallSFW)$p.value,
+    Normal = ifelse(Shapiro_p > 0.05, "Yes", "No"),
+    .groups = "drop"
+  )
+
+normality_table #Normal
+
+# Optional: Q-Q plots per treatment
+qqplot <- ggplot(data_3OMG2, aes(sample = OverallSFW)) +
+  stat_qq() +
+  stat_qq_line() +
+  facet_wrap(~Conditions) +
+  theme_bw() #ok
+
+# Check equality of variance (homoscedasticity) using Levene's test
+levene_test <- data_3OMG2 %>%
+  levene_test(OverallSFW ~ Conditions)
+
+levene_test # no difference of variance
+
+# Compute p-values for each comparison. I do a wilcoxon test
+pvals <- sapply(comparisons, function(comp) {
+  data_sub <- data_3OMG2 %>% filter(Conditions %in% comp)
+  test <- t.test(OverallSFW ~ Conditions, data = data_sub)
+  p <- test$p.value
+  if (p < 0.001) {
+    "P < 0.001"
+  } else if (p >= 0.05) {
+    "ns"
+  } else {
+    paste0("P = ", signif(p, 2))
+  }
+})
+
+pvals
+
+
+# Define y positions for the bars
+y_positions <- c(42, 45, 39)
+
+# Count number of replicates per Conditions
+n_reps <- data_3OMG2 %>%
+  group_by(Conditions) %>%
+  summarise(n = n()) %>%
+  mutate(label = paste0("n=", n))
+
+#Order the conditions
+data_3OMG2$Conditions <- factor(data_3OMG2$Conditions, levels = c("Water_MF","Water_FSC", "3OMG_FSC"))
+
+
+# Create the boxplot with Wilcoxon stats
+boxp <- ggplot(data_3OMG2, aes(x =Conditions , y =  OverallSFW, fill = Conditions)) +
+  geom_boxplot(alpha = 0.8, outlier.alpha = 0.5) +
+  geom_jitter(width = 0.2, height = 0, size = 2, alpha = 0.7) +
+  theme_bw() +
+  labs(
+    x = "Conditions",
+    y = "Overall Disease Index (mean per Experiment)",
+    fill = "Conditions"
+  ) +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4
+  ) +
+    scale_fill_manual(values = c("Water_MF" = "darkgray", "Water_FSC" = "red4", "3OMG_FSC" = "#7FC29B")) +
+  geom_text(data = n_reps, aes(x = Conditions, y = -1, label = label), size = 3)
+
+boxp
+```
+
+
+
+## 2) Barplot
+```{r}
+#Summarize data
+overall_sum <- data_3OMG2 %>%
+  group_by(Conditions) %>%
+  summarise(
+    mean_OD = mean(OverallSFW, na.rm = TRUE),
+    sd_OD   = sd(OverallSFW, na.rm = TRUE),
+    n       = n(),
+    .groups = "drop"
+  )
+
+# Define y positions for the bars
+y_positions <- c(28, 32, 30)
+
+#Add column for facet title
+overall_sum$Disease.2 <- c("Fungal SynCom (Root rot)")    
+
+#Plot
+barp_at <- ggplot(overall_sum, aes(x = Conditions, y = mean_OD, fill = Conditions)) +
+  geom_bar(stat = "identity", width = 0.7, alpha = 0.8) +
+  geom_errorbar(aes(ymin = mean_OD - sd_OD,ymax = mean_OD + sd_OD),width = 0.2) +
+  # Raw data points
+  geom_jitter(data = data_3OMG2,aes(x = Conditions, y = OverallSFW), width = 0.15, size = 2, alpha = 0.7, inherit.aes = FALSE) +
+  theme_bw() +
+  labs(
+    x = "",
+    y = "Shoot Fresh Weight (mg)",
+    fill = "Treatment") +
+  base_theme +
+  geom_signif(
+    comparisons = comparisons,
+    annotations = pvals,
+    test = "wilcox.test",
+    p.adjust.method = "BH",
+    y_position = y_positions,
+    tip_length = 0.03,
+    col = "black",
+    size = 0.4) +
+  scale_fill_manual(values = c("Water_MF" = "darkgray", "Water_FSC" = "darkgray", "3OMG_FSC" = "#7FC29B"),
+                    labels = c("Water_MF"  = "Control (Water)", "Water_FSC" = "Control (FSC)", "3OMG_FSC"  = "3OMG (FSC)")) +
+  geom_text(
+    data = overall_sum,
+    aes(x = Conditions, y = -0.8, label = paste0("n=", n)),
+    size = 3,
+    inherit.aes = FALSE) +
+  facet_grid (~  Disease.2) +
+  scale_x_discrete(labels = c("Water_MF"   = "Control (Water)", "Water_FSC"  = "Control (FSC)", "3OMG_FSC"   = "3OMG (FSC)")) +
+  ylim(-0.8,34)
+
+barp_at
+```
+
+---
+END
+---

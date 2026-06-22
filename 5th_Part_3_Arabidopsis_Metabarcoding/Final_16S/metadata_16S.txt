@@ -1,0 +1,26 @@
+	Treatment	Flowpot	Microbes	Plants	
+S1	3OMG	1	MF	5	
+S2	3OMG	2	MF	5	
+S3	3OMG	3	MF	5	
+S4	3OMG	4	MF	5	
+S5	Water	1	MF	5	
+S6	Water	2	MF	5	Top 16S
+S7	Water	3	MF	5	
+S8	Water	4	MF	5	
+S9	3OMG	1	FSC	4	
+S10	3OMG	2	FSC	5	
+S11	3OMG	3	FSC	4	
+S12	3OMG	4	FSC	5	
+S13	Water	1	FSC	5	
+S14	Water	2	FSC	4	
+S15	Water	3	FSC	3	
+S16	Water	4	FSC	3	
+S17	Glucose	1	MF	3	
+S18	Glucose	2	MF	5	
+S19	Glucose	3	MF	5	Bottom ITS
+S20	Glucose	4	MF	5	
+S21	Glucose	1	FSC	3	
+S22	Glucose	2	FSC	4	
+S23	Glucose	3	FSC	4	
+S24	Glucose	4	FSC	5	
+S25	Control	Control	Control	Control	

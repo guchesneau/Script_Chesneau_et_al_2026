@@ -1,0 +1,1003 @@
+---
+title: "Decoy sugars hijack fungal carbon sensing and prevent plant disease"
+author: "Guillaume Chesneau"
+date: "26-05-2026"
+output: html_document
+---
+
+# Before you start
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "") 
+```
+
+This script has been made on R 4.5.3 (and Rstudio 2026.01.2+418)
+```{r R version}
+R.version
+#Load theme set
+theme_set(theme_bw())
+```
+
+Pre-processing on QIIME2 and cutadapt :
+- Demultiplexing
+- DADA2 (16S parameters : trunc_F = 200, ITS : 200)
+- Taxonomy assignation (silva database (2021) and UNITE (2022))
+
+Start : You can directly start from point 2, by uploading the clean/filtered phyloseq objects
+
+This script has been made on R version 4.5.3 (2026-03-11) and Rstudio 2026.01.2+418
+
+```{r R version}
+R.version
+#Load theme set
+library(ggplot2)
+theme_set(theme_bw())
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+library(rstatix)  # For statistical analysis
+library(ggpubr)   # For creating publication-ready plots using ggplot2
+library(dunn.test)
+library(ggthemes)
+library(ggtext)
+library(tidyr)
+library(markdown)
+
+# Prepare base theme
+base_theme <- theme_bw() +
+  theme(
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_markdown(size = 10, color = "black", hjust = 0.5, vjust = 0.5),
+    legend.title = element_text(size = 11),
+    axis.title.y = element_text(size =11),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(size = 10, color = "black", angle = 90, hjust = 1),
+    axis.text.y = element_text(size = 10, color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, size = 0.75))
+
+
+#Vector for ordering 
+Treatment_order <- c("Water", "Glucose", "3OMG")
+Microbes_order <- c("MF", "FSC")
+
+#Vector for color
+treatment_colors <- c("Water"   = "#949494", "Glucose" = "#817E9F", "3OMG"    = "#7FC29B")
+``` 
+
+
+#A] Pre-processing.    
+Don't need to run this part if you're just interested by making the plots.    
+Directly go to B] Start of the script.
+
+## 1.1 - Construct phyloseq objects
+
+* 16S
+
+```{r, echo=FALSE, results='hide', eval = FALSE}
+library(phyloseq)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(Biostrings)
+
+# Load data
+asv_table_16S <- read.table(file = "Final_16S/asv_table_16S.tsv", sep = "\t", dec = ".", header = TRUE)
+tax_table_16S <- read.table(file = "Final_16S/taxonomy_16S.tsv", sep = "\t", dec = ".", header = TRUE)
+metadata <- read.table(file = "Final_16S/metadata_16S.txt", sep = "\t", dec = ".", header = TRUE)
+refseq <- readDNAStringSet("Final_16S/dna-sequences_16S.fasta")
+
+# Clean taxonomy table
+tax_table_16S <- tax_table_16S %>%
+  mutate(Taxon = gsub("([dpcofgs]__)", "", Taxon)) %>%
+  separate(Taxon, into = c("Kingdom","Phylum","Class","Order","Family","Genus","Species"), sep = ";") %>%
+  mutate(Kingdom = "All")
+
+# Rename ASVs consistently
+asv_ids <- paste0("ASV", seq_len(nrow(asv_table_16S)))
+rownames(asv_table_16S) <- asv_ids
+rownames(tax_table_16S) <- asv_ids
+names(refseq) <- asv_ids
+
+# Remove old ID columns if present
+asv_table_16S <- asv_table_16S[,-1]
+tax_table_16S <- tax_table_16S[,-1]
+
+# Prepare phyloseq components
+OTU <- otu_table(as.matrix(asv_table_16S), taxa_are_rows = TRUE)
+TAX <- tax_table(as.matrix(tax_table_16S))
+rownames(metadata) <- metadata[,1]
+metadata <- metadata[,-1]
+SAM <- sample_data(metadata)
+REFSEQ <- refseq
+
+# Build phyloseq object
+physeq_16S <- phyloseq(OTU, TAX, SAM, REFSEQ)
+physeq_16S
+```
+
+* ITS
+
+```{r, echo=FALSE, results='hide', eval = FALSE}
+library(phyloseq)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(Biostrings)
+
+# Load data
+asv_table_ITS <- read.table(file = "Final_ITS/asv_table-ITS.tsv", sep = "\t", dec = ".", header = TRUE)
+tax_table_ITS <- read.table(file = "Final_ITS/taxonomy-ITS.tsv", sep = "\t", dec = ".", header = TRUE)
+metadata <- read.table(file = "Final_ITS/metadata_ITS.txt", sep = "\t", dec = ".", header = TRUE)
+refseq <- readDNAStringSet("Final_ITS/dna-sequences-ITS.fasta")
+
+# Clean taxonomy table
+tax_table_ITS <- tax_table_ITS %>%
+  mutate(Taxon = gsub("([dpcofgs]__)", "", Taxon)) %>%
+  separate(Taxon, into = c("Kingdom","Phylum","Class","Order","Family","Genus","Species"), sep = ";") %>%
+  mutate(Kingdom = "All")
+
+# Rename ASVs consistently
+asv_ids <- paste0("FASV", seq_len(nrow(asv_table_ITS)))
+rownames(asv_table_ITS) <- asv_ids
+rownames(tax_table_ITS) <- asv_ids
+names(refseq) <- asv_ids
+
+# Remove old ID columns if present
+asv_table_ITS <- asv_table_ITS[,-1]
+tax_table_ITS <- tax_table_ITS[,-1]
+
+# Prepare phyloseq components
+OTU <- otu_table(as.matrix(asv_table_ITS), taxa_are_rows = TRUE)
+TAX <- tax_table(as.matrix(tax_table_ITS))
+rownames(metadata) <- metadata[,1]
+metadata <- metadata[,-1]
+SAM <- sample_data(metadata)
+REFSEQ <- refseq
+
+# Build phyloseq object
+physeq_ITS <- phyloseq(OTU, TAX, SAM, REFSEQ)
+
+physeq_ITS
+```
+## 1.2 - Filtering  phyloseq objects
+
+### 1.2-1 16SrRNA
+* Phyloseq object composition before filtering
+
+phyloseq-class experiment-level object
+otu_table()   OTU Table:         [ 8380 taxa and 25 samples ]
+sample_data() Sample Data:       [ 25 samples by 5 sample variables ]
+tax_table()   Taxonomy Table:    [ 8380 taxa by 8 taxonomic ranks ]
+refseq()      DNAStringSet:      [ 8380 reference sequences ]
+
+
+```{r, echo=FALSE, results='hide', eval = FALSE}
+# Calculate the number of taxa before filtering
+num_taxa_before <- ntaxa(physeq_16S)
+
+#Filtered ASV based on taxonomy
+physeq_16S_1a <- subset_taxa(physeq_16S,!is.na(tax_table(physeq_16S)[, "Phylum"]) & tax_table(physeq_16S)[, "Phylum"] != "Unassigned") #Before 8373, After  7846, don't use to keep everything
+physeq_16S_1b <- subset_taxa(physeq_16S, !Order %in% c("Chloroplast"))  #Before 8379, After  8380
+
+num_taxa_after1 <- data.frame(Before_filtering = ntaxa(physeq_16S), Remove_Unassigned = ntaxa(physeq_16S_1a), remove_chloroplast = ntaxa(physeq_16S_1b))
+
+#Before after filtering
+# Calculate the total number of reads per sample
+total_reads <- colSums(otu_table(physeq_16S))
+total_reads_Assigned <- colSums(otu_table(physeq_16S_1a))
+total_reads_After_Chloro <- colSums(otu_table(physeq_16S_1b))
+
+#Gather
+total_filtering_reads <- cbind(row.names(total_reads), total_reads, total_reads_Assigned, total_reads_After_Chloro)
+total_filtering_reads_f <- merge(total_filtering_reads, design, by = "row.names")
+write.csv(total_filtering_reads, file = "total_filtering_reads.csv", row.names = FALSE)
+
+# Create a data frame with sample IDs and total reads
+reads_per_sample_table <- data.frame(SampleID = sample_names(physeq_16S_1b), TotalReads = total_reads,TotalReads_Assigned = total_reads_Assigned, TotalReads_After_Chloro =  total_reads_After_Chloro, Percent_after_filtering = 100*total_reads_After_Chloro/total_reads)
+
+#Subset Samples (remove sample with less than 1000 counts)
+physeq_16S_2 <- prune_samples(sample_sums(physeq_16S_1b)>=1000, physeq_16S_1b) #Before 25, After  24, remove the control water
+physeq_16S_3 <- filter_taxa(physeq_16S_2, function(x) sum(x) > 0, TRUE) #Before 8379 After 8373
+
+#Remove extremely rare ASVs
+#Occurence, remove ASV present in a single sample
+physeq_16S_4 <- filter_taxa(physeq_16S_3, function(x) sum(x > 0) > 1, TRUE) #Before 8373 After 2210
+
+#Abundance filter (not applied)
+#physeq_16S_5 <- transform_sample_counts(physeq_16S_4, function(x) ifelse((x / sum(x)) >= 0.001, x, 0))
+#physeq_16S_5 <- filter_taxa(physeq_16S_5, function(x) sum(x) > 0, TRUE)
+
+#Save RDS
+saveRDS(physeq_16S_4, "physeq_16S_clean.rds") #2186 taxa and 24 samples
+```
+
+
+
+### 1.2-1-2 ITs data
+
+* Phyloseq object composition before filtering
+
+phyloseq-class experiment-level object
+otu_table()   OTU Table:         [ 162 taxa and 768 samples ]
+sample_data() Sample Data:       [ 768 samples by 7 sample variables ]
+tax_table()   Taxonomy Table:    [ 162 taxa by 8 taxonomic ranks ]
+refseq()      DNAStringSet:      [ 162 reference sequences ]
+
+
+```{r, echo=FALSE, results='hide', eval = FALSE}
+# Calculate the number of taxa before filtering
+num_taxa_before <- ntaxa(physeq_ITS)
+
+#Filtered ASV based on taxonomy
+physeq_ITS_1a <- subset_taxa(physeq_ITS,!is.na(tax_table(physeq_ITS)[, "Phylum"]) & tax_table(physeq_ITS)[, "Phylum"] != "Unassigned") #Before 1994, After  1120, don't use to keep everything
+
+#Subset Samples (remove sample with less than 1000 counts)
+physeq_ITS_2 <- prune_samples(sample_sums(physeq_ITS)>=1000, physeq_ITS_1b) #Before 25, After  25
+physeq_ITS_3 <- filter_taxa(physeq_ITS_2, function(x) sum(x) > 0, TRUE) #Before 1994 After 1994
+
+#Remove extremely rare ASVs
+#Occurence, remove ASV present in a single sample
+physeq_ITS_4 <- filter_taxa(physeq_ITS_3, function(x) sum(x > 0) > 1, TRUE) #Before 1994 After 420
+
+#Abundance filter (not applied)
+#physeq_ITS_5 <- transform_sample_counts(physeq_ITS_4, function(x) ifelse((x / sum(x)) >= 0.001, x, 0))
+#physeq_ITS_5 <- filter_taxa(physeq_ITS_5, function(x) sum(x) > 0, TRUE)
+
+#Remove Control S25
+physeq_ITS_5 <- subset_samples(physeq_ITS_4, Treatment != "Control") #Does not remove any taxa, Control is almost empty.
+
+#Save RDS
+saveRDS(physeq_ITS_5, "physeq_ITS_clean.rds") #2186 taxa and 24 samples
+```
+
+# 2 - Start community analysis   
+
+**After filtering**   
+16S dataset : 12469 taxa and 420 samples.   
+
+```{r echo=FALSE, message=FALSE}
+#Upload cleaned datasets
+library(phyloseq); packageVersion("phyloseq")
+d16S <- readRDS("physeq_16S_clean.rds") 
+dITS <- readRDS("physeq_ITS_clean.rds") 
+```
+
+## 2.1 - Sequencing depth
+
+We first assess the number of sequences per sample
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+#Assess sequencing depth
+library(data.table)
+sdt16S <- data.table(as(sample_data(d16S), "data.frame"),
+                     TotalReads = sample_sums(d16S), keep.rownames = TRUE)
+
+sdtITS <- data.table(as(sample_data(dITS), "data.frame"),
+                     TotalReads = sample_sums(dITS), keep.rownames = TRUE)
+```
+ 
+## 2.2 - Rarefaction    
+*(intercept x = 30000 reads, 999 steps)*.  
+Just loose one MF glucose sample which as really low number of reads = 4539
+```{r, echo=FALSE, message=FALSE, results="hide", fig.show='hide'}
+library("vegan")
+library(ggplot2)
+source("~/Documents/1-CR_SAVE/5-Script/Amplicon_sequencing/Rscripts/richness.R")
+
+#Order
+sample_data(d16S)$Treatment <- factor(sample_data(d16S)$Treatment, levels = Treatment_order)
+sample_data(d16S)$Microbes <- factor(sample_data(d16S)$Microbes, levels = Microbes_order)
+
+#16S
+rcurve16S <- ggrare(d16S,color = "Treatment",
+                    step = 999, 
+                    se = FALSE)  + labs (title = "16S rRNA gene") + geom_vline(xintercept=1000)
+
+rcurve16Sf <- rcurve16S + theme(strip.text.x = element_text(size = 12, color = "white"),
+        axis.title.x = element_text( size = 12, face = "bold"),
+        axis.title.y = element_text( size = 12, face = "bold"),
+        plot.title = element_text(size = 16),
+        axis.text.x = element_text(face = "bold"), 
+        axis.text.y = element_text(face = "bold"))+  
+    ylab ("Species richness") + xlab ("Sample size") + ggtitle("16S rRNA gene") + facet_grid(~Microbes+Treatment, scale = "free") +
+  scale_color_manual(values = treatment_colors) +
+  base_theme
+rcurve16Sf
+
+#Order
+sample_data(dITS)$Treatment <- factor(sample_data(dITS)$Treatment, levels = Treatment_order)
+sample_data(dITS)$Microbes <- factor(sample_data(dITS)$Microbes, levels = Microbes_order)
+
+#ITS
+rcurveITS <- ggrare(dITS,color = "Treatment",
+                    step = 999, 
+                    se = FALSE)  + labs (title = "ITS rRNA gene") + geom_vline(xintercept=1000)
+
+rcurveITSf <- rcurveITS + theme(strip.text.x = element_text(size = 12, color = "white"),
+        axis.title.x = element_text( size = 12, face = "bold"),
+        axis.title.y = element_text( size = 12, face = "bold"),
+        plot.title = element_text(size = 16),
+        axis.text.x = element_text(face = "bold"), 
+        axis.text.y = element_text(face = "bold"))+  
+    ylab ("Species richness") + xlab ("Sample size") + ggtitle("ITS rRNA gene") + facet_grid(~Microbes+Treatment, scale = "free") +
+  scale_color_manual(values = treatment_colors) +
+  base_theme
+rcurveITSf
+```
+
+```{r, echo=FALSE, message=FALSE}
+rcurve16Sf
+rcurveITSf
+```
+
+## 2.3 - Alpha diversity analysis
+
+**Normalization based on coverage:**         
+
+ 
+* This will rarefy you so that all your samples have the same coverage (and it tells you the minimum coverage of your dataset)[^1].           
+
+[^1]: Chao et al 2012, Chao et al 2014, Roswell et al 2021, doi: 10.1111/oik.07202. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, results="hide"}
+#Rarefy datasets
+r16S <- rarefy_even_depth(d16S, sample.size = 31000, rngseed = 900) 
+rITS <- rarefy_even_depth(dITS, sample.size = 46000, rngseed = 900) 
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, results="hide"}
+#16S
+#Table of alpha-diversity estimators
+table_r16S <- estimate_richness(r16S, split = TRUE, measures=c("Observed", "InvSimpson","Shannon"))
+
+#Bind design + table of alpha_div
+sdr16S <- sample_data(r16S)
+datar16S <- cbind(sample_data(sdr16S), table_r16S) 
+
+#ITS
+#Table of alpha-diversity estimators
+table_rITS <- estimate_richness(rITS, split = TRUE, measures=c("Observed", "InvSimpson","Shannon"))
+
+#Bind design + table of alpha_div
+sdrITS <- sample_data(rITS)
+datarITS <- cbind(sample_data(sdrITS), table_rITS) 
+```
+
+**Observed richness and Shannon diversity index**. 
+
+**16S**.   
+```{r, echo=FALSE, message=FALSE, results="hide"}
+#16S
+library(ggplot2)
+library(rstatix)
+library(ggpubr)
+
+#Calculate stats 
+#Observed
+stat_obs <- datar16S %>%
+  group_by(Microbes) %>%
+  wilcox_test(Observed ~ Treatment) %>%
+  #filter(group1 == "Water") %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance()
+
+stat_obs <- stat_obs %>%
+  add_xy_position(x = "Treatment")
+
+#Calculate stats 
+#Shannon
+stat_shannon <- datar16S %>%
+  group_by(Microbes) %>%
+  wilcox_test(Shannon ~ Treatment) %>%
+ # filter(group1 == "Water") %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance()
+
+stat_shannon <- stat_shannon %>%
+  add_xy_position(x = "Treatment")
+
+#Plot
+Plot_16S_Observed <- ggplot(data = datar16S,
+                            aes(x = Treatment, y = Observed, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 1) +
+  facet_wrap(~Microbes, scales = "free_y") +
+  scale_fill_manual(values = treatment_colors) +
+  ggpubr::stat_pvalue_manual(
+    stat_obs,
+    label = "p.adj.signif",
+    tip.length = 0.01,
+    hide.ns = TRUE
+  ) +
+  ylab("Observed ASV richness") +
+  xlab("genotype") +
+  ggtitle("16S rRNA") +
+  base_theme
+Plot_16S_Observed
+
+Plot_16S_Shannon <- ggplot(data = datar16S,
+                            aes(x = Treatment, y = Shannon, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 1) +
+  facet_wrap(~Microbes, scales = "free_y") +
+  scale_fill_manual(values = treatment_colors) +
+  ggpubr::stat_pvalue_manual(
+    stat_shannon,
+    label = "p.adj.signif",
+    tip.length = 0.01,
+    hide.ns = TRUE
+  ) +
+  ylab("Shannon Diversity") +
+  xlab("genotype") +
+  ggtitle("16S rRNA") +
+  base_theme
+Plot_16S_Shannon
+```
+
+
+**ITS**.     
+```{r, echo=FALSE, message=FALSE, results="hide"}
+#ITS
+library(ggplot2)
+library(rstatix)
+library(ggpubr)
+
+#Calculate stats 
+#Observed
+stat_obs <- datarITS %>%
+  group_by(Microbes) %>%
+  wilcox_test(Observed ~ Treatment) %>%
+  #filter(group1 == "Water") %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance()
+
+stat_obs <- stat_obs %>%
+  add_xy_position(x = "Treatment")
+
+#Calculate stats 
+#Shannon
+stat_shannon <- datarITS %>%
+  group_by(Microbes) %>%
+  wilcox_test(Shannon ~ Treatment) %>%
+ # filter(group1 == "Water") %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance()
+
+stat_shannon <- stat_shannon %>%
+  add_xy_position(x = "Treatment")
+
+#Plot
+Plot_ITS_Observed <- ggplot(data = datarITS,
+                            aes(x = Treatment, y = Observed, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 1) +
+  facet_wrap(~Microbes, scales = "free_y") +
+  scale_fill_manual(values = treatment_colors) +
+  ggpubr::stat_pvalue_manual(
+    stat_obs,
+    label = "p.adj.signif",
+    tip.length = 0.01,
+    hide.ns = TRUE
+  ) +
+  ylab("Observed ASV richness") +
+  xlab("genotype") +
+  ggtitle("ITS") +
+  base_theme
+Plot_ITS_Observed
+
+Plot_ITS_Shannon <- ggplot(data = datarITS,
+                            aes(x = Treatment, y = Shannon, fill = Treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 1) +
+  facet_wrap(~Microbes, scales = "free_y") +
+  scale_fill_manual(values = treatment_colors) +
+  ggpubr::stat_pvalue_manual(
+    stat_shannon,
+    label = "p.adj.signif",
+    tip.length = 0.01,
+    hide.ns = TRUE
+  ) +
+  ylab("Shannon Diversity") +
+  xlab("genotype") +
+  ggtitle("ITS") +
+  base_theme
+Plot_ITS_Shannon
+```
+
+## 2.4  Permanova Habitats
+
+**16S**.  
+```{r, echo=FALSE, message=FALSE}
+library(phyloseq)
+library(vegan)
+library(ggplot2)
+library(dplyr)
+library(pairwiseAdonis)
+library(multcompView)
+library(tidyr)
+library(cowplot)
+
+
+# Variability function
+variability_table <- function(cca) {
+  chi <- c(cca$tot.chi, cca$CCA$tot.chi, cca$CA$tot.chi)
+  data.frame(
+    inertia = chi,
+    proportion = chi / chi[1],
+    row.names = c("total", "constrained", "unconstrained")
+  )
+}
+
+# Letters from pairwise PERMANOVA
+get_letters <- function(bray, mdata){
+  pw <- pairwise.adonis2(bray ~ Treatment, data=mdata, perm=999)
+  pw_table <- do.call(rbind, lapply(names(pw)[-1], function(x){
+    df <- pw[[x]]
+    data.frame(contrast=x, p.value=df$`Pr(>F)`[1])
+  }))
+  pw_table <- pw_table %>% separate(contrast, into=c("group1","group2"), sep="_vs_")
+  all_groups <- unique(c(pw_table$group1, pw_table$group2))
+  pw_matrix <- matrix(1, nrow=length(all_groups), ncol=length(all_groups),
+                      dimnames=list(all_groups, all_groups))
+  for(i in 1:nrow(pw_table)){
+    g1 <- pw_table$group1[i]; g2 <- pw_table$group2[i]
+    pw_matrix[g1,g2] <- pw_table$p.value[i]
+    pw_matrix[g2,g1] <- pw_table$p.value[i]
+  }
+  letters_df <- data.frame(Treatment=names(multcompLetters(pw_matrix<0.05)$Letters),
+                           Letters=multcompLetters(pw_matrix<0.05)$Letters)
+  return(letters_df)
+}
+
+# Centroids
+get_centroids <- function(df, letters_df){
+  df %>% group_by(Treatment, Microbes) %>%
+    summarize(wCAP1=mean(wCAP1), wCAP2=mean(wCAP2)) %>%
+    left_join(letters_df, by="Treatment")
+}
+
+# Loop over Microbes
+plot_list <- list()
+for(mb in c("MF","FSC")){
+  df_CAP <- subset_samples(r16S, Microbes==mb)
+  bray <- phyloseq::distance(df_CAP, method="bray")
+  mdata <- as(sample_data(df_CAP), "data.frame")
+  Cap <- capscale(bray ~ Treatment, data=mdata)
+  var_tbl <- variability_table(Cap)
+  eigenvalues <- Cap$CCA$eig / sum(Cap$CCA$eig)
+  adonis_res <- adonis2(bray ~ Treatment, data=mdata, perm=999)
+
+  # Ordination points
+  points <- data.frame(
+    uCAP1 = Cap$CCA$u[,1], uCAP2 = Cap$CCA$u[,2],
+    wCAP1 = Cap$CCA$wa[,1], wCAP2 = Cap$CCA$wa[,2],
+    CA1 = Cap$CA$u[,1], CA2 = Cap$CA$u[,2]
+  )
+  df_points <- cbind(points, mdata[match(rownames(points), rownames(mdata)),])
+
+  # Letters & centroids
+  letters_df <- get_letters(bray, mdata)
+  centroids <- get_centroids(df_points, letters_df)
+  centroids$Microbes <- mb
+
+  # Plot
+  p <- ggplot(df_points, aes(x=wCAP1, y=wCAP2, color=Treatment, fill=Treatment, shape=Microbes)) +
+    geom_segment(data=df_points %>% left_join(centroids %>% select(Treatment,wCAP1,wCAP2), by="Treatment"),
+                 aes(x=wCAP1.x, y=wCAP2.x, xend=wCAP1.y, yend=wCAP2.y),
+                 color="gray70", alpha=0.5) +
+    geom_point(alpha=0.7, size=1.5) +
+    geom_point(data=centroids, aes(x=wCAP1, y=wCAP2, fill=Treatment),
+               shape=21, color="black", size=4, stroke=1.2) +
+    geom_text(data=centroids, aes(x=wCAP1, y=wCAP2, label=Letters, color=Treatment),
+              fontface="bold", size=5, vjust=-1) +
+    labs(x=sprintf("wCPCoA 1 (%.2f%%)",100*eigenvalues[1]),
+         y=sprintf("wCPCoA 2 (%.2f%%)",100*eigenvalues[2]),
+         title=sprintf("%.2f%% of variance; p=%.3f",100*var_tbl["constrained","proportion"],
+                       adonis_res$`Pr(>F)`[1])) +
+      scale_color_manual(values = treatment_colors) +
+      scale_fill_manual(values = treatment_colors) +
+    facet_grid(~Microbes, labeller = as_labeller(labels)) +
+    base_theme
+  plot_list[[mb]] <- p
+}
+
+# Combine plots
+Final_plot_16S_Root <- plot_grid(plot_list$MF, plot_list$FSC, ncol=1, nrow=2, rel_heights=c(2,2))
+Final_plot_16S_Root
+```
+
+**ITS**.  
+```{r, echo=FALSE, message=FALSE}
+library(phyloseq)
+library(vegan)
+library(ggplot2)
+library(dplyr)
+library(pairwiseAdonis)
+library(multcompView)
+library(tidyr)
+library(cowplot)
+
+
+# Variability function
+variability_table <- function(cca) {
+  chi <- c(cca$tot.chi, cca$CCA$tot.chi, cca$CA$tot.chi)
+  data.frame(
+    inertia = chi,
+    proportion = chi / chi[1],
+    row.names = c("total", "constrained", "unconstrained")
+  )
+}
+
+# Letters from pairwise PERMANOVA
+get_letters <- function(bray, mdata){
+  pw <- pairwise.adonis2(bray ~ Treatment, data=mdata, perm=999)
+  pw_table <- do.call(rbind, lapply(names(pw)[-1], function(x){
+    df <- pw[[x]]
+    data.frame(contrast=x, p.value=df$`Pr(>F)`[1])
+  }))
+  pw_table <- pw_table %>% separate(contrast, into=c("group1","group2"), sep="_vs_")
+  all_groups <- unique(c(pw_table$group1, pw_table$group2))
+  pw_matrix <- matrix(1, nrow=length(all_groups), ncol=length(all_groups),
+                      dimnames=list(all_groups, all_groups))
+  for(i in 1:nrow(pw_table)){
+    g1 <- pw_table$group1[i]; g2 <- pw_table$group2[i]
+    pw_matrix[g1,g2] <- pw_table$p.value[i]
+    pw_matrix[g2,g1] <- pw_table$p.value[i]
+  }
+  letters_df <- data.frame(Treatment=names(multcompLetters(pw_matrix<0.05)$Letters),
+                           Letters=multcompLetters(pw_matrix<0.05)$Letters)
+  return(letters_df)
+}
+
+# Centroids
+get_centroids <- function(df, letters_df){
+  df %>% group_by(Treatment, Microbes) %>%
+    summarize(wCAP1=mean(wCAP1), wCAP2=mean(wCAP2)) %>%
+    left_join(letters_df, by="Treatment")
+}
+
+# Loop over Microbes
+plot_list <- list()
+for(mb in c("MF","FSC")){
+  df_CAP <- subset_samples(rITS, Microbes==mb)
+  bray <- phyloseq::distance(df_CAP, method="bray")
+  mdata <- as(sample_data(df_CAP), "data.frame")
+  Cap <- capscale(bray ~ Treatment, data=mdata)
+  var_tbl <- variability_table(Cap)
+  eigenvalues <- Cap$CCA$eig / sum(Cap$CCA$eig)
+  adonis_res <- adonis2(bray ~ Treatment, data=mdata, perm=999)
+
+  # Ordination points
+  points <- data.frame(
+    uCAP1 = Cap$CCA$u[,1], uCAP2 = Cap$CCA$u[,2],
+    wCAP1 = Cap$CCA$wa[,1], wCAP2 = Cap$CCA$wa[,2],
+    CA1 = Cap$CA$u[,1], CA2 = Cap$CA$u[,2]
+  )
+  df_points <- cbind(points, mdata[match(rownames(points), rownames(mdata)),])
+
+  # Letters & centroids
+  letters_df <- get_letters(bray, mdata)
+  centroids <- get_centroids(df_points, letters_df)
+  centroids$Microbes <- mb
+
+  # Plot
+  p <- ggplot(df_points, aes(x=wCAP1, y=wCAP2, color=Treatment, fill=Treatment, shape=Microbes)) +
+    geom_segment(data=df_points %>% left_join(centroids %>% select(Treatment,wCAP1,wCAP2), by="Treatment"),
+                 aes(x=wCAP1.x, y=wCAP2.x, xend=wCAP1.y, yend=wCAP2.y),
+                 color="gray70", alpha=0.5) +
+    geom_point(alpha=0.7, size=1.5) +
+    geom_point(data=centroids, aes(x=wCAP1, y=wCAP2, fill=Treatment),
+               shape=21, color="black", size=4, stroke=1.2) +
+    geom_text(data=centroids, aes(x=wCAP1, y=wCAP2, label=Letters, color=Treatment),
+              fontface="bold", size=5, vjust=-1) +
+    labs(x=sprintf("wCPCoA 1 (%.2f%%)",100*eigenvalues[1]),
+         y=sprintf("wCPCoA 2 (%.2f%%)",100*eigenvalues[2]),
+         title=sprintf("%.2f%% of variance; p=%.3f",100*var_tbl["constrained","proportion"],
+                       adonis_res$`Pr(>F)`[1])) +
+      scale_color_manual(values = treatment_colors) +
+      scale_fill_manual(values = treatment_colors) +
+    facet_grid(~Microbes, labeller = as_labeller(labels)) +
+    base_theme
+  plot_list[[mb]] <- p
+}
+
+# Combine plots
+Final_plot_ITS_Root <- plot_grid(plot_list$MF, plot_list$FSC, ncol=1, nrow=2, rel_heights=c(2,2))
+Final_plot_ITS_Root
+```
+
+## 2.5 - Taxonomic composition
+
+### 2.5.1 - Prevalence/Abundance
+Evaluation of the taxonomic composition    
+
+```{r, echo=FALSE, message=FALSE}
+
+#16S
+library(ggplot2)
+#Compute prevalence of each feature, store as data.frame
+prevdf16S <- apply(X = otu_table(d16S),
+                   MARGIN = ifelse(taxa_are_rows(d16S), yes = 1, no = 2),
+                   FUN = function(x){sum(x > 0)})
+
+#Add taxonomy and total read counts to this data.frame
+prevdf16S <- data.frame(Prevalence = prevdf16S, # Issue here with species name NA
+                        TotalAbundance = taxa_sums(d16S),
+                        tax_table(d16S))
+
+#Taxa prevalence vs total count
+plot16S <- ggplot(prevdf16S, aes(TotalAbundance, Prevalence / nsamples(d16S),color=Phylum)) +
+  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) + geom_point(size = 2, alpha = 0.7) +
+  scale_x_log10() +  xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") + ggtitle ("16S rRNA") +
+  facet_wrap(~Phylum) + theme(strip.text.x = element_text(size = 10, color = "white"),
+        axis.title.x = element_text(size = 11, face = "bold"),
+        axis.title.y = element_text(size = 11, face = "bold"),
+        plot.title = element_text(size = 12, face = "bold"),
+        axis.text.x = element_text(angle = 70, hjust=1), 
+        axis.text.y = element_text()) +
+  base_theme
+plot16S
+
+
+#ITS
+library(ggplot2)
+#Compute prevalence of each feature, store as data.frame
+prevdfITS <- apply(X = otu_table(dITS),
+                   MARGIN = ifelse(taxa_are_rows(dITS), yes = 1, no = 2),
+                   FUN = function(x){sum(x > 0)})
+
+#Add taxonomy and total read counts to this data.frame
+prevdfITS <- data.frame(Prevalence = prevdfITS, # Issue here with species name NA
+                        TotalAbundance = taxa_sums(dITS),
+                        tax_table(dITS))
+
+#Taxa prevalence vs total count
+plotITS <- ggplot(prevdfITS, aes(TotalAbundance, Prevalence / nsamples(dITS),color=Phylum)) +
+  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) + geom_point(size = 2, alpha = 0.7) +
+  scale_x_log10() +  xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") + ggtitle ("ITS rRNA") +
+  facet_wrap(~Phylum) + theme(strip.text.x = element_text(size = 10, color = "white"),
+        axis.title.x = element_text(size = 11, face = "bold"),
+        axis.title.y = element_text(size = 11, face = "bold"),
+        plot.title = element_text(size = 12, face = "bold"),
+        axis.text.x = element_text(angle = 70, hjust=1), 
+        axis.text.y = element_text()) +
+  base_theme
+plotITS
+
+```
+
+### 2.5.2 - Relative abundance per sample.   
+Evaluation of the taxonomic composition     
+```{r, echo=FALSE, message=FALSE}
+library(reshape2); packageVersion("reshape2")
+source("~/Documents/1-CR_SAVE/5-Script/Amplicon_sequencing/Rscripts/graphical_methods.R")
+
+#Color
+chill_palette_12 <- c(
+  "#4C6A92", # muted blue
+  "#6C9A8B", # desaturated teal
+  "#A3B18A", # sage green
+  "#DDBEA9", # sand
+  "#D9A066", # warm brown
+  "#8E7DBE", # soft purple
+  "#E07A5F", # muted coral
+  "#A8D8B9", # soft green
+  "#6B6F8F", # deep indigo
+  "#FAEED6", # pale amber
+  "#A8DADC", # light aqua
+  "#C9ADA7"  # dusty rose
+)
+
+#16S
+library(reshape2)
+#Plot
+tax16S <- plot_composition(r16S, "Kingdom", "All", "Family", numberOfTaxa=10, fill="Family") + 
+  facet_grid(~ Microbes + Treatment, scales="free_x") +
+theme(strip.text.x = element_text(size = 12, color = "white"),
+        axis.title.y = element_text( size = 12, face = "bold"),
+        plot.title = element_text(size = 16),
+        axis.text.y = element_text(face = "bold"),
+        axis.text.x = element_blank())+  
+  ylab ("Relative abundance (%)") + 
+  ggtitle("Taxonomy - 16S") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    scale_fill_manual(values = chill_palette_12) +
+    scale_color_manual(values = chill_palette_12) +
+  base_theme
+
+tax16S
+
+taxITS <- plot_composition(rITS, "Kingdom", "All", "Family", numberOfTaxa=10, fill="Family") + 
+  facet_grid(~ Microbes + Treatment, scales="free_x") +
+theme(strip.text.x = element_text(size = 12, color = "white"),
+        axis.title.y = element_text( size = 12, face = "bold"),
+        plot.title = element_text(size = 16),
+        axis.text.y = element_text(face = "bold"),
+        axis.text.x = element_blank())+  
+  ylab ("Relative abundance (%)") + 
+  ggtitle("Taxonomy - ITS") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+      scale_fill_manual(values = chill_palette_12) +
+    scale_color_manual(values = chill_palette_12) +
+  base_theme
+
+taxITS
+```
+#Heat map + stats based on abundance
+
+```{r, echo=FALSE, message=FALSE}
+library(phyloseq)
+library(tidyverse)
+library(pheatmap)
+library(FSA)
+library(rcompanion)
+
+# 1. EXTRACT OTU TABLE
+otu <- as.data.frame(t(otu_table(rITS)))
+
+# 2. ADD METADATA
+meta <- as.data.frame(sample_data(rITS))
+meta$SampleID <- rownames(meta)
+
+otu$SampleID <- rownames(otu)
+
+df_long <- otu %>%
+  pivot_longer(-SampleID, names_to = "ASV", values_to = "Abundance") %>%
+  left_join(meta, by = "SampleID")
+
+# 3. ADD TAXONOMY (IMPORTANT)
+Taxonomy_ITS <- as.data.frame(tax_table(rITS))
+Taxonomy_ITS$ASV <- rownames(Taxonomy_ITS)
+
+df_long <- df_long %>%
+  left_join(Taxonomy_ITS, by = "ASV")
+
+# CREATE LABEL
+df_long$ASV_Species <- paste0(df_long$ASV, "_", df_long$Species)
+
+# 4. KEEP ONLY FSC
+df_long_FSC <- subset(df_long, Microbes %in% c("FSC"))
+
+# 5. KRUSKAL-WALLIS FILTER
+stats_asv <- df_long_FSC %>%
+  group_by(ASV_Species) %>%
+  summarise(
+    pvalue = kruskal.test(Abundance ~ Treatment)$p.value,
+    .groups = "drop"
+  )
+
+sig_ASVs <- stats_asv %>%
+  filter(!is.na(pvalue), pvalue < 0.05) %>%
+  pull(ASV_Species)
+
+df_sig <- df_long_FSC %>%
+  filter(ASV_Species %in% sig_ASVs)
+
+# 6. MATRIX (MEAN ABUNDANCE)
+mat <- df_sig %>%
+  group_by(Treatment, ASV_Species) %>%
+  summarise(Abundance = mean(Abundance), .groups = "drop") %>%
+  pivot_wider(names_from = ASV_Species, values_from = Abundance) %>%
+  column_to_rownames("Treatment") %>%
+  as.matrix()
+
+mat[is.na(mat)] <- 0
+mat <- log1p(mat)
+
+# 7. DUNN TEST + LETTERS
+letters_df <- df_sig %>%
+  group_by(ASV_Species) %>%
+  summarise(
+    model = list(
+      tryCatch(
+        dunnTest(Abundance ~ Treatment, method = "bh")$res,
+        error = function(e) NULL
+      )
+    ),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    letters = map(model, ~ {
+      if (is.null(.x) || nrow(.x) == 0) return(NULL)
+
+      rcompanion::cldList(
+        P.adj ~ Comparison,
+        data = .x,
+        threshold = 0.05
+      )
+    })
+  )
+
+# 8. BUILD LETTER MATRIX
+treatments <- unique(df_sig$Treatment)
+asvs <- unique(df_sig$ASV_Species)
+
+letter_mat <- matrix("",
+                     nrow = length(treatments),
+                     ncol = length(asvs))
+
+rownames(letter_mat) <- treatments
+colnames(letter_mat) <- asvs
+
+for (i in seq_len(nrow(letters_df))) {
+
+  asv <- letters_df$ASV_Species[i]
+  letters <- letters_df$letters[[i]]
+
+  if (!is.null(letters) && nrow(letters) > 0) {
+
+    for (j in seq_len(nrow(letters))) {
+
+      tr <- letters$Group[j]
+      letter_mat[tr, asv] <- letters$Letter[j]
+
+    }
+  }
+}
+
+
+
+
+# 9. HEATMAP (STORE RESULT)
+HM <- pheatmap(
+  mat,
+  scale = "column",
+  color = colorRampPalette(c("darkblue", "white", "darkred"))(100),
+  clustering_distance_rows = "euclidean",
+  clustering_distance_cols = "euclidean",
+  clustering_method = "complete",
+  fontsize_row = 12,
+  fontsize_col = 8,
+  display_numbers = letter_mat,
+  number_color = "black",
+  main = "FSC ASV (Species) abundance + Dunn letters"
+)
+
+# 10. FIX LETTER ALIGNMENT AFTER CLUSTERING
+row_order <- HM$tree_row$labels
+col_order <- HM$tree_col$labels
+
+mat_ordered <- mat[row_order, col_order]
+
+letter_mat_ordered <- letter_mat[row_order, col_order]
+
+# redraw correctly aligned heatmap
+HM <- pheatmap(
+  mat_ordered,
+  scale = "column",
+  color = colorRampPalette(c("#3B4CC0", "white", "#B40426"))(100),
+    border_color = "black",
+  clustering_distance_rows = "euclidean",
+  clustering_distance_cols = "euclidean",
+  clustering_method = "complete",
+  fontsize_row = 12,
+  fontsize_col = 8,
+  display_numbers = letter_mat_ordered,
+  number_color = "black",
+  main = "FSC ASV (Species) abundance + Dunn letters"
+)
+HM
+```
+
+```{r, echo=FALSE, message=FALSE}
+Plot_16S_Observed
+Plot_16S_Shannon
+
+Plot_ITS_Observed
+Plot_ITS_Shannon
+
+Final_plot_16S_Root
+Final_plot_ITS_Root
+
+tax16S
+taxITS
+```
+
+
+---
+END
+---
+
+
+
